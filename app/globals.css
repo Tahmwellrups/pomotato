@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Warm, cozy palette (potato-skin amber accent, cream ground). Themes and
+     a light/dark toggle are out of scope for this milestone (see
+     docs/PLAN.md milestone 4), so there is a single default theme for now. */
+  --background: #fbf4ea;
+  --foreground: #2b2017;
 }
 
 @theme inline {
@@ -12,15 +15,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Keyboard-only focus states for native controls that don't already get a
+   focus-visible utility class applied directly (e.g. radio inputs, before
+   their peer sibling takes over the visible ring). */
+:focus-visible {
+  outline: 2px solid #b45309;
+  outline-offset: 2px;
 }
