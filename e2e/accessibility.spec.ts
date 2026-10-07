@@ -126,13 +126,21 @@ test.describe("Accessibility - axe-core checks", () => {
   });
 
   test("live region for announcements is present and properly marked", async ({ page }) => {
-    const liveRegion = page.locator('[role="status"]');
+    // Scoped to the timer's own sr-only announcement region: an unscoped
+    // '[role="status"]' locator is ambiguous once the task list's and
+    // current-task card's own "Loading…" text (also role="status") are in
+    // the DOM — a strict-mode violation that's timing-dependent on a cold load.
+    const liveRegion = page.locator('p.sr-only[role="status"]');
     await expect(liveRegion).toBeVisible();
     await expect(liveRegion).toHaveAttribute("aria-live", "polite");
   });
 
   test("live region is empty while timer is running", async ({ page }) => {
-    const liveRegion = page.locator('[role="status"]');
+    // Scoped to the timer's own sr-only announcement region: an unscoped
+    // '[role="status"]' locator is ambiguous once the task list's and
+    // current-task card's own "Loading…" text (also role="status") are in
+    // the DOM — a strict-mode violation that's timing-dependent on a cold load.
+    const liveRegion = page.locator('p.sr-only[role="status"]');
     const startButton = page.locator("button:has-text('Start')");
 
     // Start the timer
@@ -148,7 +156,11 @@ test.describe("Accessibility - axe-core checks", () => {
   });
 
   test("live region contains completion text after real in-session completion", async ({ page }) => {
-    const liveRegion = page.locator('[role="status"]');
+    // Scoped to the timer's own sr-only announcement region: an unscoped
+    // '[role="status"]' locator is ambiguous once the task list's and
+    // current-task card's own "Loading…" text (also role="status") are in
+    // the DOM — a strict-mode violation that's timing-dependent on a cold load.
+    const liveRegion = page.locator('p.sr-only[role="status"]');
     const startButton = page.locator("button:has-text('Start')");
 
     // Start the timer
@@ -196,8 +208,139 @@ test.describe("Accessibility - axe-core checks", () => {
     await page.waitForTimeout(500);
 
     // Live region should be empty (no announcement on reload)
-    const liveRegion = page.locator('[role="status"]');
+    // Scoped to the timer's own sr-only announcement region: an unscoped
+    // '[role="status"]' locator is ambiguous once the task list's and
+    // current-task card's own "Loading…" text (also role="status") are in
+    // the DOM — a strict-mode violation that's timing-dependent on a cold load.
+    const liveRegion = page.locator('p.sr-only[role="status"]');
     const liveRegionText = await liveRegion.textContent();
     expect(liveRegionText).toBe("");
+  });
+
+  test.describe("Task List - axe-core checks", () => {
+    test("no axe violations: empty task list", async ({ page }) => {
+      await page.goto("/");
+      // Empty list should show just the add form
+      const results = await new AxeBuilder({ page }).analyze();
+
+      const seriousViolations = (results.violations || []).filter(
+        (v) => v.impact === "critical" || v.impact === "serious"
+      );
+
+      expect(seriousViolations).toHaveLength(0);
+    });
+
+    test("no axe violations: 3 tasks, none pinned", async ({ page }) => {
+      const titleInput = page.locator('input[id*="-title"]').first();
+
+      await titleInput.fill("TaskOne");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+      await titleInput.fill("TaskTwo");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+      await titleInput.fill("TaskThree");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(200);
+
+      const results = await new AxeBuilder({ page }).analyze();
+
+      const seriousViolations = (results.violations || []).filter(
+        (v) => v.impact === "critical" || v.impact === "serious"
+      );
+
+      expect(seriousViolations).toHaveLength(0);
+    });
+
+    test("no axe violations: 3 tasks, one pinned", async ({ page }) => {
+      const titleInput = page.locator('input[id*="-title"]').first();
+
+      await titleInput.fill("Alpha");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+      await titleInput.fill("Bravo");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+      await titleInput.fill("Charlie");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+
+      // Pin one task
+      const taskRow = page.locator("ul li").filter({ hasText: "Alpha" }).first();
+      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
+      await pinButton.click();
+      await page.waitForTimeout(200);
+
+      const results = await new AxeBuilder({ page }).analyze();
+
+      const seriousViolations = (results.violations || []).filter(
+        (v) => v.impact === "critical" || v.impact === "serious"
+      );
+
+      expect(seriousViolations).toHaveLength(0);
+    });
+
+    test("no axe violations: edit in progress", async ({ page }) => {
+      const titleInput = page.locator('input[id*="-title"]').first();
+
+      await titleInput.fill("EditableTask");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+
+      // Click edit button to enter edit mode
+      const taskRow = page.locator("ul li").filter({ hasText: "EditableTask" }).first();
+      const editButton = taskRow.getByRole("button", { name: /^Edit/ });
+      await editButton.click();
+      await page.waitForTimeout(200);
+
+      const results = await new AxeBuilder({ page }).analyze();
+
+      const seriousViolations = (results.violations || []).filter(
+        (v) => v.impact === "critical" || v.impact === "serious"
+      );
+
+      expect(seriousViolations).toHaveLength(0);
+    });
+
+    test("no axe violations: validation errors showing", async ({ page }) => {
+      const titleInput = page.locator('input[id*="-title"]').first();
+      const emojiInput = page.locator('input[id*="-emoji"]').first();
+      const submitButton = page.getByRole("button", { name: "Add" }).first();
+
+      // Try to submit with invalid data
+      await emojiInput.fill("invalid-emoji");
+      await submitButton.click();
+      await page.waitForTimeout(200);
+
+      const results = await new AxeBuilder({ page }).analyze();
+
+      const seriousViolations = (results.violations || []).filter(
+        (v) => v.impact === "critical" || v.impact === "serious"
+      );
+
+      expect(seriousViolations).toHaveLength(0);
+    });
+
+    test("no axe violations: delete confirmation open", async ({ page }) => {
+      const titleInput = page.locator('input[id*="-title"]').first();
+
+      await titleInput.fill("DeleteMe");
+      await titleInput.press("Enter");
+      await page.waitForTimeout(100);
+
+      // Click delete button to open confirmation
+      const taskRow = page.locator("ul li").filter({ hasText: "DeleteMe" }).first();
+      const deleteButton = taskRow.getByRole("button", { name: /^Delete/ });
+      await deleteButton.click();
+      await page.waitForTimeout(200);
+
+      const results = await new AxeBuilder({ page }).analyze();
+
+      const seriousViolations = (results.violations || []).filter(
+        (v) => v.impact === "critical" || v.impact === "serious"
+      );
+
+      expect(seriousViolations).toHaveLength(0);
+    });
   });
 });

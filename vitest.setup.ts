@@ -1,3 +1,6 @@
+import "fake-indexeddb/auto";
+import "@testing-library/jest-dom";
+
 // Mock localStorage for unit tests
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
