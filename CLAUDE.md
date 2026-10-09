@@ -5,7 +5,7 @@
 A local-first, cozy Pomodoro focus dashboard with an original potato mascot. No server database in v1; "backend" means the Dexie data layer and Next.js route handlers.
 
 ## Stack
-Next.js (App Router), TypeScript strict, Tailwind, Zustand + `persist`, Dexie (IndexedDB), dnd-kit, Recharts, Vitest + Testing Library, Playwright. Ask before changing this stack.
+Next.js (App Router), TypeScript strict, Tailwind, shadcn/ui (Radix UI primitives + class-variance-authority under the hood, milestone 3 onward only), Zustand + `persist`, Dexie (IndexedDB), dnd-kit, Recharts, Vitest + Testing Library, Playwright. Ask before changing this stack.
 
 ## Commands
 - `npm run dev` — dev server
@@ -19,6 +19,7 @@ Next.js (App Router), TypeScript strict, Tailwind, Zustand + `persist`, Dexie (I
 No `src/` — app code lives at the repo root (create-next-app default; see [docs/DECISIONS.md](docs/DECISIONS.md)).
 - `app/` — routes (App Router)
 - `components/` — shared UI components, PascalCase filenames
+- `components/ui/` — shadcn-generated components (milestone 3 onward); the existing flat `components/*.tsx` files stay where they are, untouched
 - `lib/db/` — Dexie schema, repositories, migrations, export/import (backend-owned)
 - `lib/` — other shared utilities
 - `hooks/` — custom React hooks, `use-` prefix

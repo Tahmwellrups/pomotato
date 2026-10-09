@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CUSTOM_MINUTES_MAX, CUSTOM_MINUTES_MIN, DEFAULT_CUSTOM_MINUTES } from "./constants";
+import { legacyRunId } from "@/lib/db";
+import { logRunCompletion } from "./log-completion";
 import { fullDurationMs } from "./time";
 import type { PersistedTimerState, TimerMode, TimerStatus } from "./types";
 
 const STORAGE_KEY = "pomotato-timer";
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 const defaultPersistedState: PersistedTimerState = {
   mode: "focus",
@@ -13,6 +15,8 @@ const defaultPersistedState: PersistedTimerState = {
   status: "idle",
   endTimestamp: null,
   pausedRemainingMs: null,
+  runId: null,
+  startedAt: null,
 };
 
 interface TimerStoreState extends PersistedTimerState {
@@ -34,7 +38,9 @@ interface TimerStoreActions {
 
 export type TimerStore = TimerStoreState & TimerStoreActions;
 
-function isPersistedTimerState(value: unknown): value is PersistedTimerState {
+type VersionOneTimerState = Omit<PersistedTimerState, "runId" | "startedAt">;
+
+function isVersionOneTimerState(value: unknown): value is VersionOneTimerState {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   const validModes: TimerMode[] = ["focus", "shortBreak", "longBreak", "custom"];
@@ -69,6 +75,28 @@ function isPersistedTimerState(value: unknown): value is PersistedTimerState {
   return true;
 }
 
+function isPersistedTimerState(value: unknown): value is PersistedTimerState {
+  if (!isVersionOneTimerState(value)) return false;
+  const candidate = value as unknown as Record<string, unknown>;
+  const { runId, startedAt } = candidate;
+  if (runId !== null && (typeof runId !== "string" || runId === "")) return false;
+  if (startedAt !== null && (typeof startedAt !== "number" || !Number.isFinite(startedAt))) return false;
+  const hasRun = value.status === "running" || value.status === "paused";
+  if (hasRun !== (runId !== null)) return false;
+  if (!hasRun && startedAt !== null) return false;
+  return true;
+}
+
+function migrateVersionOne(state: VersionOneTimerState): PersistedTimerState {
+  if (state.status === "running" && state.endTimestamp !== null) {
+    return { ...state, runId: legacyRunId(state.mode, state.endTimestamp), startedAt: null };
+  }
+  if (state.status === "paused") {
+    return { ...state, runId: crypto.randomUUID(), startedAt: null };
+  }
+  return { ...state, runId: null, startedAt: null };
+}
+
 export const useTimerStore = create<TimerStore>()(
   persist(
     (set, get) => ({
@@ -78,14 +106,21 @@ export const useTimerStore = create<TimerStore>()(
       selectMode: (mode) => {
         const state = get();
         if (state.mode === mode) return;
-        set({ mode, status: "idle", endTimestamp: null, pausedRemainingMs: null });
+        set({ mode, status: "idle", endTimestamp: null, pausedRemainingMs: null, runId: null, startedAt: null });
       },
 
       start: () => {
         const state = get();
         if (state.status !== "idle" && state.status !== "complete") return;
         const fullMs = fullDurationMs(state.mode, state.customMinutes);
-        set({ status: "running", endTimestamp: Date.now() + fullMs, pausedRemainingMs: null });
+        const now = Date.now();
+        set({
+          status: "running",
+          endTimestamp: now + fullMs,
+          pausedRemainingMs: null,
+          runId: crypto.randomUUID(),
+          startedAt: now,
+        });
       },
 
       pause: () => {
@@ -103,7 +138,7 @@ export const useTimerStore = create<TimerStore>()(
       },
 
       reset: () => {
-        set({ status: "idle", endTimestamp: null, pausedRemainingMs: null });
+        set({ status: "idle", endTimestamp: null, pausedRemainingMs: null, runId: null, startedAt: null });
       },
 
       setCustomMinutes: (minutes) => {
@@ -116,7 +151,17 @@ export const useTimerStore = create<TimerStore>()(
         const state = get();
         if (state.status !== "running" || state.endTimestamp === null) return;
         if (now >= state.endTimestamp) {
-          set({ status: "complete", endTimestamp: null, pausedRemainingMs: null });
+          const { runId, startedAt, mode, customMinutes, endTimestamp } = state;
+          set({ status: "complete", endTimestamp: null, pausedRemainingMs: null, runId: null, startedAt: null });
+          if (runId !== null) {
+            logRunCompletion({
+              runId,
+              mode,
+              startedAt,
+              endedAt: endTimestamp,
+              plannedDurationMs: fullDurationMs(mode, customMinutes),
+            });
+          }
         }
       },
 
@@ -135,12 +180,17 @@ export const useTimerStore = create<TimerStore>()(
         status: state.status,
         endTimestamp: state.endTimestamp,
         pausedRemainingMs: state.pausedRemainingMs,
+        runId: state.runId,
+        startedAt: state.startedAt,
       }),
       migrate: (persistedState, version): PersistedTimerState => {
-        if (version !== STORAGE_VERSION || !isPersistedTimerState(persistedState)) {
-          return defaultPersistedState;
+        if (version === 1 && isVersionOneTimerState(persistedState)) {
+          return migrateVersionOne(persistedState);
         }
-        return persistedState;
+        if (version === STORAGE_VERSION && isPersistedTimerState(persistedState)) {
+          return persistedState;
+        }
+        return defaultPersistedState;
       },
       // `migrate` only runs when the stored version differs from
       // `STORAGE_VERSION` — zustand skips it entirely on a version match, so

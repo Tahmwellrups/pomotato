@@ -1089,7 +1089,7 @@ test.describe("Task List Feature", () => {
   });
 
   test.describe("Timer Integration (Regression)", () => {
-    test("completing timer does not change task completed count", async ({ page }) => {
+    test("completing focus timer increments pinned task completed count", async ({ page }) => {
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add a task with non-colliding name
@@ -1128,10 +1128,10 @@ test.describe("Task List Feature", () => {
       const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
       await expect(timerDisplay).toContainText("00:00");
 
-      // Verify the completed count did NOT auto-increment (should still be 0 / 1)
+      // Verify the completed count auto-incremented (should now be 1 / 1)
       const taskRowAfter = getTaskRow(page, "Zest");
-      const countDisplayAfter = await taskRowAfter.locator("text=/0 \\//").textContent();
-      expect(countDisplayAfter).toContain("0 /");
+      const countDisplayAfter = await taskRowAfter.locator("text=/1 \\//").textContent();
+      expect(countDisplayAfter).toContain("1 /");
     });
   });
 

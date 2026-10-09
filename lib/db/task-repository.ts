@@ -1,4 +1,4 @@
-import { getDatabase } from "./database";
+import { openDatabase } from "./database";
 import { InvalidReorderIndexError, TaskNotFoundError, TaskValidationError } from "./errors";
 import { DEFAULT_PALETTE_COLOR_ID, type PaletteColorId } from "./palette";
 import type { CreateTaskInput, Task, UpdateTaskInput, ValidationIssue } from "./types";
@@ -92,7 +92,7 @@ function validateUpdateInput(input: UpdateTaskInput): Partial<ValidatedTaskField
 /** Creates a task, validating every field per the Field rules table. Rejects with `TaskValidationError` (listing every failing field) and writes nothing on any failure. Added at the end of the display order. */
 export async function createTask(input: CreateTaskInput): Promise<Task> {
   const fields = validateCreateInput(input);
-  const db = getDatabase();
+  const db = await openDatabase();
   return db.transaction("rw", db.tasks, async () => {
     const existing = await db.tasks.toArray();
     const task: Task = {
@@ -112,7 +112,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 /** Updates only the provided fields (title, emoji, colorId, eta), validated the same way as `createTask`. Omitted fields, `completed`, `position`, and the pin are left untouched. Throws `TaskValidationError` on bad input or `TaskNotFoundError` if `id` doesn't exist; writes nothing in either case. */
 export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
   const patch = validateUpdateInput(input);
-  const db = getDatabase();
+  const db = await openDatabase();
   return db.transaction("rw", db.tasks, async () => {
     const existing = await db.tasks.get(id);
     if (!existing) throw new TaskNotFoundError(id);
@@ -129,7 +129,7 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
  * Throws `TaskNotFoundError` if `id` doesn't exist.
  */
 export async function deleteTask(id: string): Promise<void> {
-  const db = getDatabase();
+  const db = await openDatabase();
   await db.transaction("rw", [db.tasks, db.appMeta], async () => {
     const existing = await db.tasks.get(id);
     if (!existing) throw new TaskNotFoundError(id);
@@ -161,7 +161,7 @@ export async function reorderTask(id: string, toIndex: number): Promise<Task[]> 
   if (!Number.isInteger(toIndex)) {
     throw new InvalidReorderIndexError(toIndex);
   }
-  const db = getDatabase();
+  const db = await openDatabase();
   return db.transaction("rw", db.tasks, async () => {
     const tasks = sortByPosition(await db.tasks.toArray());
     const currentIndex = tasks.findIndex((task) => task.id === id);
@@ -189,7 +189,7 @@ export async function reorderTask(id: string, toIndex: number): Promise<Task[]> 
  * neither. Throws `TaskNotFoundError` if `id` doesn't exist.
  */
 export async function pinTask(id: string): Promise<void> {
-  const db = getDatabase();
+  const db = await openDatabase();
   await db.transaction("rw", [db.tasks, db.appMeta], async () => {
     const existing = await db.tasks.get(id);
     if (!existing) throw new TaskNotFoundError(id);
@@ -202,7 +202,7 @@ export async function pinTask(id: string): Promise<void> {
  * (idempotent). Throws `TaskNotFoundError` if `id` doesn't exist.
  */
 export async function unpinTask(id: string): Promise<void> {
-  const db = getDatabase();
+  const db = await openDatabase();
   await db.transaction("rw", [db.tasks, db.appMeta], async () => {
     const existing = await db.tasks.get(id);
     if (!existing) throw new TaskNotFoundError(id);
@@ -215,7 +215,7 @@ export async function unpinTask(id: string): Promise<void> {
 
 /** Adds exactly 1 to the completed count, clamped at 999 (a no-op, not an error, once already there). Throws `TaskNotFoundError` if `id` doesn't exist. */
 export async function incrementCompleted(id: string): Promise<Task> {
-  const db = getDatabase();
+  const db = await openDatabase();
   return db.transaction("rw", db.tasks, async () => {
     const existing = await db.tasks.get(id);
     if (!existing) throw new TaskNotFoundError(id);
@@ -228,7 +228,7 @@ export async function incrementCompleted(id: string): Promise<Task> {
 
 /** Removes exactly 1 from the completed count, clamped at 0 (a no-op, not an error, once already there). Throws `TaskNotFoundError` if `id` doesn't exist. */
 export async function decrementCompleted(id: string): Promise<Task> {
-  const db = getDatabase();
+  const db = await openDatabase();
   return db.transaction("rw", db.tasks, async () => {
     const existing = await db.tasks.get(id);
     if (!existing) throw new TaskNotFoundError(id);
@@ -241,7 +241,7 @@ export async function decrementCompleted(id: string): Promise<Task> {
 
 /** Lists every task in display order. Deterministic: the same stored data always sorts the same way, since order is read from the `position` field rather than table insertion order. */
 export async function listTasks(): Promise<Task[]> {
-  const db = getDatabase();
+  const db = await openDatabase();
   return sortByPosition(await db.tasks.toArray());
 }
 
@@ -253,7 +253,7 @@ export async function listTasks(): Promise<Task[]> {
  * current task", the same as no pin at all.
  */
 export async function getCurrentTask(): Promise<Task | null> {
-  const db = getDatabase();
+  const db = await openDatabase();
   const meta = await db.appMeta.get(PINNED_TASK_KEY);
   if (!meta || meta.value === null) return null;
   const task = await db.tasks.get(meta.value);

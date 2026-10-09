@@ -1,4 +1,4 @@
-import type { ValidationIssue } from "./types";
+import type { SessionValidationIssue, ValidationIssue } from "./types";
 
 /**
  * Thrown by any repository write when the input fails one or more Field
@@ -61,5 +61,36 @@ export class DatabaseUnavailableError extends Error {
     if (cause !== undefined) {
       this.cause = cause;
     }
+  }
+}
+
+/**
+ * Thrown when the database upgrade to a newer schema version is blocked by
+ * another open connection (typically another tab still running the old
+ * version) and stays blocked past `BLOCKED_UPGRADE_TIMEOUT_MS`. Recoverable:
+ * once the other tab is closed, calling any repository function again opens
+ * the database. UI copy should tell the user to close other Pomotato tabs.
+ */
+export class DatabaseBlockedError extends Error {
+  readonly code = "DATABASE_BLOCKED" as const;
+
+  constructor() {
+    super("The database upgrade is blocked by another open tab. Close other Pomotato tabs and try again.");
+    this.name = "DatabaseBlockedError";
+  }
+}
+
+/**
+ * Thrown by `logCompletedSession` and `listSessionsInRange` when the input
+ * fails validation. Carries every failing field at once. Writes nothing.
+ */
+export class SessionValidationError extends Error {
+  readonly code = "SESSION_VALIDATION" as const;
+  readonly issues: SessionValidationIssue[];
+
+  constructor(issues: SessionValidationIssue[]) {
+    super(`Invalid session input: ${issues.map((issue) => issue.field).join(", ")}`);
+    this.name = "SessionValidationError";
+    this.issues = issues;
   }
 }

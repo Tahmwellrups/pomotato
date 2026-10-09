@@ -14,4 +14,12 @@ export interface PersistedTimerState {
   endTimestamp: number | null;
   /** Frozen remaining duration, in ms. Only meaningful while paused. */
   pausedRemainingMs: number | null;
+  /**
+   * Identity of the current run, generated once when the run starts and kept
+   * through pause, resume and reload. It is the session log's dedup key.
+   * Null while idle or complete.
+   */
+  runId: string | null;
+  /** Epoch ms the current run first started. Null when unknown (migrated runs) or no run. */
+  startedAt: number | null;
 }

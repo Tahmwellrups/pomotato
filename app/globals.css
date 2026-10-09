@@ -1,11 +1,56 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
   /* Warm, cozy palette (potato-skin amber accent, cream ground). Themes and
      a light/dark toggle are out of scope for this milestone (see
-     docs/PLAN.md milestone 4), so there is a single default theme for now. */
+     docs/PLAN.md milestone 4), so there is a single default theme for now.
+     The values below are the same literal colors milestone 1-2 components
+     already reference via Tailwind utility classes (bg-amber-700,
+     border-stone-300, etc.) so any shadcn/ui component added from milestone
+     3 onward renders in the same palette instead of shadcn's default
+     blue/slate theme. See docs/DECISIONS.md for the mapping rationale. */
   --background: #fbf4ea;
   --foreground: #2b2017;
+  --card: #fbf4ea;
+  --card-foreground: #2b2017;
+  --popover: #fbf4ea;
+  --popover-foreground: #2b2017;
+  --primary: #b45309; /* amber-700, same as the existing primary button fill */
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f4; /* stone-100 */
+  --secondary-foreground: #44403c; /* stone-700 */
+  --muted: #f5f5f4; /* stone-100 */
+  --muted-foreground: #78716c; /* stone-500 */
+  --accent: #fef3c7; /* amber-100, same as the existing selected/pinned highlight */
+  --accent-foreground: #78350f; /* amber-900 */
+  --destructive: #b91c1c; /* red-700, same as the existing destructive actions */
+  --destructive-foreground: #ffffff;
+  --border: #d6d3d1; /* stone-300, the existing default border color */
+  --input: #d6d3d1;
+  --ring: #b45309; /* amber-700, matches the existing :focus-visible outline below */
+  /* Reuse the already-approved, contrast-checked task color swatches
+     (components/task-palette-colors.ts) rather than inventing a separate
+     chart palette ahead of milestone 3 deciding it needs one. */
+  --chart-1: #8a5a2b; /* potato */
+  --chart-2: #c23b22; /* tomato */
+  --chart-3: #3f9b6c; /* mint */
+  --chart-4: #2f7fb8; /* sky */
+  --chart-5: #7a5fb0; /* lavender */
+  --radius: 0.5rem; /* matches the existing rounded-lg used on buttons/inputs */
+  /* No sidebar nav exists yet; alias to the tokens above instead of
+     inventing unused colors. */
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 @theme inline {
@@ -13,12 +58,60 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-comfortaa);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Low-specificity defaults shadcn/ui components assume are in place (e.g. a
+   bare `border` utility resolving to --border instead of currentColor).
+   Every border/outline in the current UI already sets its own explicit
+   color utility alongside this, so this has no visible effect today. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 }
 
 /* Keyboard-only focus states for native controls that don't already get a

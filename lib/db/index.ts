@@ -15,3 +15,15 @@ export {
   unpinTask,
   updateTask,
 } from "./task-repository";
+export type {
+  LogSessionInput,
+  LogSessionResult,
+  SessionMode,
+  SessionRecord,
+  SessionValidationIssue,
+} from "./types";
+export { BLOCKED_UPGRADE_TIMEOUT_MS, CURRENT_SCHEMA_VERSION, openDatabase } from "./database";
+export { DatabaseBlockedError, SessionValidationError } from "./errors";
+export { SESSION_MODES, isFocusTypeMode, isSessionMode } from "./session-modes";
+export { listSessionsInRange, logCompletedSession } from "./session-repository";
+export { legacyRunId } from "./session-identity";
