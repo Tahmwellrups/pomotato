@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
 
 type SeenSession = {
   id: string;
@@ -60,6 +61,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("happy path: focus run with task pinned", () => {
     test("focus run with task pinned creates exactly 1 session and increments count", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add a task
@@ -73,6 +75,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       const startButton = page.getByRole("button", { name: "Start", exact: true });
       await startButton.click();
 
@@ -83,6 +86,7 @@ test.describe("Session logging and completion", () => {
       await page.clock.fastForward(26 * 60 * 1000);
       await waitForRunComplete(page);
 
+      await openTaskList(page);
       await expect(taskRow.locator("text=/1 \\//")).toBeVisible();
 
       // Assert the row itself, not just the count in the DOM. The count alone
@@ -102,6 +106,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("focus run with no task pinned", () => {
     test("creates session with no task attached, no task count changes", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add two tasks (neither pinned)
@@ -113,6 +118,7 @@ test.describe("Session logging and completion", () => {
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
 
+      await closeTaskList(page);
       // Start timer with no pin
       const startButton = page.getByRole("button", { name: "Start", exact: true });
       await startButton.click();
@@ -127,6 +133,7 @@ test.describe("Session logging and completion", () => {
       expect(row.taskId).toBeNull();
       expect(row.taskTitle).toBeNull();
 
+      await openTaskList(page);
       // And no task's count moved.
       await expect(page.locator("ul li").filter({ hasText: "Task1" }).first()).toContainText("0 /");
       await expect(page.locator("ul li").filter({ hasText: "Task2" }).first()).toContainText("0 /");
@@ -135,6 +142,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("break sessions", () => {
     test("short-break run creates session but does not increment any task", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin a task
@@ -147,6 +155,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // Switch to short break
       const shortBreakRadio = page.getByRole("radio", { name: /short break/i });
       await shortBreakRadio.click({ force: true });
@@ -168,12 +177,14 @@ test.describe("Session logging and completion", () => {
       expect(row.mode).toBe("shortBreak");
 
       // The break is recorded, but it must not count toward the task.
+      await openTaskList(page);
       await expect(taskRow).toContainText("0 /");
     });
   });
 
   test.describe("not logged: reset before completion", () => {
     test("resetting before completion does not log session", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -186,6 +197,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // Start timer
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -199,12 +211,14 @@ test.describe("Session logging and completion", () => {
       // already true before any write could land, so on its own it proves
       // nothing about whether a session was logged.
       expect(await readSessions(page)).toHaveLength(0);
+      await openTaskList(page);
       await expect(taskRow).toContainText("0 /");
     });
   });
 
   test.describe("not logged: abandoned while paused", () => {
     test("pausing and then leaving/reloading does not log session", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -217,6 +231,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // Start and pause
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -229,6 +244,8 @@ test.describe("Session logging and completion", () => {
       // Reload without resuming to completion
       await page.reload();
       await page.waitForLoadState("domcontentloaded");
+      await page.waitForLoadState("networkidle");
+      await openTaskList(page);
 
       // Assert from storage rather than from a DOM count that is already 0.
       expect(await readSessions(page)).toHaveLength(0);
@@ -238,6 +255,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("not logged: mode switch mid-run", () => {
     test("switching modes mid-run discards session", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -250,6 +268,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // Start in focus mode
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -263,6 +282,7 @@ test.describe("Session logging and completion", () => {
       // Discarding a run writes nothing — asserted from storage, not from a
       // DOM count that was already 0 before the switch.
       expect(await readSessions(page)).toHaveLength(0);
+      await openTaskList(page);
       await expect(taskRow).toContainText("0 /");
     });
   });
@@ -272,6 +292,7 @@ test.describe("Session logging and completion", () => {
       // Install clock first to control time
       await page.clock.install();
 
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("Zephyrine");
@@ -284,15 +305,18 @@ test.describe("Session logging and completion", () => {
       await taskRow.getByRole("button", { name: /^Pin\b/ }).click();
       await page.waitForTimeout(100);
 
+      await closeTaskList(page);
       const startButton = page.getByRole("button", { name: "Start", exact: true });
       await startButton.click();
 
+      await openTaskList(page);
       // Count stays 0 while the run is in progress. Scoped to the row, so it
       // can't match an unrelated "0 /" elsewhere on the page.
       await expect(taskRow).toContainText("0 /");
 
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
 
       const rowAfterReload = page.locator("ul li").filter({ hasText: "Zephyrine" }).first();
       await expect(rowAfterReload).toContainText("0 /");
@@ -305,6 +329,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("retroactive completion", () => {
     test("expired run discovered on reload logs with stored end timestamp", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -342,6 +367,7 @@ test.describe("Session logging and completion", () => {
 
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
 
       await expect.poll(async () => (await readSessions(page)).length).toBe(1);
       const [row] = await readSessions(page);
@@ -359,6 +385,7 @@ test.describe("Session logging and completion", () => {
     });
 
     test("reloading expired run 3 times still only logs 1 session", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -371,6 +398,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // Start timer and expire it
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -379,6 +407,7 @@ test.describe("Session logging and completion", () => {
       await page.clock.fastForward(26 * 60 * 1000);
       await page.waitForTimeout(200);
 
+      await openTaskList(page);
       // Should be 1
       let countDisplay = taskRow.locator("text=/1 \\//");
       await expect(countDisplay).toBeVisible();
@@ -390,6 +419,7 @@ test.describe("Session logging and completion", () => {
         await page.waitForTimeout(100);
       }
 
+      await openTaskList(page);
       // Count should still be 1 (not 2 or 3 from duplicate logging)
       countDisplay = taskRow.locator("text=/1 \\//");
       await expect(countDisplay).toBeVisible();
@@ -410,6 +440,7 @@ test.describe("Session logging and completion", () => {
         await page2.waitForLoadState("networkidle");
 
         // Tab 1: Add and pin task
+        await openTaskList(page1);
         const titleInput1 = page1.locator('input[id*="-title"]').first();
         await titleInput1.fill("TwoTabTask");
         await titleInput1.press("Enter");
@@ -420,6 +451,7 @@ test.describe("Session logging and completion", () => {
         await pinButton1.click();
         await page1.waitForTimeout(200);
 
+        await closeTaskList(page1);
         // Tab 1: Start timer (clock will be installed only on page1)
         const startButton1 = page1.getByRole("button", { name: "Start" });
         await startButton1.click();
@@ -430,6 +462,7 @@ test.describe("Session logging and completion", () => {
         await page1.clock.fastForward(26 * 60 * 1000);
         await page1.waitForTimeout(200);
 
+        await openTaskList(page1);
         // Verify count incremented on page1
         const countDisplay1 = taskRow1.locator("text=/1 \\//");
         await expect(countDisplay1).toBeVisible();
@@ -437,6 +470,7 @@ test.describe("Session logging and completion", () => {
         // Tab 2: Reload and verify (should see persisted increment)
         await page2.reload();
         await page2.waitForLoadState("networkidle");
+        await openTaskList(page2);
         const taskRow2After = page2.locator("ul li").filter({ hasText: "TwoTabTask" }).first();
         const countDisplay2After = taskRow2After.locator("text=/1 \\//");
         await expect(countDisplay2After).toBeVisible();
@@ -459,6 +493,7 @@ test.describe("Session logging and completion", () => {
         await page2.waitForLoadState("networkidle");
 
         // Add two tasks
+        await openTaskList(page1);
         const titleInput1 = page1.locator('input[id*="-title"]').first();
         await titleInput1.fill("TaskA");
         await titleInput1.press("Enter");
@@ -474,12 +509,14 @@ test.describe("Session logging and completion", () => {
         await pinButtonA1.click();
         await page1.waitForTimeout(200);
 
+        await closeTaskList(page1);
         // Start timer on page1
         const startButton = page1.getByRole("button", { name: "Start" });
         await startButton.click();
 
         // From page2, change pin to TaskB
         await page2.waitForTimeout(500);
+        await openTaskList(page2);
         const taskRowB2 = page2.locator("ul li").filter({ hasText: "TaskB" }).first();
         const pinButtonB2 = taskRowB2.getByRole("button", { name: /^(Pin|Unpin)\b/ });
         await pinButtonB2.click();
@@ -490,6 +527,7 @@ test.describe("Session logging and completion", () => {
         await page1.clock.fastForward(26 * 60 * 1000);
         await page1.waitForTimeout(200);
 
+        await openTaskList(page1);
         // TaskB should get the increment (not TaskA)
         const taskRowB1 = page1.locator("ul li").filter({ hasText: "TaskB" }).first();
         const countDisplayB = taskRowB1.locator("text=/1 \\//");
@@ -506,6 +544,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("deleted task mid-run", () => {
     test("if pinned task is deleted mid-run, session logs with no task attached", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -518,10 +557,12 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // Start timer
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
 
+      await openTaskList(page);
       // Delete the pinned task
       const deleteButton = taskRow.locator("button[aria-label*='Delete DeleteMe']").first();
       await deleteButton.click();
@@ -544,6 +585,7 @@ test.describe("Session logging and completion", () => {
 
   test.describe("second run dedup", () => {
     test("starting fresh from complete state and completing again logs distinct session", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add and pin task
@@ -556,6 +598,7 @@ test.describe("Session logging and completion", () => {
       await pinButton.click();
       await page.waitForTimeout(200);
 
+      await closeTaskList(page);
       // First run
       let startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -564,10 +607,12 @@ test.describe("Session logging and completion", () => {
       await page.clock.fastForward(26 * 60 * 1000);
       await page.waitForTimeout(200);
 
+      await openTaskList(page);
       // Count should be 1
       let countDisplay = taskRow.locator("text=/1 \\//");
       await expect(countDisplay).toBeVisible();
 
+      await closeTaskList(page);
       // Click somewhere to reset to idle, then start again
       const resetButton = page.getByRole("button", { name: "Reset" });
       await resetButton.click();
@@ -580,6 +625,7 @@ test.describe("Session logging and completion", () => {
       await page.clock.fastForward(26 * 60 * 1000);
       await page.waitForTimeout(200);
 
+      await openTaskList(page);
       // Count should now be 2 (not still 1)
       countDisplay = taskRow.locator("text=/2 \\//");
       await expect(countDisplay).toBeVisible();
@@ -625,11 +671,13 @@ test.describe("Session logging and completion", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
       await titleInput.fill("FailedDBTask");
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
 
+      await closeTaskList(page);
       // Timer should still work
       const startButton = page.getByRole("button", { name: "Start" });
       await expect(startButton).toBeVisible();

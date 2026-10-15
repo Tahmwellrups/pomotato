@@ -17,20 +17,31 @@
   --foreground: #2b2017;
   --card: #fbf4ea;
   --card-foreground: #2b2017;
-  --popover: #fbf4ea;
+  /* A touch lighter than --background (1.05:1, so the dialog never relies on
+     this alone): with the scrim, border and shadow it lifts the task dialog
+     off the cream page, where a --popover identical to --background read as
+     no surface at all. */
+  --popover: #fffaf3;
   --popover-foreground: #2b2017;
   --primary: #b45309; /* amber-700, same as the existing primary button fill */
   --primary-foreground: #ffffff;
   --secondary: #f5f5f4; /* stone-100 */
   --secondary-foreground: #44403c; /* stone-700 */
   --muted: #f5f5f4; /* stone-100 */
-  --muted-foreground: #78716c; /* stone-500 */
+  /* stone-600: 6.99:1 on --background and on --muted, 7.35:1 on --popover.
+     The earlier stone-500 (#78716c) measured 4.39:1 on --background and failed
+     AA. Re-check against the dark palette in milestone 4. */
+  --muted-foreground: #57534e;
   --accent: #fef3c7; /* amber-100, same as the existing selected/pinned highlight */
   --accent-foreground: #78350f; /* amber-900 */
   --destructive: #b91c1c; /* red-700, same as the existing destructive actions */
   --destructive-foreground: #ffffff;
   --border: #d6d3d1; /* stone-300, the existing default border color */
   --input: #d6d3d1;
+  /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so a
+     future .dark block can pick its own scrim instead of inheriting a light
+     one from the inverted foreground. */
+  --scrim: rgb(43 32 23 / 0.45);
   --ring: #b45309; /* amber-700, matches the existing :focus-visible outline below */
   /* Reuse the already-approved, contrast-checked task color swatches
      (components/task-palette-colors.ts) rather than inventing a separate
@@ -76,6 +87,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

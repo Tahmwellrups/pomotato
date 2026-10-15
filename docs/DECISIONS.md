@@ -4,6 +4,23 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-10-15 — Task list moved behind a shadcn Dialog; `components/ui/` adapted, not pristine
+The owner asked for the task list as "an on-click pop up task checklist but keep the current task card". Settled interpretations (the owner declined further clarifying questions, so these were orchestrator calls): shadcn **Dialog** as the most literal reading of "pop up"; "checklist" meaning the existing list relocated, **not** a new done/ticked state (that would be a new field plus Dexie v3 and belongs in its own task); `CurrentTaskCard` stays inline on `/`; frontend-only, no data-layer change.
+
+First real `npx shadcn add` (dialog + button). It created only `components/ui/dialog.tsx` and `components/ui/button.tsx`, added no dependencies (init had already installed them), and this time left `app/globals.css` alone — verified against a pre-command copy.
+
+**`components/ui/dialog.tsx` is deliberately adapted, not generated-and-untouched.** The stock `DialogContent` hardcodes `bg-black/10`, a backdrop blur, and a 28px icon-only close button with no way to override the overlay. Frontend first composed around it from Radix primitives to keep the generated file pristine; that was reversed, because shadcn's model is explicitly that generated code is yours to edit, and leaving an unused `DialogContent` in place is a loaded gun — the next person reaches for it and gets exactly what was avoided. It now uses the project's tokens and a 44px text close button, and carries a header comment saying a future `shadcn add` offering to overwrite it is a conflict, not a silent regression.
+
+Two token changes in `app/globals.css`: `--popover` lightened from `#fbf4ea` (identical to `--background`, so a dialog read as no surface at all) to `#fffaf3`, and a new `--scrim` for the modal backdrop as a token rather than `bg-foreground/NN`, so milestone 4's dark block can pick its own rather than inheriting an inverted-foreground scrim.
+
+### 2026-10-15 — `--muted-foreground` darkened to pass AA on cream
+Changed from `#78716c` (stone-500) to `#57534e` (stone-600). The old value measured **4.39:1** on the page background and 4.40:1 on `--muted` — below the 4.5:1 floor — and only passed on `--popover` at 4.62:1. The new value is **6.99:1** on the page and 7.35:1 on `--popover`.
+**Why:** task 003's review already flagged this, and milestone 4's first shadcn component hit it for real (`DialogDescription` ships `text-muted-foreground` and needed a per-component override). Fixing the token removes the trap for every future `shadcn add` instead of accumulating workarounds. Nothing in `app/` or `components/` referenced the token except the generated dialog, so this had **zero visual impact** on anything that existed at the time.
+**How to apply:** milestone 4 must re-measure this value against the dark palette; passing on cream says nothing about passing on a dark surface.
+
+### 2026-10-15 — Known gap: focus rings don't flow through `--ring`
+QA found, while mutation-testing the focus indicator, that setting `--ring` to 25% alpha left the dialog's Close ring fully opaque. The colour comes from the hard-coded `#b45309` in `globals.css`'s unlayered `:focus-visible` rule, and milestone 1-2 controls use `outline-amber-700` directly. No acceptance criterion fails today (every measured ring clears 3:1), but **milestone 4's dark palette will not reach these rings through the token**. Fix when the dark theme lands.
+
 ### 2026-10-09 — Asset and dependency provenance for milestone 3
 CLAUDE.md requires licensing provenance to live here, and the reviewer flagged that the milestone-3 additions had none.
 - **Comfortaa** (header font, chosen by the owner in DESIGN.md): SIL Open Font License. Loaded via `next/font/google`, which self-hosts it at build time — no runtime request to Google, nothing hotlinked.

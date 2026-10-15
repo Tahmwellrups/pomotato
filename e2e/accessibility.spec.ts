@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
+import { openTaskList } from "./helpers/task-list-dialog";
 
 test.describe("Accessibility - axe-core checks", () => {
   test.beforeEach(async ({ page }) => {
@@ -220,6 +221,7 @@ test.describe("Accessibility - axe-core checks", () => {
   test.describe("Task List - axe-core checks", () => {
     test("no axe violations: empty task list", async ({ page }) => {
       await page.goto("/");
+      await openTaskList(page);
       // Empty list should show just the add form
       const results = await new AxeBuilder({ page }).analyze();
 
@@ -231,6 +233,7 @@ test.describe("Accessibility - axe-core checks", () => {
     });
 
     test("no axe violations: 3 tasks, none pinned", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("TaskOne");
@@ -253,6 +256,7 @@ test.describe("Accessibility - axe-core checks", () => {
     });
 
     test("no axe violations: 3 tasks, one pinned", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("Alpha");
@@ -281,6 +285,7 @@ test.describe("Accessibility - axe-core checks", () => {
     });
 
     test("no axe violations: edit in progress", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("EditableTask");
@@ -303,6 +308,7 @@ test.describe("Accessibility - axe-core checks", () => {
     });
 
     test("no axe violations: validation errors showing", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
       const emojiInput = page.locator('input[id*="-emoji"]').first();
       const submitButton = page.getByRole("button", { name: "Add" }).first();
@@ -322,6 +328,7 @@ test.describe("Accessibility - axe-core checks", () => {
     });
 
     test("no axe violations: delete confirmation open", async ({ page }) => {
+      await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("DeleteMe");

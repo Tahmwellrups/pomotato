@@ -2,14 +2,15 @@
 
 import { useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { listTasks, type Task } from "@/lib/db";
+import { DatabaseBlockedError, listTasks, type Task } from "@/lib/db";
 
 /**
  * Discriminated result for the task list. "loading" covers the gap before
  * the first resolved read (including the whole server render, since
  * `useLiveQuery` never touches Dexie outside the browser); "ready" is the
  * normal case, even with zero tasks; "error" covers a rejected read, for
- * example `DatabaseUnavailableError`.
+ * example `DatabaseUnavailableError`. `blocked` is true when another open tab
+ * is holding up the schema upgrade, which the user can fix themselves.
  *
  * The querier below always resolves, never rejects: it catches everything
  * itself and returns an "error" value instead. `useLiveQuery` re-throws a
@@ -18,7 +19,10 @@ import { listTasks, type Task } from "@/lib/db";
  * the querier catch its own failures keeps a database outage a plain,
  * renderable value instead of an uncaught render-time throw.
  */
-export type TasksQuery = { status: "loading" } | { status: "ready"; tasks: Task[] } | { status: "error" };
+export type TasksQuery =
+  | { status: "loading" }
+  | { status: "ready"; tasks: Task[] }
+  | { status: "error"; blocked: boolean };
 
 // A single stable reference, not reconstructed per render: `useLiveQuery`
 // returns `undefined` on every render before the first resolved read, and
@@ -30,7 +34,7 @@ const LOADING_TASKS_QUERY: TasksQuery = { status: "loading" };
 // Same rationale as `LOADING_TASKS_QUERY`: one stable reference, not a
 // fresh literal per render, for the "indexedDB doesn't exist at all" branch
 // below.
-const ERROR_TASKS_QUERY: TasksQuery = { status: "error" };
+const ERROR_TASKS_QUERY: TasksQuery = { status: "error", blocked: false };
 
 // `indexedDB` availability can't change while the page is open, so there is
 // nothing to subscribe to; `useSyncExternalStore` is used below purely for
@@ -61,8 +65,8 @@ export function useTasks(): TasksQuery {
     try {
       const tasks = await listTasks();
       return { status: "ready", tasks };
-    } catch {
-      return { status: "error" };
+    } catch (error) {
+      return { status: "error", blocked: error instanceof DatabaseBlockedError };
     }
   });
 

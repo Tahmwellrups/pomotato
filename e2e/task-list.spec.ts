@@ -1,10 +1,13 @@
 import { test, expect, Page } from "@playwright/test";
+import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
 
 test.describe("Task List Feature", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     // Wait for app to fully load
     await page.waitForLoadState("networkidle");
+    // The task list lives behind the "Your tasks" trigger.
+    await openTaskList(page);
   });
 
   /**
@@ -289,6 +292,8 @@ test.describe("Task List Feature", () => {
       // Reload page
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
+      await page.waitForLoadState("networkidle");
       await page.waitForTimeout(200);
 
       // Task should be gone - scoped to the list to avoid Current Task card
@@ -370,6 +375,10 @@ test.describe("Task List Feature", () => {
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Fawn", "Gradient", "Ember"]);
 
       await page.reload();
+
+      await page.waitForLoadState("networkidle");
+
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(200);
 
@@ -516,6 +525,10 @@ test.describe("Task List Feature", () => {
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Basilisk", "Andromeda"]);
 
       await page.reload();
+
+      await page.waitForLoadState("networkidle");
+
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
 
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Basilisk", "Andromeda"]);
@@ -604,6 +617,8 @@ test.describe("Task List Feature", () => {
 
       // Reload and verify persistence
       await page.reload();
+      await page.waitForLoadState("networkidle");
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Morgan", "Nova", "Leo"]);
     });
@@ -696,6 +711,8 @@ test.describe("Task List Feature", () => {
 
       // Reload
       await page.reload();
+      await page.waitForLoadState("networkidle");
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(200);
 
@@ -899,6 +916,10 @@ test.describe("Task List Feature", () => {
       await titleInput.press("Enter");
 
       await page.reload();
+
+      await page.waitForLoadState("networkidle");
+
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
 
       await expect(page.getByText("Tempest", { exact: true })).toBeVisible();
@@ -950,6 +971,8 @@ test.describe("Task List Feature", () => {
       // Reload and verify the new order persists
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
+      await page.waitForLoadState("networkidle");
       await page.waitForTimeout(300);
 
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Violet", "Wisteria", "Umber", "Xander", "Yarrow"]);
@@ -967,11 +990,21 @@ test.describe("Task List Feature", () => {
       const pinButton = taskRow.locator("button[aria-label*='Pin Xenon']").first();
       await pinButton.click();
 
+      // Wait for the pin to reach the card before reloading, so the post-reload
+      // assertion tests persistence rather than a reload that raced the write.
+      await expect(page.getByRole("main").getByText("Xenon", { exact: true })).toBeVisible();
+
       await page.reload();
+
       await page.waitForLoadState("networkidle");
 
-      // Current Task area should show the pinned task
-      await expect(page.getByText("Xenon", { exact: true })).toBeVisible();
+      await openTaskList(page);
+      await page.waitForLoadState("networkidle");
+
+      // Current Task area should show the pinned task. Scoped to <main>: the
+      // open dialog also lists "Xenon" (exact), so the page-wide locator is
+      // ambiguous. The card sits in <main>; the dialog is portalled outside it.
+      await expect(page.getByRole("main").getByText("Xenon", { exact: true })).toBeVisible();
     });
 
     test("no hydration mismatch errors after reload", async ({ page }) => {
@@ -988,6 +1021,10 @@ test.describe("Task List Feature", () => {
       });
 
       await page.reload();
+
+      await page.waitForLoadState("networkidle");
+
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
 
       // Check for hydration mismatch errors
@@ -1079,6 +1116,8 @@ test.describe("Task List Feature", () => {
       // Reload and verify persistence
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
+      await page.waitForLoadState("networkidle");
       await page.waitForTimeout(300);
 
       const orderedAfterReload = await getOrderedTitles(page);
@@ -1113,7 +1152,9 @@ test.describe("Task List Feature", () => {
       const countDisplayBefore = await taskRow.locator("text=/0 \\//").textContent();
       expect(countDisplayBefore).toContain("0 /");
 
-      // Start the timer and fast-forward to completion
+      // Start the timer and fast-forward to completion. The timer sits behind
+      // the modal, so the dialog is closed first and re-opened to read the row.
+      await closeTaskList(page);
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
 
@@ -1127,6 +1168,8 @@ test.describe("Task List Feature", () => {
       // The timer should be complete (showing 00:00)
       const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
       await expect(timerDisplay).toContainText("00:00");
+
+      await openTaskList(page);
 
       // Verify the completed count auto-incremented (should now be 1 / 1)
       const taskRowAfter = getTaskRow(page, "Zest");
@@ -1151,13 +1194,17 @@ test.describe("Task List Feature", () => {
       const timerDisplay = page.locator("text=/\\d+:\\d+/");
       await expect(timerDisplay).toBeVisible({ timeout: 5000 });
 
-      // Task list should show error message
-      const taskListError = page.locator("text=/Couldn't load your tasks/i");
-      await expect(taskListError).toBeVisible({ timeout: 5000 });
-
-      // Current task card should show error message
+      // Current task card on `/` shows the error without the dialog being opened
+      // (the data-broken case must not hide behind a click).
       const currentTaskError = page.locator("text=/Couldn't load the current task/i");
       await expect(currentTaskError).toBeVisible({ timeout: 5000 });
+
+      // Task list error lives inside the dialog, so open it and check there.
+      await openTaskList(page);
+      const taskListError = page
+        .getByRole("dialog", { name: "Your tasks", exact: true })
+        .locator("text=/Couldn't load your tasks/i");
+      await expect(taskListError).toBeVisible({ timeout: 5000 });
     });
 
     test("still renders timer when IndexedDB is unavailable", async ({ page }) => {
@@ -1319,6 +1366,8 @@ test.describe("Task List Feature", () => {
       // Reload and verify order is still unchanged
       await page.reload();
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
+      await page.waitForLoadState("networkidle");
       await page.waitForTimeout(200);
 
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Original", "Moved"]);
@@ -1350,6 +1399,7 @@ test.describe("Task List Feature", () => {
       await page.setViewportSize({ width: 320, height: 800 });
       await page.goto("/");
       await page.waitForLoadState("networkidle");
+      await openTaskList(page);
 
       const titleInput = page.locator('input[id*="-title"]').first();
 
@@ -1370,6 +1420,7 @@ test.describe("Task List Feature", () => {
 
       // Start navigation to page
       await page.goto("/");
+      await openTaskList(page);
 
       // Add a task
       await titleInput.fill("PersistentTask");
@@ -1410,6 +1461,8 @@ test.describe("Task List Feature", () => {
 
       // Now reload the page
       await page.reload();
+      await page.waitForLoadState("networkidle");
+      await openTaskList(page);
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(500);
 

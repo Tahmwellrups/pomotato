@@ -2,16 +2,20 @@
 
 import { useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { getCurrentTask, type Task } from "@/lib/db";
+import { DatabaseBlockedError, getCurrentTask, type Task } from "@/lib/db";
 
 /**
  * Same shape and rationale as `TasksQuery` in `use-tasks.ts`: "loading"
  * until the first resolved read, "ready" with `task: null` when nothing is
  * pinned (the normal empty case, not an error), "error" on a rejected read.
  * The querier catches its own failures so a database outage never becomes
- * an uncaught render-time throw.
+ * an uncaught render-time throw. `blocked` mirrors `StatsQuery`: true when
+ * another open tab is holding up the schema upgrade.
  */
-export type CurrentTaskQuery = { status: "loading" } | { status: "ready"; task: Task | null } | { status: "error" };
+export type CurrentTaskQuery =
+  | { status: "loading" }
+  | { status: "ready"; task: Task | null }
+  | { status: "error"; blocked: boolean };
 
 // Same rationale as `LOADING_TASKS_QUERY` in `use-tasks.ts`: a stable
 // reference so callers keyed on this value (via `useEffect` deps) don't
@@ -20,7 +24,7 @@ const LOADING_CURRENT_TASK_QUERY: CurrentTaskQuery = { status: "loading" };
 
 // Same rationale as `ERROR_TASKS_QUERY` in `use-tasks.ts`: one stable
 // reference for the "indexedDB doesn't exist at all" branch below.
-const ERROR_CURRENT_TASK_QUERY: CurrentTaskQuery = { status: "error" };
+const ERROR_CURRENT_TASK_QUERY: CurrentTaskQuery = { status: "error", blocked: false };
 
 // Same rationale as the three functions of the same name in `use-tasks.ts`:
 // `indexedDB` availability can't change at runtime, so `useSyncExternalStore`
@@ -43,8 +47,8 @@ export function useCurrentTask(): CurrentTaskQuery {
     try {
       const task = await getCurrentTask();
       return { status: "ready", task };
-    } catch {
-      return { status: "error" };
+    } catch (error) {
+      return { status: "error", blocked: error instanceof DatabaseBlockedError };
     }
   });
 
