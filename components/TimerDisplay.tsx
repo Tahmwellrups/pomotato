@@ -1,18 +1,17 @@
-import { STATUS_LABELS } from "@/lib/timer/labels";
-import type { TimerStatus } from "@/lib/timer/types";
+import { TimerGauge } from "./TimerGauge";
 
 interface TimerDisplayProps {
-  modeLabel: string;
   formatted: string;
-  status: TimerStatus;
+  remainingMs: number;
+  fullMs: number;
+  hasHydrated: boolean;
 }
 
-export function TimerDisplay({ modeLabel, formatted, status }: TimerDisplayProps) {
+export function TimerDisplay({ formatted, remainingMs, fullMs, hasHydrated }: TimerDisplayProps) {
   return (
-    <div className="flex flex-col items-center gap-1 rounded-2xl border border-stone-200 bg-white px-10 py-8">
-      <p className="text-sm font-medium tracking-wide text-stone-500">{modeLabel}</p>
-      <p className="font-mono text-6xl font-semibold tabular-nums text-stone-900 sm:text-7xl">{formatted}</p>
-      <p className="text-sm text-stone-500">{STATUS_LABELS[status]}</p>
+    <div className="relative flex min-h-40 w-full items-center justify-center px-6 py-4 sm:min-h-44 lg:min-h-52">
+      <TimerGauge remainingMs={remainingMs} fullMs={fullMs} ready={hasHydrated} />
+      <p className="relative font-space-grotesk text-6xl font-extrabold tabular-nums text-foreground sm:text-7xl lg:text-8xl">{formatted}</p>
     </div>
   );
 }

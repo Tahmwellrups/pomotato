@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { holdPointer } from "./helpers/timer-hold";
 
 type SeenSession = {
   id: string;
@@ -204,7 +205,8 @@ test.describe("Session logging and completion", () => {
 
       // Reset before completion
       const resetButton = page.getByRole("button", { name: "Reset", exact: true });
-      await resetButton.click();
+      // Hold-to-confirm (task 005): the reset needs a held press, not a click.
+      await holdPointer(page, resetButton, 1200);
       await page.waitForTimeout(100);
 
       // Assert from storage: no row was ever written. A DOM count of "0 /" is
@@ -614,8 +616,9 @@ test.describe("Session logging and completion", () => {
 
       await closeTaskList(page);
       // Click somewhere to reset to idle, then start again
-      const resetButton = page.getByRole("button", { name: "Reset" });
-      await resetButton.click();
+      const resetButton = page.getByRole("button", { name: "Reset", exact: true });
+      // Hold-to-confirm (task 005): the reset needs a held press, not a click.
+      await holdPointer(page, resetButton, 1200);
       await page.waitForTimeout(100);
 
       // Second run

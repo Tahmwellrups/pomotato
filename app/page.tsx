@@ -6,14 +6,14 @@ import { TaskListDialog } from "@/components/TaskListDialog";
 export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center gap-10 px-4 py-12 sm:px-8">
-      <div className="text-center">
+      {/* <div className="text-center">
         <h1 className="font-heading text-2xl font-semibold tracking-tight text-stone-900">Pomotato</h1>
         <p className="mt-1 text-sm text-stone-600">A cozy focus timer.</p>
-      </div>
+      </div> */}
       <div className="flex w-full max-w-md flex-col items-center gap-8">
+        <CurrentTaskCard />
         <PomotatoTimer />
         <div className="flex w-full flex-col items-center gap-4">
-          <CurrentTaskCard />
           <TaskListDialog />
         </div>
       </div>
@@ -24,5 +24,5 @@ export default function Home() {
         Focus stats
       </Link>
     </main>
-  );
+  )
 }

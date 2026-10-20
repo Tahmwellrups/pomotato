@@ -63,7 +63,12 @@ export function PomotatoTimer() {
   return (
     <div className="flex w-full max-w-md flex-col items-center gap-8">
       <ModeSelector />
-      <TimerDisplay modeLabel={MODE_LABELS[mode]} formatted={formatRemaining(remainingMs)} status={status} />
+      <TimerDisplay
+        formatted={formatRemaining(remainingMs)}
+        remainingMs={remainingMs}
+        fullMs={fullMs}
+        hasHydrated={hasHydrated}
+      />
       {mode === "custom" ? <CustomDurationInput /> : null}
       <TimerControls />
       <p aria-live="polite" role="status" className="sr-only">

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { holdKey, holdPointer } from "./helpers/timer-hold";
 
 test.describe("Pomotato Focus Timer E2E", () => {
   test.beforeEach(async ({ page }) => {
@@ -91,7 +92,8 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await page.waitForTimeout(500);
 
     const resetButton = page.locator("button:has-text('Reset')");
-    await resetButton.click();
+    // Reset is hold-to-confirm (task 005): a click is only a tap and must not reset.
+    await holdPointer(page, resetButton, 1200);
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
     await expect(timerDisplay).toContainText("25:00");
@@ -296,7 +298,8 @@ test.describe("Pomotato Focus Timer E2E", () => {
 
     const resetButton = page.locator("button:has-text('Reset')");
     await resetButton.focus();
-    await page.keyboard.press("Enter");
+    // Hold-to-confirm (task 005): a single Enter press is a tap and does not reset.
+    await holdKey(page, "Enter", 1200);
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
     await expect(timerDisplay).toContainText("25:00");

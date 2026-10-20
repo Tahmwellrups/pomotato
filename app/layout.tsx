@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Comfortaa, Geist, Geist_Mono } from "next/font/google";
+import { Comfortaa, Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,6 +19,11 @@ const comfortaa = Comfortaa({
   subsets: ["latin"],
 });
 
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "Pomotato",
   description: "A cozy, local-first Pomodoro focus timer.",
@@ -28,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${comfortaa.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${comfortaa.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

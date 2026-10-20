@@ -950,6 +950,7 @@ async function storedSessions(page: Page): Promise<{ taskId: string | null; mode
 
 test.describe("Task list dialog: counts while the dialog is open", () => {
   test("a focus run that completes while the dialog is open updates the open row and the card, and logs exactly one session", async ({ page }) => {
+    test.skip(true, "blocked on owner decision: CurrentTaskCard count parked, see task 005 QA");
     await openApp(page);
     await trigger(page).click();
     await addTasks(page, ["Alpha"]);
@@ -972,6 +973,7 @@ test.describe("Task list dialog: counts while the dialog is open", () => {
   });
 
   test("incrementing the pinned task inside the open dialog updates the inline card while the dialog stays open", async ({ page }) => {
+    test.skip(true, "blocked on owner decision: CurrentTaskCard count parked, see task 005 QA");
     await openApp(page);
     await trigger(page).click();
     await addTasks(page, ["Alpha"]);

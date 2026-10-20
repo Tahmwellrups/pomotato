@@ -4,6 +4,13 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-10-19 - ReactBits SloshGauge and HoldButton vendored (MIT + Commons Clause)
+Added `components/SloshGauge.tsx` and `components/HoldButton.tsx` via `npx shadcn@latest add @react-bits/SloshGauge-TS-TW` and `@react-bits/HoldButton-TS-TW`; the CLI registered the `@react-bits` namespace in `components.json` on its own. Licence: MIT plus Commons Clause (`LICENSE.md` in `DavidHDev/react-bits`), which permits use in Pomotato including commercially and forbids reselling the components themselves. Both are dependency-free: `package.json` and the lockfile did not change, and the CLI left `app/globals.css` alone. Both files are edited (their header comments list how), so a future `shadcn add` offering to overwrite them is a conflict, not a routine update. The vendored SloshGauge also fixes an upstream StrictMode bug (stale `sim.raf` after unmount).
+
+**Rejected:** ReactBits' segmented control for `ModeSelector`, because it builds a `role="radiogroup"` out of ARIA where the existing native radio inputs already carry that semantics (CLAUDE.md: semantic HTML before ARIA). Radix's own `ToggleGroup type="single"` was checked and does the same thing, so the same reasoning applies to it.
+
+**Correction worth recording:** task 005 was written around "canvas cannot resolve `var()`" as its main risk. That premise was wrong, caught by frontend: neither component paints to a canvas (SloshGauge animates a `clipPath` polygon on divs and already drives colour through CSS custom properties). Colours are still resolved from tokens and re-read on theme change via `hooks/use-resolved-tokens.ts`, so the behaviour is dark-ready, but the machinery is heavier than the real constraint required.
+
 ### 2026-10-15 — Task list moved behind a shadcn Dialog; `components/ui/` adapted, not pristine
 The owner asked for the task list as "an on-click pop up task checklist but keep the current task card". Settled interpretations (the owner declined further clarifying questions, so these were orchestrator calls): shadcn **Dialog** as the most literal reading of "pop up"; "checklist" meaning the existing list relocated, **not** a new done/ticked state (that would be a new field plus Dexie v3 and belongs in its own task); `CurrentTaskCard` stays inline on `/`; frontend-only, no data-layer change.
 
