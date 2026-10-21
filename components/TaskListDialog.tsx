@@ -10,6 +10,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { TaskList } from "./TaskList";
+import { FaTasks } from "react-icons/fa";
+
 
 // The Button base already draws a 1px border + ring on focus; the app-wide
 // pattern (see StatsDashboard) is a 2px outline, which is easier to see on
@@ -38,9 +40,9 @@ export function TaskListDialog() {
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className={`h-11 min-w-44 px-6 text-base hover:bg-muted motion-reduce:transition-none ${focusClass}`}
+          className={`flex h-9 w-9 rounded-xl border-none bg-primary text-white items-center text-base cursor-pointer hover:bg-primary/80 hover:text-white motion-reduce:transition-none`}
         >
-          Your tasks
+          <FaTasks className="size-4.5 place-self-center-safe" />
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -53,18 +55,22 @@ export function TaskListDialog() {
           // here goes to the add form, and Radix's focus loop wraps the last
           // row back to Close. If the query misses, fall back to the content
           // node (Radix gives it tabIndex -1) so focus never lands on <body>.
-          event.preventDefault();
-          if (!(event.target instanceof HTMLElement)) return;
-          const close = event.target.querySelector<HTMLElement>('[data-slot="dialog-close"]');
-          (close ?? event.target).focus();
+          event.preventDefault()
+          if (!(event.target instanceof HTMLElement)) return
+          const close = event.target.querySelector<HTMLElement>(
+            '[data-slot="dialog-close"]',
+          )
+          ;(close ?? event.target).focus()
         }}
         onEscapeKeyDown={(event) => {
-          if (escapeIsOwnedByInnerLayer(event)) event.preventDefault();
+          if (escapeIsOwnedByInnerLayer(event)) event.preventDefault()
         }}
         className="flex max-h-[calc(100dvh-1.5rem)] flex-col"
       >
         <DialogHeader className="gap-1 pr-20">
-          <DialogTitle className="text-xl leading-tight font-semibold">Your tasks</DialogTitle>
+          <DialogTitle className="text-xl leading-tight font-semibold">
+            Your tasks
+          </DialogTitle>
           <DialogDescription>
             Pin the one you&apos;re working on to keep it in view.
           </DialogDescription>
@@ -74,5 +80,5 @@ export function TaskListDialog() {
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

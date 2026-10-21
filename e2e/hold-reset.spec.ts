@@ -374,9 +374,18 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
   });
 
   test("Start, Pause and Resume keep single-activation behaviour and the primary styling", async ({ page }) => {
-    // The primary class list is unchanged from HEAD; the colour is checked as the amber-700 utility.
-    await expect(startButton(page)).toHaveClass(/\bbg-amber-700\b/);
-    await expect(startButton(page)).toHaveClass(/\btext-white\b/);
+    // Assert the painted result, not the utility class name: the primary fill is the
+    // computed value of the --primary token, resolved by the browser itself.
+    const primaryFill = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = "var(--primary)";
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    });
+    expect(primaryFill).toBe("rgb(180, 83, 9)");
+    await expect(startButton(page)).toHaveCSS("background-color", primaryFill);
     await expect(startButton(page)).toHaveCSS("color", "rgb(255, 255, 255)");
     await startButton(page).click();
     await expect(pauseButton(page)).toBeVisible();
@@ -384,7 +393,11 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
     await expect(resumeButton(page)).toBeVisible();
     await resumeButton(page).click();
     await expect(pauseButton(page)).toBeVisible();
-    await expect(pauseButton(page)).toHaveClass(/\bbg-amber-700\b/);
+    // The pointer is still over the button that was just clicked, so its painted fill is the
+    // hover mix. Move away to read the resting primary fill.
+    await page.mouse.move(0, 0);
+    await expect(pauseButton(page)).toHaveCSS("background-color", primaryFill);
+    await expect(pauseButton(page)).toHaveCSS("color", "rgb(255, 255, 255)");
   });
 });
 

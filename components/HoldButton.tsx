@@ -75,9 +75,9 @@ const LINEAR = (t: number) => t;
 const EASE_OUT = (t: number) => 1 - Math.pow(1 - t, 3);
 
 const SIZES: Record<HoldButtonSize, string> = {
-  sm: 'h-9 px-4 text-[13px]',
-  md: 'h-11 px-6 text-base',
-  lg: 'h-[52px] px-7 text-[17px]'
+  sm: 'text-[13px]',
+  md: 'text-base',
+  lg: 'text-[17px]'
 };
 
 const GLOW = '0_10px_32px_-6px_color-mix(in_srgb,var(--hb-fill)_70%,transparent)';

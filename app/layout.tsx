@@ -15,13 +15,15 @@ const geistMono = Geist_Mono({
 // Headers only, per DESIGN.md: body text stays the plain sans so the cuteness
 // stays contained. Self-hosted by next/font, no request to Google at runtime.
 const comfortaa = Comfortaa({
-  variable: "--font-comfortaa",
-  subsets: ["latin"],
-});
+  variable: '--font-comfortaa',
+  subsets: ['latin'],
+  weight: ['400', '700'],
+})
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {

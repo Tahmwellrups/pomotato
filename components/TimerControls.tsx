@@ -5,6 +5,9 @@ import { useResolvedTokens } from "@/hooks/use-resolved-tokens";
 import { useTimerStore } from "@/lib/timer/store";
 import type { TimerStatus } from "@/lib/timer/types";
 import HoldButton from "./HoldButton";
+import { FaPause, FaPlay } from "react-icons/fa";
+import { Button } from "./ui/button";
+import { FaArrowsRotate } from "react-icons/fa6";
 
 // Time the user must keep Reset pressed. Inside the 500-1200 ms window the
 // task allows; long enough that a stray click cannot trigger it.
@@ -18,7 +21,7 @@ const RESET_TOKENS = {
 } as const;
 
 const buttonFocusRing =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 export function TimerControls() {
   const status = useTimerStore((state) => state.status);
@@ -31,7 +34,14 @@ export function TimerControls() {
   const [hintStatus, setHintStatus] = useState<TimerStatus | null>(null);
   const showHoldHint = hintStatus === status;
 
-  const primaryLabel = status === "running" ? "Pause" : status === "paused" ? "Resume" : "Start";
+  const primaryLabel =
+    status === 'running' ? (
+      <FaPause className="h-5 w-5" />
+    ) : status === 'paused' ? (
+      <FaPlay className="h-5 w-5" />
+    ) : (
+      <FaPlay className="h-5 w-5" />
+    )
 
   const handlePrimary = () => {
     if (status === "running") pause();
@@ -41,13 +51,13 @@ export function TimerControls() {
 
   return (
     <div className="relative flex gap-3">
-      <button
+      <Button
         type="button"
         onClick={handlePrimary}
-        className={`min-h-11 rounded-lg bg-amber-700 px-6 py-3 font-medium text-white outline-none hover:bg-amber-800 ${buttonFocusRing}`}
+        className={`min-h-11 rounded-lg px-4 py-2 bg-primary font-medium text-primary-foreground outline-none cursor-pointer hover:bg-[color-mix(in_srgb,var(--primary),var(--foreground)_30%)] ${buttonFocusRing}`}
       >
         {primaryLabel}
-      </button>
+      </Button>
       <HoldButton
         holdTime={RESET_HOLD_MS}
         glow={false}
@@ -59,22 +69,22 @@ export function TimerControls() {
         fillColor={resetColors.fill}
         textColor={resetColors.text}
         fillTextColor={resetColors.fillText}
-        className="min-h-11 border border-border"
+        className="min-h-11 px-0.5 py-2 border border-border"
         onTap={() => setHintStatus(status)}
         onHold={() => {
-          setHintStatus(null);
-          reset();
+          setHintStatus(null)
+          reset()
         }}
       >
-        Reset
+        <FaArrowsRotate className="h-5 w-5 m-0 p-0" />
       </HoldButton>
       <p
         role="status"
         aria-live="polite"
-        className="absolute inset-x-0 top-full mt-2 text-center text-sm text-muted-foreground"
+        className="font-comfortaa absolute inset-x-0 top-full mt-4 text-center text-sm text-muted-foreground"
       >
-        {showHoldHint ? "Press and hold Reset to confirm." : ""}
+        {showHoldHint ? 'Press and hold Reset to confirm.' : ''}
       </p>
     </div>
-  );
+  )
 }

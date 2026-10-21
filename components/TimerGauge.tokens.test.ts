@@ -26,8 +26,9 @@ const NEW_SURFACE_FILES = [
 // Files whose lines this task edits. The exact palette utilities allowed to
 // remain are listed here; any other utility fails the test.
 const EDITED_FILES: Record<string, string[]> = {
-  // amber-700/800 belong to the untouched primary Start/Pause button and the focus ring.
-  "./TimerControls.tsx": ["amber-700", "amber-800"],
+  // Task 006 moved the primary Start/Pause button and its focus ring onto tokens, so the
+  // task 005 pin of amber-700/800 is now empty.
+  "./TimerControls.tsx": [],
   // fix loop 1: the mm:ss readout moved from text-stone-900 to text-foreground, so no
   // raw palette utility remains in this file. Empty pin means any reintroduction fails.
   "./TimerDisplay.tsx": [],

@@ -2,12 +2,39 @@
 
 Build order. Don't start a milestone until the previous one is PASS + reviewed.
 
+Task numbers in `docs/tasks/` run as one sequence covering both milestone work and
+off-plan work, so **task numbers and milestone numbers do not line up**. Tasks 001-003
+happen to map 1:1 onto milestones 1-3; nothing after that does. See "Numbering" at the
+bottom before reading the git log.
+
+## Milestones
+
 - [x] **1. Focus timer** — modes (focus, short break, long break, custom); remaining time computed from a stored end timestamp, never from `setInterval` ticks. ([docs/tasks/001-focus-timer.md](tasks/001-focus-timer.md))
 - [x] **2. Task list** — emoji, color, ETA, completed-pomodoro count, pinned "current task", drag-and-drop ordering. ([docs/tasks/002-task-list.md](tasks/002-task-list.md))
 - [x] **3. Session logging & stats** — log each session, then daily/weekly/monthly stats with charts. ([docs/tasks/003-session-logging-stats.md](tasks/003-session-logging-stats.md))
-- [ ] **4. Themes** — CSS-variable palettes plus uploaded backgrounds.
+- [ ] **4. Themes** — CSS-variable palettes plus uploaded backgrounds. Four parts, because [DESIGN.md](../DESIGN.md) defers two of them here by name and the palette work has a prerequisite:
+  - [ ] **Semantic tokens across the remaining UI.** DESIGN.md's premise is that new surfaces are dark-ready from the start so this milestone "can theme them by adding a single dark block instead of restyling them a second time". That premise is currently false: 84 raw Tailwind palette classes remain in app code. ([docs/tasks/006-timer-surface-tokens.md](tasks/006-timer-surface-tokens.md) covers the timer surface; a 007 is named inside it for the task-list surface.)
+  - [ ] **Visible light/dark toggle.** Required, not optional — she studies at night. Deferred here explicitly by DESIGN.md.
+  - [ ] **Paper grain texture** at low opacity, produced procedurally (SVG/CSS) rather than shipped as an asset, which sidesteps licensing. Deferred here explicitly by DESIGN.md.
+  - [ ] **A settings surface**, holding the theme controls above plus a timer gauge style preference. ([docs/tasks/008-settings-gauge-style.md](tasks/008-settings-gauge-style.md) — blocked behind 006.)
+  - [ ] **Uploaded backgrounds.**
 - [ ] **5. Ambient soundscape mixer** — layered loops, per-layer volume. CC0/properly licensed audio only.
 - [ ] **6. Music embeds** — official embeds from pasted playlist URLs. No scraping, no unofficial APIs.
 - [ ] **7. PWA + export/import** — installable PWA, JSON export/import. Sync is a later, separate milestone.
+
+## Maintenance & polish
+
+Work no milestone asked for: refactors of already-shipped milestones, and visual polish.
+Tracked here so it stops appearing in the git log as if it were milestone progress.
+
+- [x] **Task list behind a dialog** ([docs/tasks/004-task-list-popup.md](tasks/004-task-list-popup.md)) — reworked milestone 2's list into a modal, keeping the inline current-task card. Committed as `dce7bec`.
+- [x] **Liquid timer gauge + hold-to-confirm Reset** ([docs/tasks/005-timer-gauge-hold-reset.md](tasks/005-timer-gauge-hold-reset.md)) — two vendored ReactBits components (MIT + Commons Clause, see [DECISIONS.md](DECISIONS.md)). QA PASS at 53/54 criteria, reviewed. **Complete but not committed.**
+
+## Numbering
+
+Commit messages up to and including `dce7bec` read "Milestone N", where N is the **task**
+number, not the milestone number. `dce7bec "Milestone 4"` is task 004 (the task-list
+dialog), which is maintenance work — plan milestone 4 is Themes and has not started.
+Later commits should name the task and, where one applies, the milestone it serves.
 
 See [DECISIONS.md](DECISIONS.md) for why things ended up this way, and `tasks/` for per-feature specs.

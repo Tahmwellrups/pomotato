@@ -47,7 +47,7 @@ export function TimerGauge({ remainingMs, fullMs, ready }: TimerGaugeProps) {
           interactive={false}
           liquidColor={colors.liquid}
           glassColor={colors.glass}
-          radius={16}
+          radius={200}
           ticks={0}
           tilt={0.2}
           splash={0.2}

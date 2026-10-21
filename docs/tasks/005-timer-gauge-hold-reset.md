@@ -1,7 +1,7 @@
 ---
 id: 005
 slug: timer-gauge-hold-reset
-status: draft # draft | in-progress | qa | review | done | blocked
+status: done # draft | in-progress | qa | review | done | blocked
 ---
 
 # Liquid gauge behind the timer, hold-to-confirm Reset

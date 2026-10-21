@@ -39,7 +39,7 @@ export function CustomDurationInput() {
 
   return (
     <div className="flex w-full max-w-xs flex-col gap-1">
-      <label htmlFor="custom-duration" className="text-sm font-medium text-stone-600">
+      <label htmlFor="custom-duration" className="text-sm font-medium text-muted-foreground">
         Custom duration (minutes)
       </label>
       <input
@@ -59,10 +59,10 @@ export function CustomDurationInput() {
           isFocusedRef.current = false;
         }}
         onChange={handleChange}
-        className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+        className="min-h-11 rounded-lg border border-input bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
       />
       {error !== null ? (
-        <p id="custom-duration-error" role="alert" className="text-sm text-red-700">
+        <p id="custom-duration-error" role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}
