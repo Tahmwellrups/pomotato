@@ -21,11 +21,11 @@ test.describe("Accessibility - axe-core checks", () => {
   });
 
   test("no axe violations in running state", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Wait for the button to change to Pause
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(pauseButton).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();
@@ -38,12 +38,12 @@ test.describe("Accessibility - axe-core checks", () => {
   });
 
   test("no axe violations in paused state", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     await page.waitForTimeout(500);
 
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await pauseButton.click();
 
     const results = await new AxeBuilder({ page }).analyze();
@@ -87,7 +87,7 @@ test.describe("Accessibility - axe-core checks", () => {
   });
 
   test("focus indicator is visible", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.focus();
 
     // Check that focus-visible styles are applied
@@ -142,13 +142,13 @@ test.describe("Accessibility - axe-core checks", () => {
     // current-task card's own "Loading…" text (also role="status") are in
     // the DOM — a strict-mode violation that's timing-dependent on a cold load.
     const liveRegion = page.locator('p.sr-only[role="status"]');
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
 
     // Start the timer
     await startButton.click();
 
     // Wait for the button to change to Pause (indicating timer is running)
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(pauseButton).toBeVisible();
 
     // Live region should be empty while running
@@ -162,13 +162,13 @@ test.describe("Accessibility - axe-core checks", () => {
     // current-task card's own "Loading…" text (also role="status") are in
     // the DOM — a strict-mode violation that's timing-dependent on a cold load.
     const liveRegion = page.locator('p.sr-only[role="status"]');
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
 
     // Start the timer
     await startButton.click();
 
     // Wait for the button to change to Pause
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(pauseButton).toBeVisible();
 
     // Install clock and advance past the full focus duration (25:00 = 1500 seconds)

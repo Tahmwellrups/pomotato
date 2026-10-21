@@ -656,7 +656,7 @@ test.describe("Task List Feature", () => {
 
       // Find increment button scoped to task row by text content
       const taskRow = getTaskRow(page, "Karma");
-      const incrementButton = taskRow.locator("button:has-text('+1')").first();
+      const incrementButton = taskRow.getByRole("button", { name: "+1, add a completed pomodoro to Karma", exact: true });
 
       await expect(incrementButton).toBeVisible();
       await incrementButton.click();
@@ -676,12 +676,12 @@ test.describe("Task List Feature", () => {
 
       // Increment first
       const taskRow = getTaskRow(page, "Lunar");
-      const incrementButton = taskRow.locator("button:has-text('+1')").first();
+      const incrementButton = taskRow.getByRole("button", { name: "+1, add a completed pomodoro to Lunar", exact: true });
       await expect(incrementButton).toBeVisible();
       await incrementButton.click();
 
       // Then decrement
-      const decrementButton = taskRow.locator("button:has-text('-1')").first();
+      const decrementButton = taskRow.getByRole("button", { name: "-1, remove a completed pomodoro from Lunar", exact: true });
       await expect(decrementButton).toBeVisible();
       await decrementButton.click();
 
@@ -700,7 +700,7 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(100);
 
       const taskRow = getTaskRow(page, "Memory");
-      const incrementButton = taskRow.locator("button:has-text('+1')").first();
+      const incrementButton = taskRow.getByRole("button", { name: "+1, add a completed pomodoro to Memory", exact: true });
       await expect(incrementButton).toBeVisible();
       await incrementButton.click();
       await page.waitForTimeout(50);
@@ -1219,7 +1219,7 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(500);
 
       // Timer should still render and be interactive even though IndexedDB is unavailable
-      const startButton = page.locator("button:has-text('Start')");
+      const startButton = page.getByRole("button", { name: "Start", exact: true });
       await expect(startButton).toBeVisible({ timeout: 5000 });
 
       // Click Start to verify timer functionality works
@@ -1227,7 +1227,7 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(100);
 
       // Pause button should appear (timer started successfully)
-      const pauseButton = page.locator("button:has-text('Pause')");
+      const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
       await expect(pauseButton).toBeVisible();
     });
   });

@@ -3,13 +3,18 @@ import Link from 'next/link'
 import { Button } from './ui/button'
 import { RiBarChart2Fill } from 'react-icons/ri'
 
-const StatsButton = () => {
+export function StatsButton() {
   return (
     <div>
-      <Button asChild>
+      <Button
+        asChild
+        variant="secondary"
+        className="size-11 rounded-xl border-none text-base cursor-pointer motion-reduce:transition-none"
+      >
         <Link
           href="/stats"
-          className={`flex h-9 w-9 rounded-xl border-none bg-neutral-200 items-center text-base cursor-pointer hover:bg-muted motion-reduce:transition-none`}
+          aria-label="Focus stats"
+          className="flex items-center"
         >
           <RiBarChart2Fill className="size-4.5" />
         </Link>
@@ -17,5 +22,3 @@ const StatsButton = () => {
     </div>
   )
 }
-
-export default StatsButton

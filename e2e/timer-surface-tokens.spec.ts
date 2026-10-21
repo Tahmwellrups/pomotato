@@ -66,7 +66,8 @@ async function pageBackground(page: Page): Promise<Rgb> {
 interface Paint {
   color: Rgb;
   background: Rgb;
-  borderColor: Rgb;
+  // null when the border is not painted (zero width or transparent colour).
+  borderColor: Rgb | null;
   borderWidth: string;
   outlineColor: string;
   outlineWidth: string;
@@ -96,7 +97,8 @@ async function readPaint(locator: Locator): Promise<Paint> {
   return {
     color: parseRgb(raw.color),
     background: parseRgb(raw.background),
-    borderColor: parseRgb(raw.borderColor),
+    // A border is painted only if it has width and a non-transparent colour (Start uses border-transparent).
+    borderColor: raw.borderWidth === "0px" || raw.borderColor === "rgba(0, 0, 0, 0)" ? null : parseRgb(raw.borderColor),
     borderWidth: raw.borderWidth,
     outlineColor: raw.outlineColor,
     outlineWidth: raw.outlineWidth,
@@ -105,6 +107,12 @@ async function readPaint(locator: Locator): Promise<Paint> {
     width: raw.width,
     height: raw.height,
   };
+}
+
+/** The border colour of a control that paints one. Fails with a clear message when the border is not drawn. */
+function painted(rgb: Rgb | null, what: string): Rgb {
+  if (rgb === null) throw new Error(`${what} is not painted: border width is 0`);
+  return rgb;
 }
 
 function chipRadio(page: Page, mode: string): Locator {
@@ -155,11 +163,11 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
     const selected = await readPaint(chip(page, "focus"));
     const page_ = await pageBackground(page);
     expect(contrast(selected.color, selected.background)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(selected.borderColor, page_)).toBeGreaterThanOrEqual(3);
+    expect(contrast(painted(selected.borderColor, "selected chip border"), page_)).toBeGreaterThanOrEqual(3);
     // Selected fill is the --accent token; the mode-chip variant must not drift from it.
     expect(selected.background).toEqual(await resolveToken(page, "--accent"));
     expect(selected.color).toEqual(await resolveToken(page, "--accent-foreground"));
-    expect(selected.borderColor).toEqual(await resolveToken(page, "--primary"));
+    expect(painted(selected.borderColor, "selected chip border")).toEqual(await resolveToken(page, "--primary"));
   });
 
   test("unselected chip: label on fill is 4.5:1 or better; fill and border measured against the page", async ({ page }) => {
@@ -167,7 +175,7 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
     const page_ = await pageBackground(page);
     expect(contrast(unselected.color, unselected.background)).toBeGreaterThanOrEqual(4.5);
     expect(unselected.background).toEqual(await resolveToken(page, "--popover"));
-    expect(unselected.borderColor).toEqual(await resolveToken(page, "--border"));
+    expect(painted(unselected.borderColor, "unselected chip border")).toEqual(await resolveToken(page, "--border"));
     // Recorded, not thresholded: fill vs page is a deliberate reduction (1.05:1, the border carries the boundary).
     const fillVsPage = contrast(unselected.background, page_);
     expect(fillVsPage).toBeLessThan(1.1);
@@ -178,7 +186,7 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
   // suite green while the failure is real, and turns red the moment someone fixes it so the marker is removed.
   test.fail("unselected chip border against the page reaches 3:1 (KNOWN FAILURE: 1.36:1, pre-existing, owner decision)", async ({ page }) => {
     const unselected = await readPaint(chip(page, "shortBreak"));
-    expect(contrast(unselected.borderColor, await pageBackground(page))).toBeGreaterThanOrEqual(3);
+    expect(contrast(painted(unselected.borderColor, "unselected chip border"), await pageBackground(page))).toBeGreaterThanOrEqual(3);
   });
 
   test("custom duration input: text on fill 4.5:1, error text on page 4.5:1, disabled text not worse than HEAD (2.37:1)", async ({ page }) => {

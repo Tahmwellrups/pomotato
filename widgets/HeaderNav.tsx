@@ -1,6 +1,6 @@
 import React from 'react'
 
-const HeaderNav = () => {
+export function HeaderNav() {
   return (
     <div className="flex w-full max-w-full flex-row items-center gap-1">
       <div className="flex max-w-full flex-row items-center gap-2">
@@ -11,5 +11,3 @@ const HeaderNav = () => {
     </div>
   )
 }
-
-export default HeaderNav

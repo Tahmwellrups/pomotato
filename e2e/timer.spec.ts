@@ -20,11 +20,11 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("starts the timer and countdown begins", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // After starting, Pause button should appear
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(pauseButton).toBeVisible({ timeout: 5000 });
 
     // Wait a bit and check that the display has changed
@@ -36,13 +36,13 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("pauses the timer and display freezes", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Wait a moment for the timer to count down
     await page.waitForTimeout(500);
 
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await pauseButton.click();
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
@@ -56,27 +56,27 @@ test.describe("Pomotato Focus Timer E2E", () => {
     expect(stillPausedTime).toBe(pausedTime);
 
     // Resume button should be visible
-    const resumeButton = page.locator("button:has-text('Resume')");
+    const resumeButton = page.getByRole("button", { name: "Resume", exact: true });
     await expect(resumeButton).toBeVisible();
   });
 
   test("resumes the timer after pause", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     await page.waitForTimeout(500);
 
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await pauseButton.click();
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
     const pausedTime = await timerDisplay.textContent();
 
-    const resumeButton = page.locator("button:has-text('Resume')");
+    const resumeButton = page.getByRole("button", { name: "Resume", exact: true });
     await resumeButton.click();
 
     // Pause button should appear again (not Resume)
-    const newPauseButton = page.locator("button:has-text('Pause')");
+    const newPauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(newPauseButton).toBeVisible();
 
     // Wait a moment and check that time is counting down again
@@ -86,12 +86,12 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("reset returns to full duration and idle state", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     await page.waitForTimeout(500);
 
-    const resetButton = page.locator("button:has-text('Reset')");
+    const resetButton = page.getByRole("button", { name: "Reset", exact: true });
     // Reset is hold-to-confirm (task 005): a click is only a tap and must not reset.
     await holdPointer(page, resetButton, 1200);
 
@@ -99,12 +99,12 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await expect(timerDisplay).toContainText("25:00");
 
     // Start button should be visible again
-    const newStartButton = page.locator("button:has-text('Start')");
+    const newStartButton = page.getByRole("button", { name: "Start", exact: true });
     await expect(newStartButton).toBeVisible();
   });
 
   test("switching modes mid-run stops the countdown", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     await page.waitForTimeout(500);
@@ -118,7 +118,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await expect(timerDisplay).toContainText("05:00");
 
     // Start button should be visible again
-    const newStartButton = page.locator("button:has-text('Start')");
+    const newStartButton = page.getByRole("button", { name: "Start", exact: true });
     await expect(newStartButton).toBeVisible();
   });
 
@@ -156,7 +156,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
     const customLabel = page.locator('label:has(input[value="custom"])');
     await customLabel.click();
 
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     const customInput = page.locator('input[id="custom-duration"]');
@@ -167,10 +167,10 @@ test.describe("Pomotato Focus Timer E2E", () => {
     const customLabel = page.locator('label:has(input[value="custom"])');
     await customLabel.click();
 
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await pauseButton.click();
 
     const customInput = page.locator('input[id="custom-duration"]');
@@ -178,7 +178,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("jumping forward 10 minutes while running shows correct remaining time", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Use page.clock to advance time
@@ -191,7 +191,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("reload while running keeps correct timer value", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Use page.clock to advance 2 minutes
@@ -202,7 +202,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await page.reload();
 
     // Timer should still be running
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(pauseButton).toBeVisible({ timeout: 5000 });
 
     // Display should show approximately 23:00 (25:00 - 2:00)
@@ -211,7 +211,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("reload after end time passed shows 00:00 and complete state", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Use page.clock to advance past the end
@@ -225,18 +225,18 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await expect(timerDisplay).toContainText("00:00");
 
     // Start button should be visible (timer is in complete state)
-    const startButtonAfterReload = page.locator("button:has-text('Start')");
+    const startButtonAfterReload = page.getByRole("button", { name: "Start", exact: true });
     await expect(startButtonAfterReload).toBeVisible();
   });
 
   test("reload while paused preserves paused state", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Wait a moment and pause
     await page.waitForTimeout(500);
 
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await pauseButton.click();
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
@@ -250,14 +250,14 @@ test.describe("Pomotato Focus Timer E2E", () => {
     expect(pausedTimeAfterReload).toBe(pausedTime);
 
     // Resume button should be visible
-    const resumeButton = page.locator("button:has-text('Resume')");
+    const resumeButton = page.getByRole("button", { name: "Resume", exact: true });
     await expect(resumeButton).toBeVisible();
   });
 
   test("keyboard navigation: Tab through controls", async ({ page }) => {
     const modeSelector = page.locator('input[type="radio"][value="focus"]');
-    const startButton = page.locator("button:has-text('Start')");
-    const resetButton = page.locator("button:has-text('Reset')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
+    const resetButton = page.getByRole("button", { name: "Reset", exact: true });
 
     // Tab to first mode radio
     await page.keyboard.press("Tab");
@@ -281,22 +281,22 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("keyboard activation: Space to start timer", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.focus();
     await page.keyboard.press("Space");
 
     // Pause button should appear
-    const pauseButton = page.locator("button:has-text('Pause')");
+    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await expect(pauseButton).toBeVisible({ timeout: 5000 });
   });
 
   test("keyboard activation: Enter to reset timer", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     await page.waitForTimeout(500);
 
-    const resetButton = page.locator("button:has-text('Reset')");
+    const resetButton = page.getByRole("button", { name: "Reset", exact: true });
     await resetButton.focus();
     // Hold-to-confirm (task 005): a single Enter press is a tap and does not reset.
     await holdKey(page, "Enter", 1200);
@@ -306,7 +306,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("focus indicator visible on buttons", async ({ page }) => {
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.focus();
 
     // Check that the button has the focus-visible class applied
@@ -340,7 +340,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
 
   test("no hydration mismatch on reload", async ({ page }) => {
     // Start the timer
-    const startButton = page.locator("button:has-text('Start')");
+    const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Reload and check for console errors

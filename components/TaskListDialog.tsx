@@ -40,7 +40,8 @@ export function TaskListDialog() {
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className={`flex h-9 w-9 rounded-xl border-none bg-primary text-white items-center text-base cursor-pointer hover:bg-primary/80 hover:text-white motion-reduce:transition-none`}
+          aria-label="Your tasks"
+          className={`flex size-11 rounded-xl border-none bg-primary text-white items-center text-base cursor-pointer hover:bg-primary/80 hover:text-white motion-reduce:transition-none ${focusClass}`}
         >
           <FaTasks className="size-4.5 place-self-center-safe" />
         </Button>

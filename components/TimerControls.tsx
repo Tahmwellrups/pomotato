@@ -43,6 +43,8 @@ export function TimerControls() {
       <FaPlay className="h-5 w-5" />
     )
 
+  const primaryName = status === 'running' ? 'Pause' : status === 'paused' ? 'Resume' : 'Start'
+
   const handlePrimary = () => {
     if (status === "running") pause();
     else if (status === "paused") resume();
@@ -53,6 +55,7 @@ export function TimerControls() {
     <div className="relative flex gap-3">
       <Button
         type="button"
+        aria-label={primaryName}
         onClick={handlePrimary}
         className={`min-h-11 rounded-lg px-4 py-2 bg-primary font-medium text-primary-foreground outline-none cursor-pointer hover:bg-[color-mix(in_srgb,var(--primary),var(--foreground)_30%)] ${buttonFocusRing}`}
       >
@@ -63,6 +66,7 @@ export function TimerControls() {
         glow={false}
         wave={false}
         radius={8}
+        ariaLabel="Reset"
         doneLabel="Reset"
         resetAfter={600}
         backgroundColor={resetColors.background}

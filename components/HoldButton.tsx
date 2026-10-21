@@ -13,6 +13,8 @@
  *    from handlers carry eslint-disable comments for react-hooks/purity.
  *  - Reduced motion keeps the hard-edge clip-path reveal but quantises --hb-p to four steps
  *    (CSS round()) instead of fading opacity, so the label is contrast-safe at every point.
+ *  - `ariaLabel` prop sets aria-label on the root button, so the accessible name is explicit
+ *    and does not depend on the duplicated label markup (.hb-fill renders the label again).
  *  - The hint span is aria-hidden so it stays the button's description (aria-describedby)
  *    but is not appended to its accessible name.
  */
@@ -46,6 +48,7 @@ export interface HoldButtonProps {
   onHold?: () => void;
   onTap?: () => void;
   className?: string;
+  ariaLabel?: string;
 }
 
 type Phase = 'idle' | 'holding' | 'done';
@@ -126,7 +129,8 @@ const HoldButton: React.FC<HoldButtonProps> = ({
   disabled = false,
   onHold,
   onTap,
-  className = ''
+  className = '',
+  ariaLabel
 }) => {
   const [phase, setPhase] = useState<Phase>('idle');
   const [input, setInput] = useState<Input>(null);
@@ -344,6 +348,7 @@ const HoldButton: React.FC<HoldButtonProps> = ({
       data-input={input ?? undefined}
       data-direction={direction}
       data-glow={glow ? 'true' : undefined}
+      aria-label={ariaLabel}
       aria-describedby={hintId}
       style={cssVars}
       onPointerDown={handlePointerDown}

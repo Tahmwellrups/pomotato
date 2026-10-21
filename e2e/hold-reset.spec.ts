@@ -39,6 +39,18 @@ async function installIdleWriteCounter(page: Page) {
   });
 }
 
+// Waits for CSS transitions only (not infinite animations) so a focus ring is read at its settled value, not mid-fade.
+async function waitForCssTransitions(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.trim().replace("#", ""), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -304,6 +316,7 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
     // Start is measured while focused: an unfocused button has no ring to compare.
     await startButton(page).focus();
     await expect(startButton(page)).toBeFocused();
+    await waitForCssTransitions(page);
     const startRing = await startButton(page).evaluate((el) => {
       const s = getComputedStyle(el);
       return { style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset, colour: s.outlineColor };
@@ -313,6 +326,7 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
     await page.keyboard.press("Tab");
     const reset = resetControl(page);
     await expect(reset).toBeFocused();
+    await waitForCssTransitions(page);
     const ring = await reset.evaluate((el) => {
       const s = getComputedStyle(el);
       return { style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset, colour: s.outlineColor, surface: s.backgroundColor };

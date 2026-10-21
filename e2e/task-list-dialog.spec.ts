@@ -162,6 +162,21 @@ async function effectiveBackground(page: Page, locator: ReturnType<Page["locator
   return resolveColour(page, value);
 }
 
+// The page behind the trigger: the first non-transparent background from <body> upwards. The trigger has its own amber fill now,
+// so measuring from the trigger would compare its focus ring against its own fill, not the page the ring sits on.
+async function pageBehind(page: Page): Promise<Rgb> {
+  const value = await page.evaluate(() => {
+    let node: Element | null = document.body;
+    while (node) {
+      const color = getComputedStyle(node).backgroundColor;
+      if (color && color !== "rgba(0, 0, 0, 0)" && color !== "transparent") return color;
+      node = node.parentElement;
+    }
+    return "rgb(255, 255, 255)";
+  });
+  return resolveColour(page, value);
+}
+
 async function computedColour(page: Page, locator: ReturnType<Page["locator"]>): Promise<string> {
   return locator.evaluate((el) => getComputedStyle(el).color);
 }
@@ -204,7 +219,7 @@ test.describe("Task list dialog: shell", () => {
     expect(outline.style).toBe("solid");
     expect(parseFloat(outline.width)).toBeGreaterThanOrEqual(2);
 
-    const ratio = contrastRatio(await resolveColour(page, outline.color), await effectiveBackground(page, button));
+    const ratio = contrastRatio(await resolveColour(page, outline.color), await pageBehind(page));
     expect(ratio).toBeGreaterThanOrEqual(3);
   });
 

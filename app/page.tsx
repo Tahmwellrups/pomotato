@@ -1,7 +1,7 @@
 import { CurrentTaskCard } from "@/components/CurrentTaskCard";
 import { PomotatoTimer } from "@/components/PomotatoTimer";
-import BottomControls from "@/widgets/BottomControls";
-import HeaderNav from "@/widgets/HeaderNav";
+import { BottomControls } from "@/widgets/BottomControls";
+import { HeaderNav } from "@/widgets/HeaderNav";
 
 export default function Home() {
   return (
