@@ -17,7 +17,7 @@ export function TaskColorDot({ colorId, className }: TaskColorDotProps) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-block shrink-0 rounded-full border border-black/10 ${className ?? "h-3.5 w-3.5"}`}
+      className={`inline-block shrink-0 rounded-full border border-[color-mix(in_srgb,var(--foreground)_12%,transparent)] ${className ?? "h-3.5 w-3.5"}`}
       style={{ backgroundColor: TASK_COLOR_HEX[colorId] }}
     />
   );

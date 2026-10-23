@@ -236,25 +236,25 @@ export function TaskList() {
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <section aria-labelledby="add-task-heading" className="rounded-2xl border border-stone-200 bg-white p-4">
-        <h3 id="add-task-heading" className="mb-3 text-sm font-semibold text-stone-700">
+      <section aria-labelledby="add-task-heading" className="rounded-2xl border border-border bg-card p-4">
+        <h3 id="add-task-heading" className="mb-3 text-sm font-semibold text-secondary-foreground">
           Add a task
         </h3>
         <TaskForm idPrefix="add-task" submitLabel="Add task" onSubmit={handleAdd} titleInputRef={addTitleInputRef} />
       </section>
 
       {tasksQuery.status === "loading" ? (
-        <p role="status" className="text-sm text-stone-600">
+        <p role="status" className="text-sm text-muted-foreground">
           Loading your tasks…
         </p>
       ) : tasksQuery.status === "error" ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-destructive">
           {tasksQuery.blocked
             ? "Couldn't load your tasks. Another Pomotato tab is still using an older version. Close other Pomotato tabs, then reload."
             : "Couldn't load your tasks. Try reloading the page."}
         </p>
       ) : orderedTasks.length === 0 ? (
-        <p className="text-sm text-stone-600">No tasks yet. Add your first one above.</p>
+        <p className="text-sm text-muted-foreground">No tasks yet. Add your first one above.</p>
       ) : (
         <DndContext
           sensors={sensors}

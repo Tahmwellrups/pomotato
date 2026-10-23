@@ -41,7 +41,7 @@ export function TaskListDialog() {
         <Button
           variant="outline"
           aria-label="Your tasks"
-          className={`flex size-11 rounded-xl border-none bg-primary text-white items-center text-base cursor-pointer hover:bg-primary/80 hover:text-white motion-reduce:transition-none ${focusClass}`}
+          className={`flex size-11 rounded-xl border-none bg-primary text-primary-foreground items-center text-base cursor-pointer hover:bg-primary/80 hover:text-primary-foreground motion-reduce:transition-none ${focusClass}`}
         >
           <FaTasks className="size-4.5 place-self-center-safe" />
         </Button>

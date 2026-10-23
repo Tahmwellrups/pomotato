@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { holdPointer, holdResetWithPointer, resetControl, seedTimerState, TIMER_STORAGE_KEY } from "./helpers/timer-hold";
+import { readPainted, tokenRgb } from "./helpers/painted";
 
 // Task 006 QA: the timer surface draws from semantic tokens and must look the same.
 // Every colour here is read from the browser's computed style (painted value), never from
@@ -109,12 +110,6 @@ async function readPaint(locator: Locator): Promise<Paint> {
   };
 }
 
-/** The border colour of a control that paints one. Fails with a clear message when the border is not drawn. */
-function painted(rgb: Rgb | null, what: string): Rgb {
-  if (rgb === null) throw new Error(`${what} is not painted: border width is 0`);
-  return rgb;
-}
-
 function chipRadio(page: Page, mode: string): Locator {
   return page.locator(`input[name="timer-mode"][value="${mode}"]`);
 }
@@ -159,34 +154,33 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
     await settle(page);
   });
 
-  test("selected chip: label on fill is 4.5:1 or better; border against the page is 3:1 or better", async ({ page }) => {
-    const selected = await readPaint(chip(page, "focus"));
-    const page_ = await pageBackground(page);
-    expect(contrast(selected.color, selected.background)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(painted(selected.borderColor, "selected chip border"), page_)).toBeGreaterThanOrEqual(3);
-    // Selected fill is the --accent token; the mode-chip variant must not drift from it.
-    expect(selected.background).toEqual(await resolveToken(page, "--accent"));
-    expect(selected.color).toEqual(await resolveToken(page, "--accent-foreground"));
-    expect(painted(selected.borderColor, "selected chip border")).toEqual(await resolveToken(page, "--primary"));
+  // Task 007 criteria 3 and 4: the chips are flat text since 2e8f967. Their fill and border were deleted, so the
+  // 006 assertions that measured them (fill = --accent, border = --primary) are rewritten to assert the flat-text
+  // direction and the label contrast against the painted page. The selected-state cue is in token-chip-cue.spec.ts.
+  test("selected chip: flat text (no fill, no border); label is --accent-foreground and reaches 4.5:1 on the page", async ({ page }) => {
+    const selected = await readPainted(page, chip(page, "focus"));
+    expect(selected.backgroundRaw).toBe("rgba(0, 0, 0, 0)");
+    expect(selected.borderWidths).toEqual(["0px", "0px", "0px", "0px"]);
+    expect(contrast(selected.color, selected.ground)).toBeGreaterThanOrEqual(4.5);
+    expect(selected.color).toEqual(await tokenRgb(page, "--accent-foreground"));
   });
 
-  test("unselected chip: label on fill is 4.5:1 or better; fill and border measured against the page", async ({ page }) => {
-    const unselected = await readPaint(chip(page, "shortBreak"));
-    const page_ = await pageBackground(page);
-    expect(contrast(unselected.color, unselected.background)).toBeGreaterThanOrEqual(4.5);
-    expect(unselected.background).toEqual(await resolveToken(page, "--popover"));
-    expect(painted(unselected.borderColor, "unselected chip border")).toEqual(await resolveToken(page, "--border"));
-    // Recorded, not thresholded: fill vs page is a deliberate reduction (1.05:1, the border carries the boundary).
-    const fillVsPage = contrast(unselected.background, page_);
-    expect(fillVsPage).toBeLessThan(1.1);
+  test("unselected chip: flat text (no fill, no border); label is --secondary-foreground and reaches 4.5:1 on the page", async ({ page }) => {
+    const unselected = await readPainted(page, chip(page, "shortBreak"));
+    expect(unselected.backgroundRaw).toBe("rgba(0, 0, 0, 0)");
+    expect(unselected.borderWidths).toEqual(["0px", "0px", "0px", "0px"]);
+    expect(contrast(unselected.color, unselected.ground)).toBeGreaterThanOrEqual(4.5);
+    expect(unselected.color).toEqual(await tokenRgb(page, "--secondary-foreground"));
   });
 
-  // Known failure, carried over from HEAD and deliberately not fixed in this task (see Implementation Notes).
-  // Criterion 14 requires 3:1 for a non-text boundary that carries a control's state. test.fail() keeps the
-  // suite green while the failure is real, and turns red the moment someone fixes it so the marker is removed.
-  test.fail("unselected chip border against the page reaches 3:1 (KNOWN FAILURE: 1.36:1, pre-existing, owner decision)", async ({ page }) => {
-    const unselected = await readPaint(chip(page, "shortBreak"));
-    expect(contrast(painted(unselected.borderColor, "unselected chip border"), await pageBackground(page))).toBeGreaterThanOrEqual(3);
+  // Replaces the 006 test.fail() "unselected chip border reaches 3:1 (KNOWN FAILURE: 1.36:1)". That marker passed
+  // only because the border does not exist: readPaint() threw on the transparent colour before the contrast line.
+  // The chip has no boundary by design (task 007 criterion 3). The boundary requirement is discharged by the
+  // custom-duration input (criterion 21) and the Stats button (criterion 22), not by the chips.
+  test("unselected chip has no border by design, so no chip boundary is measured (task 007 criteria 3 and 21)", async ({ page }) => {
+    const unselected = await readPainted(page, chip(page, "shortBreak"));
+    expect(unselected.borderWidths).toEqual(["0px", "0px", "0px", "0px"]);
+    expect(unselected.borderColor).toBeNull();
   });
 
   test("custom duration input: text on fill 4.5:1, error text on page 4.5:1, disabled text not worse than HEAD (2.37:1)", async ({ page }) => {
@@ -262,7 +256,7 @@ test.describe("task 006 mode chips: keyboard focus, grouping and behaviour", () 
   });
 
   for (const mode of ["focus", "shortBreak"]) {
-    test(`keyboard focus on the ${mode === "focus" ? "checked" : "unchecked"} chip: 2 px solid outline, 2 px offset, app focus colour, 3:1 or better against fill and page`, async ({ page }) => {
+    test(`keyboard focus on the ${mode === "focus" ? "checked" : "unchecked"} chip: 2 px solid outline, 2 px offset, app focus colour, 3:1 or better against the page`, async ({ page }) => {
       await tabToCheckedMode(page);
       if (mode !== "focus") {
         // Keyboard-modality focus on an unchecked radio: move focus to it without changing the selection.
@@ -274,14 +268,15 @@ test.describe("task 006 mode chips: keyboard focus, grouping and behaviour", () 
       await expect(radio).toBeFocused();
       // outline-color is in transition-colors, so wait out the fade before reading the ring.
       await settle(page);
-      const focused = await readPaint(chip(page, mode));
+      // The chip paints no fill (task 007), so its ground is the page behind it. readPainted() composites the
+      // outline colour over that ground; parseRgb() cannot read the transparent fill the 006 version used.
+      const focused = await readPainted(page, chip(page, mode));
       expect(focused.outlineStyle).toBe("solid");
       expect(focused.outlineWidth).toBe("2px");
       expect(focused.outlineOffset).toBe("2px");
-      const ring = await resolveToken(page, "--ring");
-      expect(parseRgb(focused.outlineColor)).toEqual(ring);
-      expect(contrast(ring, focused.background)).toBeGreaterThanOrEqual(3);
-      expect(contrast(ring, await pageBackground(page))).toBeGreaterThanOrEqual(3);
+      const ring = await tokenRgb(page, "--ring");
+      expect(focused.outlineColor).toEqual(ring);
+      expect(contrast(ring, focused.ground)).toBeGreaterThanOrEqual(3);
     });
   }
 

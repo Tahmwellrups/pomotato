@@ -9,7 +9,7 @@ export function StatsButton() {
       <Button
         asChild
         variant="secondary"
-        className="size-11 rounded-xl border-none text-base cursor-pointer motion-reduce:transition-none"
+        className="size-11 rounded-xl border-control-border text-base cursor-pointer motion-reduce:transition-none"
       >
         <Link
           href="/stats"

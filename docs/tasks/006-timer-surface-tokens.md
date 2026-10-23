@@ -1,7 +1,7 @@
 ---
 id: 006
 slug: timer-surface-tokens
-status: draft # draft | in-progress | qa | review | done | blocked
+status: done # draft | in-progress | qa | review | done | blocked
 ---
 
 # Timer surface: semantic tokens everywhere, mode chips as a shared variant
@@ -645,3 +645,34 @@ Chip and input borders are 1.36:1 against the page. Options: a darker border (a 
 (Filled in by reviewer.)
 - Verdict: APPROVE | CHANGES REQUESTED
 - Findings:
+
+---
+
+## Closure note (orchestrator, 2026-10-21)
+
+Closed as **done with two carve-outs**, after QA's 36 PASS / 1 FAIL. Recorded here because
+flipping the status on a task that carried a FAIL verdict would otherwise misrepresent it.
+
+- **Criterion 14 (the 1.36:1 boundaries) is not failed, it is relocated.** `--border` is shared
+  across the whole app, so raising it was never in this task's gift; criterion 9 correctly forbade
+  editing it. Three separate controls proved it is a palette gap rather than a per-case exemption:
+  the custom-duration input, the mode chips, and the Stats button added later at a 1.0:1 fill.
+  Task 007 introduces an interactive-boundary token that resolves all three. Measured:
+  `--border` `#d6d3d1` is 1.36:1 on `--background` and 1.43:1 on `--popover`; ~`#8f8a85` reaches 3.13:1.
+- **The chip criteria are superseded, not satisfied.** Commit `2e8f967` ("Reconfigure of UI for
+  aesthetic") replaced the pill chips with flat uppercase text, deleting the fill, border and radius
+  this task's criteria 20-26, swap-table chip rows and deviation list all describe. Four e2e
+  assertions still measure that deleted markup; task 007 resolves them. What survives and carries
+  forward: the `cva` module at `components/ui/mode-chip.tsx` and the native-radio markup.
+
+What this task did deliver, and which still stands: the token swaps in `components/TimerControls.tsx`
+and `components/CustomDurationInput.tsx`, the `cva` extraction, and the extended raw-palette guard —
+whose regex caught `white`, `black` and `/NN` forms the task-005 pattern was blind to. That guard is
+the most reusable thing here and task 007 extends it repo-wide.
+
+Open questions Q1, Q2, Q3 and Q6 remain with the owner. Q4 was answered by owner action (the
+commented-out header in `app/page.tsx` is gone; `widgets/HeaderNav.tsx` renders the wordmark now).
+Q5 moves to milestone 4's dark-toggle part, since a hardcoded focus colour only breaks once there is
+a dark palette to break against.
+
+The QA Report and Review Findings sections above are left exactly as written.

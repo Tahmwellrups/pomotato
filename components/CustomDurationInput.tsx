@@ -59,7 +59,7 @@ export function CustomDurationInput() {
           isFocusedRef.current = false;
         }}
         onChange={handleChange}
-        className="min-h-11 rounded-lg border border-input bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
+        className="min-h-11 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
       />
       {error !== null ? (
         <p id="custom-duration-error" role="alert" className="text-sm text-destructive">

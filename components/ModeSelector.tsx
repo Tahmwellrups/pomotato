@@ -14,7 +14,7 @@ export function ModeSelector() {
   return (
     <fieldset className="w-full">
       <legend className="sr-only">Timer mode</legend>
-      <div className="flex flex-wrap items-center justify-center gap-2 font-bold">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         {MODE_ORDER.map((value) => {
           const checked = mode === value;
           return (

@@ -49,6 +49,18 @@
   --destructive-foreground: #ffffff;
   --border: #d6d3d1; /* stone-300, the existing default border color */
   --input: #d6d3d1;
+  /* Boundary of a control, or of a control's state (custom-duration input,
+     task form fields, row action buttons, the Stats button). WCAG 1.4.11
+     asks 3:1 of exactly those boundaries; measured painted, #88837e is
+     3.44:1 on --background and --card, 3.61:1 on --popover, 3.12:1 on the
+     delete-confirm panel tint.
+     Why not an existing token: --border (and --input, which equals it) is
+     1.36:1 on --background and 1.43:1 on --popover, and it is shared
+     app-wide including by every `shadcn add`, so darkening it would restyle
+     everything. Decorative dividers and container hairlines keep --border.
+     Milestone 4 MUST give this a value in the .dark block and re-measure it
+     against the dark --background, --popover and --card at 3:1. */
+  --control-border: #88837e;
   /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so a
      future .dark block can pick its own scrim instead of inheriting a light
      one from the inverted foreground. */
@@ -97,6 +109,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-control-border: var(--control-border);
   --color-ring: var(--ring);
   --color-scrim: var(--scrim);
   --color-chart-1: var(--chart-1);

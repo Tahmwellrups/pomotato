@@ -7,12 +7,14 @@ import type { PaletteColorId } from "@/lib/db";
  * presentation concern, which is exactly what milestone 4's theme remap
  * will replace with a per-theme mapping.
  *
- * Every value is checked with the WCAG contrast formula against this
- * milestone's card background (white, `#ffffff`) and clears 3:1 (the bar
- * for a non-text color indicator). None of these are used as a background
- * for normal-size text, so the stricter 4.5:1 text bar does not apply to
- * them; where a value also happens to clear 4.5:1, that is a bonus, not a
- * requirement being relied on.
+ * Every value is measured against `--card`, the fill of the task rows and
+ * the add-task section (painted `rgb(251, 244, 234)`, the same as the page),
+ * and clears 3:1 (the bar for a non-text color indicator). Measured from
+ * painted pixels in task 007: potato 5.37, tomato 4.88, mint 3.14,
+ * sky 3.97, lavender 4.70, sunflower 4.77, blush 3.88, slate 5.36. Mint is
+ * the closest to the bar. None of these are used as a background for
+ * normal-size text, so the stricter 4.5:1 text bar does not apply to them.
+ * Milestone 4's dark `--card` will need these re-measured.
  */
 export const TASK_COLOR_HEX: Record<PaletteColorId, string> = {
   potato: "#8a5a2b",

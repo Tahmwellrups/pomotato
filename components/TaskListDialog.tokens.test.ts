@@ -13,16 +13,14 @@ function read(relativePath: string): string {
 
 const NEW_SURFACE_FILES = ["./TaskListDialog.tsx", "./ui/dialog.tsx", "./ui/button.tsx"];
 const HEX_LITERAL = /#[0-9a-fA-F]{3,8}\b/;
-const RAW_PALETTE_UTILITY = /\b(?:amber|stone|red|yellow|green|blue|gray|slate|zinc|neutral|orange|rose|sky)-\d{2,3}\b/;
+// The raw palette check that used to sit here (<palette>-<NN> only) is deleted,
+// not kept alongside: it could not see white, black or /NN suffixes and passed
+// over text-white on the trigger. palette.tokens.test.ts is the one guard.
 
 describe("task list dialog colour tokens", () => {
   for (const file of NEW_SURFACE_FILES) {
     it(`${file} contains no hex colour literal`, () => {
       expect(read(file)).not.toMatch(HEX_LITERAL);
-    });
-
-    it(`${file} contains no raw palette utility (amber-*, stone-*, red-*, ...)`, () => {
-      expect(read(file)).not.toMatch(RAW_PALETTE_UTILITY);
     });
   }
 

@@ -26,8 +26,13 @@ interface TaskRowProps {
   dragHandleId: string;
 }
 
-const actionButtonClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 outline-none hover:border-stone-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-40";
+// Shape and focus only. Colour is split into idle and pinned below so the two
+// never put competing border/fill/text utilities on one element (a join of
+// class strings has no merge step, so the winner would be stylesheet order).
+const actionButtonShape =
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-medium outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40";
+const actionButtonClass = `${actionButtonShape} border-control-border bg-popover text-secondary-foreground hover:border-[color-mix(in_srgb,var(--control-border),var(--foreground)_40%)]`;
+const pinnedActionButtonClass = `${actionButtonShape} border-primary bg-accent text-accent-foreground`;
 
 export function TaskRow({
   task,
@@ -107,8 +112,8 @@ export function TaskRow({
       ref={setNodeRef}
       style={style}
       className={[
-        "flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-3",
-        isDragging ? "opacity-60 ring-2 ring-amber-700" : "",
+        "flex flex-col gap-3 rounded-xl border border-border bg-card p-3",
+        isDragging ? "opacity-60 ring-2 ring-ring" : "",
       ].join(" ")}
     >
       {mode === "editing" ? (
@@ -153,8 +158,8 @@ export function TaskRow({
               <span aria-hidden="true" className="shrink-0 text-2xl leading-none">
                 {task.emoji}
               </span>
-              <span className="min-w-0 flex-1 font-medium break-words text-stone-900">{task.title}</span>
-              <span className="shrink-0 font-mono text-sm tabular-nums text-stone-600">
+              <span className="min-w-0 flex-1 font-medium break-words text-foreground">{task.title}</span>
+              <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
                 {task.completed} / {task.eta}
               </span>
             </div>
@@ -164,10 +169,10 @@ export function TaskRow({
             <div
               role="group"
               aria-labelledby={deleteConfirmPromptId}
-              className="flex flex-wrap items-center gap-3 rounded-lg bg-red-50 p-2"
+              className="flex flex-wrap items-center gap-3 rounded-lg bg-[color-mix(in_srgb,var(--destructive)_6%,var(--card))] p-2"
               onKeyDown={handleCancelDeleteKeyDown}
             >
-              <p id={deleteConfirmPromptId} className="text-sm text-red-900">
+              <p id={deleteConfirmPromptId} className="text-sm text-foreground">
                 Delete &ldquo;{task.title}&rdquo;? This can&apos;t be undone.
               </p>
               <div className="flex gap-2">
@@ -182,7 +187,7 @@ export function TaskRow({
                 <button
                   type="button"
                   onClick={handleConfirmDelete}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 text-sm font-medium text-white outline-none hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-destructive px-3 text-sm font-medium text-destructive-foreground outline-none hover:bg-[color-mix(in_srgb,var(--destructive),var(--foreground)_20%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   Delete
                 </button>
@@ -231,7 +236,7 @@ export function TaskRow({
                 onClick={() => onPinToggle(task.id, isPinned)}
                 aria-pressed={isPinned}
                 aria-label={isPinned ? `Unpin ${task.title}` : `Pin ${task.title} as current task`}
-                className={[actionButtonClass, isPinned ? "border-amber-700 bg-amber-100 text-amber-900" : ""].join(" ")}
+                className={isPinned ? pinnedActionButtonClass : actionButtonClass}
               >
                 {isPinned ? "Unpin" : "Pin"}
               </button>

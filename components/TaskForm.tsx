@@ -152,7 +152,7 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
   return (
     <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex w-full flex-col gap-4" noValidate>
       <div className="flex flex-col gap-1">
-        <label htmlFor={titleFieldId} className="text-sm font-medium text-stone-600">
+        <label htmlFor={titleFieldId} className="text-sm font-medium text-muted-foreground">
           Title
         </label>
         <input
@@ -166,17 +166,17 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
             localTitleInputRef.current = node;
             if (titleInputRef) titleInputRef.current = node;
           }}
-          className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+          className="min-h-11 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
         />
         {errors.title !== undefined ? (
-          <p id={`${titleFieldId}-error`} role="alert" className="text-sm text-red-700">
+          <p id={`${titleFieldId}-error`} role="alert" className="text-sm text-destructive">
             {errors.title}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor={emojiFieldId} className="text-sm font-medium text-stone-600">
+        <label htmlFor={emojiFieldId} className="text-sm font-medium text-muted-foreground">
           Emoji
         </label>
         <input
@@ -186,10 +186,10 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
           aria-invalid={errors.emoji !== undefined}
           aria-describedby={errors.emoji !== undefined ? `${emojiFieldId}-error` : undefined}
           onChange={(event) => setEmoji(event.target.value)}
-          className="min-h-11 w-20 rounded-lg border border-stone-300 bg-white px-3 py-2 text-center text-xl outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+          className="min-h-11 w-20 rounded-lg border border-control-border bg-popover px-3 py-2 text-center text-xl outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
         />
         {errors.emoji !== undefined ? (
-          <p id={`${emojiFieldId}-error`} role="alert" className="text-sm text-red-700">
+          <p id={`${emojiFieldId}-error`} role="alert" className="text-sm text-destructive">
             {errors.emoji}
           </p>
         ) : null}
@@ -199,7 +199,7 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
         className="flex flex-col gap-1"
         aria-describedby={errors.colorId !== undefined ? `${colorFieldId}-error` : undefined}
       >
-        <legend className="text-sm font-medium text-stone-600">Color</legend>
+        <legend className="text-sm font-medium text-muted-foreground">Color</legend>
         <div className="flex flex-wrap gap-2">
           {PALETTE.map((entry) => {
             const checked = colorId === entry.id;
@@ -216,9 +216,9 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
                 <span className="sr-only">{entry.name}</span>
                 <span
                   className={[
-                    "flex h-9 w-9 items-center justify-center rounded-full ring-offset-2 ring-offset-white transition-shadow",
-                    "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-amber-700",
-                    checked ? "ring-2 ring-stone-900" : "ring-1 ring-stone-300",
+                    "flex h-9 w-9 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-shadow",
+                    "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring",
+                    checked ? "ring-2 ring-foreground" : "ring-1 ring-border",
                   ].join(" ")}
                 >
                   <TaskColorDot colorId={entry.id} className="h-6 w-6" />
@@ -228,14 +228,14 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
           })}
         </div>
         {errors.colorId !== undefined ? (
-          <p id={`${colorFieldId}-error`} role="alert" className="text-sm text-red-700">
+          <p id={`${colorFieldId}-error`} role="alert" className="text-sm text-destructive">
             {errors.colorId}
           </p>
         ) : null}
       </fieldset>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor={etaFieldId} className="text-sm font-medium text-stone-600">
+        <label htmlFor={etaFieldId} className="text-sm font-medium text-muted-foreground">
           Estimated pomodoros
         </label>
         <input
@@ -248,10 +248,10 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
           aria-invalid={errors.eta !== undefined}
           aria-describedby={errors.eta !== undefined ? `${etaFieldId}-error` : undefined}
           onChange={(event) => setEtaRaw(event.target.value)}
-          className="min-h-11 w-24 rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+          className="min-h-11 w-24 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
         />
         {errors.eta !== undefined ? (
-          <p id={`${etaFieldId}-error`} role="alert" className="text-sm text-red-700">
+          <p id={`${etaFieldId}-error`} role="alert" className="text-sm text-destructive">
             {errors.eta}
           </p>
         ) : null}
@@ -261,7 +261,7 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
         <button
           type="submit"
           disabled={submitting}
-          className="min-h-11 rounded-lg bg-amber-700 px-5 py-2 font-medium text-white outline-none hover:bg-amber-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:bg-stone-300"
+          className="min-h-11 rounded-lg bg-primary px-5 py-2 font-medium text-primary-foreground outline-none hover:bg-[color-mix(in_srgb,var(--primary),var(--foreground)_20%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-border"
         >
           {submitLabel}
         </button>
@@ -270,7 +270,7 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
             type="button"
             onClick={handleCancel}
             disabled={submitting}
-            className="min-h-11 rounded-lg border border-stone-300 bg-white px-5 py-2 font-medium text-stone-700 outline-none hover:border-stone-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed"
+            className="min-h-11 rounded-lg border border-control-border bg-popover px-5 py-2 font-medium text-secondary-foreground outline-none hover:border-[color-mix(in_srgb,var(--control-border),var(--foreground)_40%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed"
           >
             Cancel
           </button>
