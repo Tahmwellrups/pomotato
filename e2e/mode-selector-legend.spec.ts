@@ -31,7 +31,9 @@ for (const viewport of viewports) {
     });
 
     test("the legend is visually hidden (sr-only geometry, not display none)", async ({ page }) => {
-      const legend = page.locator("fieldset > legend");
+      // Task 009 criterion 31: the theme control adds a second fieldset, so the
+      // legend is scoped to the Timer mode group instead of any fieldset.
+      const legend = page.getByRole("group", { name: "Timer mode", exact: true }).locator("> legend");
       await expect(legend).toHaveCount(1);
       const style = await legend.evaluate((el) => {
         const cs = getComputedStyle(el);

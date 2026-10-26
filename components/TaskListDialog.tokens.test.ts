@@ -28,6 +28,8 @@ describe("task list dialog colour tokens", () => {
     const dialog = read("./ui/dialog.tsx");
     expect(dialog).toContain("bg-popover");
     expect(dialog).toContain("bg-scrim");
-    expect(dialog).toContain("border-border");
+    // Task 009 criterion 15: the dialog edge is its own token, so the dark
+    // block can carry a non-hairline edge. --border is too faint for that job.
+    expect(dialog).toContain("border-dialog-edge");
   });
 });

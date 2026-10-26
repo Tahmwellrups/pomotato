@@ -206,7 +206,14 @@ test.describe("task 007 pinned Pin button: the pinned state paints, and differs 
     await addTask(page, "Alpha");
     await addTask(page, "Bravo");
     await rowFor(page, "Alpha").getByRole("button", { name: "Pin Alpha as current task", exact: true }).click();
-    const pinned = await readPainted(page, rowFor(page, "Alpha").getByRole("button", { name: "Unpin Alpha", exact: true }));
+    // Task 009 R-5: the pinned button now has a hover border. Move the pointer off
+    // it, then wait for the transition to settle, so this reads the resting colour.
+    await page.mouse.move(0, 0);
+    const pinnedButton = rowFor(page, "Alpha").getByRole("button", { name: "Unpin Alpha", exact: true });
+    await expect
+      .poll(async () => (await readPainted(page, pinnedButton)).borderColor)
+      .toEqual(await tokenRgb(page, "--primary"));
+    const pinned = await readPainted(page, pinnedButton);
     const unpinned = await readPainted(page, rowFor(page, "Bravo").getByRole("button", { name: "Pin Bravo as current task", exact: true }));
 
     // Pinned: fill --accent (#fef3c7), border --primary (#b45309), label --accent-foreground (#78350f).

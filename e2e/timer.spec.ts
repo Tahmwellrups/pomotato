@@ -259,7 +259,10 @@ test.describe("Pomotato Focus Timer E2E", () => {
     const startButton = page.getByRole("button", { name: "Start", exact: true });
     const resetButton = page.getByRole("button", { name: "Reset", exact: true });
 
-    // Tab to first mode radio
+    // Task 009: the theme control is first in DOM order, so the first Tab stop
+    // is the checked theme radio, and the next Tab enters the mode group.
+    await page.keyboard.press("Tab");
+    await expect(page.locator('input[type="radio"][name="theme"]:checked')).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(modeSelector).toBeFocused();
 

@@ -216,7 +216,7 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
                 <span className="sr-only">{entry.name}</span>
                 <span
                   className={[
-                    "flex h-9 w-9 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-shadow",
+                    "flex h-9 w-9 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-shadow motion-reduce:transition-none motion-reduce:duration-0",
                     "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring",
                     checked ? "ring-2 ring-foreground" : "ring-1 ring-border",
                   ].join(" ")}

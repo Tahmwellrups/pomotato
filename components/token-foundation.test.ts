@@ -80,16 +80,18 @@ describe("task 007 criterion 16: the swatch values and their comment", () => {
 describe("task 007 criteria 18 and 19: the interactive-boundary token and its comment", () => {
   const css = () => read("app/globals.css");
 
-  it("defines --control-border once, as #88837e, in the root block", () => {
+  // Task 009 criterion 11/14: one declaration per theme block, in order.
+  // :root is the light value this task keeps; .dark is the dark value.
+  it("defines --control-border once in :root (#88837e) and once in .dark (#80705d)", () => {
     const matches = css().match(/--control-border:\s*[^;]+;/g) ?? [];
-    expect(matches).toEqual(["--control-border: #88837e;"]);
+    expect(matches).toEqual(["--control-border: #88837e;", "--control-border: #80705d;"]);
   });
 
   it("maps --color-control-border inside the existing @theme inline block", () => {
     expect(css()).toMatch(/--color-control-border:\s*var\(--control-border\);/);
   });
 
-  it("carries the three parts: the role, why --border does not fit, and the milestone 4 dark obligation", () => {
+  it("carries the role, why --border does not fit, and the five-ground dark figures", () => {
     const block = css().match(/\/\*((?:(?!\*\/)[\s\S])*?)\*\/\s*--control-border:/);
     expect(block).not.toBeNull();
     const comment = block![0];
@@ -97,7 +99,10 @@ describe("task 007 criteria 18 and 19: the interactive-boundary token and its co
     expect(comment).toMatch(/1\.36:1/);
     expect(comment).toMatch(/1\.43:1/);
     expect(comment).toMatch(/shared\s+app-wide/);
-    expect(comment).toMatch(/Milestone 4 MUST give this a value in the \.dark block/);
+    // Task 009 criterion 14: the milestone 4 obligation is now discharged, so the
+    // comment states the dark figures instead of deferring them.
+    expect(comment).toMatch(/FIVE\s+grounds/);
+    expect(comment).toMatch(/The \.dark value carries its own five figures/);
   });
 
   it("--border and --input keep their original value #d6d3d1", () => {

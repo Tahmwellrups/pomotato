@@ -129,6 +129,9 @@ test.describe("Gauge level comes from derived time", () => {
       const match = /calc\(([-\d.]+)%/.exec(value);
       return match ? Number(match[1]) : Number.NaN;
     };
+    // Wait for the gauge to render its level before reading it: a single read right after
+    // navigation can see no clip-path yet under load (flake, task 009 QA loop 2).
+    await expect.poll(async () => Number.isNaN(topOf(await clip()))).toBe(false);
     const idleTop = topOf(await clip());
     expect(idleTop).toBe(0);
     await startButton(page).click();
@@ -282,7 +285,7 @@ test.describe("Canvas colours re-read from tokens at runtime", () => {
   });
 
   test("liquid and glass colours are resolved strings, not var() references, at load", async ({ page }) => {
-    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#f6c453");
+    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#d97706");
     // The resolved value of --popover, as the token is written in globals.css.
     expect(await gauge(page).getAttribute("data-glass-color")).toBe("#fffaf3");
     expect(await gauge(page).getAttribute("data-liquid-color")).not.toContain("var(");
@@ -307,7 +310,7 @@ test.describe("Canvas colours re-read from tokens at runtime", () => {
       style.textContent = ":root.dark { --gauge-liquid: #ff0000; }";
       document.head.appendChild(style);
     });
-    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#f6c453");
+    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#d97706");
     await page.evaluate(() => document.documentElement.classList.add("dark"));
     await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#ff0000");
     await expect(liquid(page)).toHaveCSS("background-color", "rgb(255, 0, 0)");

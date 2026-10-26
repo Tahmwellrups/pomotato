@@ -18,6 +18,15 @@ const TEXT_TOLERANCE = 12;
 // Pixels whose rendered colour differs from the text-hidden background by less than this are not text.
 const TEXT_PRESENT_THRESHOLD = 60;
 
+// The reveal edge is an anti-aliased clip-path boundary. A pixel within this many CSS px of it is
+// part fill and part glass, so it is not "the label on the painted fill". Those pixels are measured
+// and reported separately, with their own guard, instead of being counted against the 4.5:1 floor.
+// seamX is CSS px (from getBoundingClientRect and clip-path percentages) while the pixel x in
+// measureLabelPixels is image px. They coincide only because the lone Playwright project is
+// devices["Desktop Chrome"] at deviceScaleFactor 1. Under any other DSF, scale seamX by the DSF first.
+const SEAM_PX = 1.5;
+const SEAM_GUARD = 3;
+
 const HIDE_TEXT_CSS = ".hb-root .hb-label, .hb-root .hb-label *{color:transparent!important}";
 
 interface LayerStat {
@@ -25,10 +34,16 @@ interface LayerStat {
   n: number;
   /** Lowest contrast of those pixels against the background painted behind them, or null if n is 0. */
   min: number | null;
+  /** Where the lowest pixel sits, and what was painted behind it. */
+  at?: string;
+  /** Lowest contrast among pixels within SEAM_PX of the reveal edge (anti-aliased clip seam), or null. */
+  seamMin?: number | null;
 }
 
 interface Sample {
   t: number;
+  /** CSS transitions or animations still running on the control when the pixels were read. Must be 0. */
+  inFlight: number;
   clip: string;
   baseOpacity: string;
   fillOpacity: string;
@@ -43,17 +58,18 @@ async function measureLabelPixels(
   backgroundPng: string,
   fillText: string,
   baseText: string,
+  seamX: number,
 ): Promise<{ whiteOnFill: LayerStat; darkOnGlass: LayerStat }> {
   return page.evaluate(
-    async ({ a, b, fillText, baseText, tolerance, presentThreshold }) => {
-      const load = async (b64: string) => {
+    async ({ a, b, fillText, baseText, tolerance, presentThreshold, seamX, seamPx }) => {
+      const load = async (b64: string): Promise<{ data: Uint8ClampedArray; width: number }> => {
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         const bmp = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
         const canvas = new OffscreenCanvas(bmp.width, bmp.height);
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("no 2d context");
         ctx.drawImage(bmp, 0, 0);
-        return ctx.getImageData(0, 0, bmp.width, bmp.height).data;
+        return { data: ctx.getImageData(0, 0, bmp.width, bmp.height).data, width: bmp.width };
       };
       const rgb = (s: string): [number, number, number] => {
         const m = /rgba?\((\d+), (\d+), (\d+)/.exec(s);
@@ -72,11 +88,14 @@ async function measureLabelPixels(
       const near = (p: number[], c: [number, number, number]) =>
         Math.abs(p[0] - c[0]) <= tolerance && Math.abs(p[1] - c[1]) <= tolerance && Math.abs(p[2] - c[2]) <= tolerance;
 
-      const A = await load(a);
-      const B = await load(b);
+      const loadedA = await load(a);
+      const loadedB = await load(b);
+      const A = loadedA.data;
+      const B = loadedB.data;
+      const bmpWidth = loadedA.width;
       const layers = {
-        whiteOnFill: { colour: rgb(fillText), n: 0, min: null as number | null },
-        darkOnGlass: { colour: rgb(baseText), n: 0, min: null as number | null },
+        whiteOnFill: { colour: rgb(fillText), n: 0, min: null as number | null, at: "", seamMin: null as number | null },
+        darkOnGlass: { colour: rgb(baseText), n: 0, min: null as number | null, at: "", seamMin: null as number | null },
       };
       for (let i = 0; i < A.length; i += 4) {
         if (A[i + 3] === 0) continue;
@@ -87,18 +106,51 @@ async function measureLabelPixels(
         for (const layer of [layers.whiteOnFill, layers.darkOnGlass]) {
           if (!near(pa, layer.colour)) continue;
           const r = ratio([pa[0], pa[1], pa[2]], pb);
+          const x = (i / 4) % bmpWidth;
+          if (Math.abs(x - seamX) <= seamPx) {
+            // Seam pixels do not count toward n: the non-vacuity guard must be satisfied by interior pixels.
+            layer.seamMin = layer.seamMin === null ? r : Math.min(layer.seamMin, r);
+            continue;
+          }
           layer.n += 1;
-          layer.min = layer.min === null ? r : Math.min(layer.min, r);
+          if (layer.min === null || r < layer.min) {
+            layer.min = r;
+            layer.at = `x=${x} y=${Math.floor(i / 4 / bmpWidth)} text=${pa.join(",")} behind=${pb.join(",")}`;
+          }
         }
       }
       const round = (v: number | null) => (v === null ? null : Math.round(v * 100) / 100);
       return {
-        whiteOnFill: { n: layers.whiteOnFill.n, min: round(layers.whiteOnFill.min) },
-        darkOnGlass: { n: layers.darkOnGlass.n, min: round(layers.darkOnGlass.min) },
+        whiteOnFill: { n: layers.whiteOnFill.n, min: round(layers.whiteOnFill.min), at: layers.whiteOnFill.at, seamMin: round(layers.whiteOnFill.seamMin) },
+        darkOnGlass: { n: layers.darkOnGlass.n, min: round(layers.darkOnGlass.min), at: layers.darkOnGlass.at, seamMin: round(layers.darkOnGlass.seamMin) },
       };
     },
-    { a: textPng, b: backgroundPng, fillText, baseText, tolerance: TEXT_TOLERANCE, presentThreshold: TEXT_PRESENT_THRESHOLD },
+    { a: textPng, b: backgroundPng, fillText, baseText, tolerance: TEXT_TOLERANCE, presentThreshold: TEXT_PRESENT_THRESHOLD, seamX, seamPx: SEAM_PX },
   );
+}
+
+/**
+ * CSS transitions and animations run on real time, not on the Playwright fake clock, so a
+ * screenshot taken straight after `clock.runFor` can catch the clip edge or a colour mid-flight.
+ * The text-visible and text-hidden screenshots then disagree about where the edge is, and a
+ * pixel that is really 4.7:1 reads as 4.4:1. Poll from Node (real time) until no finite
+ * animation on the control or its children is still running, then return the count left.
+ * Polling from Node matters: the page's timers and rAF are faked, so a page-side wait would hang.
+ */
+async function waitForStill(page: Page, reset: Locator): Promise<number> {
+  const count = () =>
+    reset.evaluate(
+      (el) =>
+        el
+          .getAnimations({ subtree: true })
+          .filter((a) => a.playState !== "finished" && (a.effect?.getComputedTiming().iterations ?? 1) !== Infinity).length,
+    );
+  let running = await count();
+  for (let i = 0; i < 100 && running > 0; i++) {
+    await page.waitForTimeout(20);
+    running = await count();
+  }
+  return running;
 }
 
 /**
@@ -124,12 +176,20 @@ async function sampleHold(page: Page, reset: Locator, withPixels: boolean): Prom
   for (const t of SAMPLE_MS) {
     if (t > prev) await page.clock.runFor(t - prev);
     prev = t;
+    const inFlight = await waitForStill(page, reset);
     const state = await reset.evaluate((el) => {
       const base = el.querySelector(":scope > .hb-label > span");
       const fillLabel = el.querySelector(".hb-fill > .hb-label > span");
       const fill = el.querySelector(".hb-fill");
       if (!base || !fillLabel || !fill) throw new Error("hold structure (.hb-fill, .hb-label) not found");
+      const rb = el.getBoundingClientRect();
+      const fb = fill.getBoundingClientRect();
+      const rightInset = /inset\(\s*0(px)?\s+([\d.]+)%/.exec(getComputedStyle(fill).clipPath);
+      // Reset reveals left to right. Anything else must fail loudly, not park the guard on a text-free strip.
+      if (!rightInset) throw new Error(`clip-path is not a right-edge percentage inset: ${getComputedStyle(fill).clipPath}`);
+      const revealedFrac = (100 - Number(rightInset[2])) / 100;
       return {
+        seamX: fb.x - rb.x + revealedFrac * fb.width,
         clip: getComputedStyle(fill).clipPath,
         baseOpacity: getComputedStyle(base).opacity,
         fillOpacity: getComputedStyle(fillLabel).opacity,
@@ -137,7 +197,7 @@ async function sampleHold(page: Page, reset: Locator, withPixels: boolean): Prom
         fillText: getComputedStyle(fillLabel).color,
       };
     });
-    const empty: LayerStat = { n: 0, min: null };
+    const empty: LayerStat = { n: 0, min: null, seamMin: null };
     let pixels: { whiteOnFill: LayerStat; darkOnGlass: LayerStat } = { whiteOnFill: empty, darkOnGlass: empty };
     if (withPixels) {
       // Text visible (sheet disabled), then text hidden (sheet enabled) for the background image.
@@ -149,15 +209,21 @@ async function sampleHold(page: Page, reset: Locator, withPixels: boolean): Prom
       await sheet.evaluate((s) => {
         s.disabled = true;
       });
+      // Both screenshots must have seen a still control, or the pair is not one frame.
+      const stillAfter = await waitForStill(page, reset);
+      if (inFlight !== 0 || stillAfter !== 0) {
+        throw new Error(`t=${t}: animations in flight around the screenshot pair (before ${inFlight}, after ${stillAfter})`);
+      }
       pixels = await measureLabelPixels(
         page,
         textShot.toString("base64"),
         bgShot.toString("base64"),
         state.fillText,
         state.baseText,
+        state.seamX,
       );
     }
-    samples.push({ t, clip: state.clip, baseOpacity: state.baseOpacity, fillOpacity: state.fillOpacity, ...pixels });
+    samples.push({ t, inFlight, clip: state.clip, baseOpacity: state.baseOpacity, fillOpacity: state.fillOpacity, ...pixels });
   }
   await page.mouse.up();
   return samples;
@@ -193,7 +259,7 @@ test.describe("Hold-to-confirm Reset: label contrast mid-hold, measured from pix
         await openFreshWithClock(page, motion.media);
         const samples = await sampleHold(page, resetControl(page), true);
         const table = samples.map(
-          (s) => `t=${s.t} clip=${s.clip} white n=${s.whiteOnFill.n} min=${s.whiteOnFill.min} dark n=${s.darkOnGlass.n} min=${s.darkOnGlass.min}`,
+          (s) => `t=${s.t} clip=${s.clip} white n=${s.whiteOnFill.n} min=${s.whiteOnFill.min} [${s.whiteOnFill.at ?? ""}] dark n=${s.darkOnGlass.n} min=${s.darkOnGlass.min}`,
         );
 
         for (const s of samples) {
@@ -204,6 +270,13 @@ test.describe("Hold-to-confirm Reset: label contrast mid-hold, measured from pix
           }
           if (s.darkOnGlass.min !== null) {
             expect(s.darkOnGlass.min, `dark label on glass at t=${s.t}\n${table.join("\n")}`).toBeGreaterThanOrEqual(LABEL_MIN_RATIO);
+          }
+          // Reveal-edge pixels (part fill, part glass) are not the label's background. They are held to a
+          // separate guard so a real break at the edge still fails, and they are reported in the table.
+          for (const layer of [s.whiteOnFill, s.darkOnGlass]) {
+            if (layer.seamMin !== null && layer.seamMin !== undefined) {
+              expect(layer.seamMin, `reveal-edge pixel at t=${s.t} (guard ${SEAM_GUARD}:1, floor for edge pixels only)\n${table.join("\n")}`).toBeGreaterThanOrEqual(SEAM_GUARD);
+            }
           }
         }
         // Both layers really were measured somewhere in the hold, so neither check is vacuous.

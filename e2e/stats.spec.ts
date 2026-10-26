@@ -131,9 +131,14 @@ test.describe("/stats route", () => {
 
     test("exactly one view is selected initially (day)", async ({ page }) => {
       const radios = page.getByRole("radio");
-      const checked = await radios.evaluateAll((els) =>
-        els.filter((el) => (el as HTMLInputElement).checked).map((el) => el.getAttribute("value"))
-      );
+      // Wait for the view chips to hydrate before reading them; a single read right after
+      // navigation can see zero checked radios under load (flake, task 009 QA loop 2).
+      const readChecked = () =>
+        radios.evaluateAll((els) =>
+          els.filter((el) => (el as HTMLInputElement).checked).map((el) => el.getAttribute("value"))
+        );
+      await expect.poll(readChecked).toHaveLength(1);
+      const checked = await readChecked();
 
       expect(checked).toHaveLength(1);
       expect(checked[0]).toBe("day");

@@ -235,3 +235,16 @@ body {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+
+/* HoldButton is vendored ReactBits and frozen, and its own reduced-motion
+   rule keeps a 160ms background-color and a box-shadow transition. Both
+   read themed tokens (--hb-bg), so a theme flip fades the Reset button
+   even with reduced motion on. The vendored rule is !important and sits
+   in a runtime <style> tag, so source order cannot win; `html .hb-root`
+   outranks the bare class. */
+@media (prefers-reduced-motion: reduce) {
+  html .hb-root {
+    transition-property: none !important;
+    transition-duration: 0s !important;
+  }
+}

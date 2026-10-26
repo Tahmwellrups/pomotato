@@ -12,7 +12,6 @@ function read(relativePath: string): string {
 
 const HEX_LITERAL = /#[0-9a-fA-F]{3,8}\b/;
 const RGB_LITERAL = /\b(?:rgba?|hsla?)\(/;
-const RAW_PALETTE_UTILITY = /\b(?:amber|stone|red|yellow|green|blue|gray|slate|zinc|neutral|orange|rose|sky)-\d{2,3}\b/g;
 const TIMER_SOURCE = /\b(?:setInterval|setTimeout|requestAnimationFrame|performance\.now)\b/;
 
 // Files this task adds or fully owns. None may carry a colour literal.
@@ -23,40 +22,18 @@ const NEW_SURFACE_FILES = [
   "../hooks/use-resolved-tokens.ts",
 ];
 
-// Files whose lines this task edits. The exact palette utilities allowed to
-// remain are listed here; any other utility fails the test.
-const EDITED_FILES: Record<string, string[]> = {
-  // Task 006 moved the primary Start/Pause button and its focus ring onto tokens, so the
-  // task 005 pin of amber-700/800 is now empty.
-  "./TimerControls.tsx": [],
-  // fix loop 1: the mm:ss readout moved from text-stone-900 to text-foreground, so no
-  // raw palette utility remains in this file. Empty pin means any reintroduction fails.
-  "./TimerDisplay.tsx": [],
-};
+// Files whose lines this task edits. Raw palette utilities in them are guarded by
+// components/palette.tokens.test.ts (task 009 R-9 moved that check there).
+const EDITED_FILES = ["./TimerControls.tsx", "./TimerDisplay.tsx"];
 
 describe("task 005 colour tokens", () => {
-  for (const file of NEW_SURFACE_FILES) {
+  // Task 009 R-9: the blind raw-palette check is gone. Raw palette utilities are
+  // guarded for these files by components/palette.tokens.test.ts (its FILES walk).
+  for (const file of [...NEW_SURFACE_FILES, ...EDITED_FILES]) {
     it(`${file} contains no hex or rgb() literal`, () => {
       const source = read(file);
       expect(source).not.toMatch(HEX_LITERAL);
       expect(source).not.toMatch(RGB_LITERAL);
-    });
-
-    it(`${file} contains no raw palette utility`, () => {
-      expect(read(file).match(RAW_PALETTE_UTILITY) ?? []).toEqual([]);
-    });
-  }
-
-  for (const [file, allowed] of Object.entries(EDITED_FILES)) {
-    it(`${file} contains no hex or rgb() literal`, () => {
-      const source = read(file);
-      expect(source).not.toMatch(HEX_LITERAL);
-      expect(source).not.toMatch(RGB_LITERAL);
-    });
-
-    it(`${file} carries only its pinned palette utilities (${allowed.join(", ")})`, () => {
-      const found = [...new Set(read(file).match(RAW_PALETTE_UTILITY) ?? [])].sort();
-      expect(found).toEqual([...allowed].sort());
     });
   }
 });

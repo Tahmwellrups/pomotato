@@ -41,7 +41,7 @@ const PALETTE =
 // `black`, with an optional /NN or /[value] opacity suffix. Variants are matched
 // because \b sits between ':' and the prefix (hover:text-white, dark:bg-black).
 const COLOR_UTILITY_PREFIX =
-  "(?:bg|text|border(?:-[trblxyse])?|outline|ring(?:-offset)?|inset-ring|inset-shadow|drop-shadow|from|to|via|divide|placeholder|caret|accent|decoration|shadow|fill|stroke)";
+  "(?:bg|text-shadow|text|border(?:-[trblxyse])?|outline|ring(?:-offset)?|inset-ring|inset-shadow|drop-shadow|from|to|via|divide|placeholder|caret|accent|decoration|shadow|fill|stroke)";
 const RAW_PALETTE_UTILITY = new RegExp(
   `\\b${COLOR_UTILITY_PREFIX}-(?:(?:${PALETTE})(?:-\\d{2,3})?|white|black)(?![\\w-])(?:/(?:\\d+|\\[[^\\]]+\\]))?|\\b(?:${PALETTE})-\\d{2,3}\\b`,
   "g",
@@ -95,6 +95,46 @@ const TASK_007_FILES = [
 
 function matches(source: string): string[] {
   return [...new Set(source.match(RAW_PALETTE_UTILITY) ?? [])].sort();
+}
+
+// Task 009 R-8: a new top-level directory with components must be scanned, not skipped silently.
+describe("task 009 R-8: SCANNED_DIRS is exactly the top-level directories containing .tsx files", () => {
+  it("matches the repo's top-level directories that hold .tsx files", () => {
+    const SKIP = new Set(["node_modules", ".next", ".git", ".claude", "docs", "public", "playwright-report", "test-results", "coverage"]);
+    const withTsx = readdirSync(ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !SKIP.has(entry.name) && !entry.name.startsWith("."))
+      .filter((entry) => walkTsx(`${ROOT}${entry.name}`).length > 0)
+      .map((entry) => entry.name)
+      .sort();
+    expect([...SCANNED_DIRS].sort()).toEqual(withTsx);
+  });
+});
+
+// Task 009 R-9: the four files the deleted TimerGauge.tokens.test.ts check guarded
+// must still be covered by this guard's discovered FILES set.
+describe("task 009 R-9: the files the deleted raw-palette check covered are still in FILES", () => {
+  for (const file of [
+    "components/TimerGauge.tsx",
+    "components/HoldButton.tsx",
+    "components/SloshGauge.tsx",
+    "hooks/use-resolved-tokens.ts",
+    "components/TimerControls.tsx",
+    "components/TimerDisplay.tsx",
+  ]) {
+    it(`${file} is covered by the palette guard`, () => {
+      expect(FILES).toContain(file);
+    });
+  }
+});
+
+function walkTsx(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) found.push(...walkTsx(full));
+    else if (/\.tsx$/.test(entry.name)) found.push(full);
+  }
+  return found;
 }
 
 describe("task 007 file discovery is live", () => {
@@ -161,7 +201,8 @@ describe("task 007 inline style colour is exempt only for the swatch", () => {
     expect(rest).not.toMatch(INLINE_STYLE_COLOR);
   });
 
-  for (const file of TASK_007_FILES) {
+  // Task 009 R-8: iterates every discovered file (FILES), not the hand-kept TASK_007_FILES list.
+  for (const file of FILES) {
     if (file === INLINE_STYLE_EXEMPTION.file) continue;
     it(`${file} has no inline colour style`, () => {
       expect(read(file)).not.toMatch(INLINE_STYLE_COLOR);
