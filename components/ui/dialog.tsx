@@ -78,7 +78,7 @@ function DialogContent({
         // itself; stating it keeps the modality explicit for screen readers.
         aria-modal="true"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none duration-150 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 motion-reduce:animate-none motion-reduce:duration-0 sm:p-6",
+          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-dialog-edge bg-popover p-4 text-popover-foreground shadow-lg outline-none duration-150 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 motion-reduce:animate-none motion-reduce:duration-0 sm:p-6",
           className
         )}
         {...props}
@@ -88,7 +88,7 @@ function DialogContent({
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="outline"
-              className="absolute top-3 right-3 h-11 min-w-11 px-4 hover:bg-muted focus-visible:border-border focus-visible:ring-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none sm:top-4 sm:right-4"
+              className="absolute top-3 right-3 h-11 min-w-11 px-4 hover:bg-muted focus-visible:border-control-border focus-visible:ring-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none sm:top-4 sm:right-4"
             >
               Close
             </Button>

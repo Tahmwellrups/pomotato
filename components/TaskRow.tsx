@@ -32,7 +32,7 @@ interface TaskRowProps {
 const actionButtonShape =
   "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-medium outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40";
 const actionButtonClass = `${actionButtonShape} border-control-border bg-popover text-secondary-foreground hover:border-[color-mix(in_srgb,var(--control-border),var(--foreground)_40%)]`;
-const pinnedActionButtonClass = `${actionButtonShape} border-primary bg-accent text-accent-foreground`;
+const pinnedActionButtonClass = `${actionButtonShape} border-primary bg-accent text-accent-foreground hover:border-[color-mix(in_srgb,var(--primary),var(--foreground)_20%)]`;
 
 export function TaskRow({
   task,
@@ -172,7 +172,7 @@ export function TaskRow({
               className="flex flex-wrap items-center gap-3 rounded-lg bg-[color-mix(in_srgb,var(--destructive)_6%,var(--card))] p-2"
               onKeyDown={handleCancelDeleteKeyDown}
             >
-              <p id={deleteConfirmPromptId} className="text-sm text-foreground">
+              <p id={deleteConfirmPromptId} className="text-sm text-destructive">
                 Delete &ldquo;{task.title}&rdquo;? This can&apos;t be undone.
               </p>
               <div className="flex gap-2">

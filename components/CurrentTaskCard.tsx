@@ -29,7 +29,7 @@ export function CurrentTaskCard() {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="min-h-11 rounded-lg border border-border bg-background px-5 py-2 text-sm font-medium text-foreground outline-none hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="min-h-11 rounded-lg border border-control-border bg-background px-5 py-2 text-sm font-medium text-foreground outline-none hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           Reload
         </button>

@@ -38,7 +38,7 @@ export function StatsViewSwitcher({ value, onChange }: StatsViewSwitcherProps) {
                   "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring",
                   checked
                     ? "border-primary bg-accent font-semibold text-accent-foreground"
-                    : "border-border bg-card text-secondary-foreground hover:border-secondary-foreground",
+                    : "border-control-border bg-card text-secondary-foreground hover:border-secondary-foreground",
                 ].join(" ")}
               >
                 {option.label}

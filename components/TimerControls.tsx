@@ -73,7 +73,7 @@ export function TimerControls() {
         fillColor={resetColors.fill}
         textColor={resetColors.text}
         fillTextColor={resetColors.fillText}
-        className="min-h-11 px-0.5 py-2 border border-border"
+        className="min-h-11 px-0.5 py-2 border border-control-border"
         onTap={() => setHintStatus(status)}
         onHold={() => {
           setHintStatus(null)

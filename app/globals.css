@@ -12,14 +12,14 @@
 }
 
 :root {
-  /* Warm, cozy palette (potato-skin amber accent, cream ground). Themes and
-     a light/dark toggle are out of scope for this milestone (see
-     docs/PLAN.md milestone 4), so there is a single default theme for now.
+  /* Light theme: warm, cozy palette (potato-skin amber accent, cream ground).
      The values below are the same literal colors milestone 1-2 components
      already reference via Tailwind utility classes (bg-amber-700,
      border-stone-300, etc.) so any shadcn/ui component added from milestone
      3 onward renders in the same palette instead of shadcn's default
-     blue/slate theme. See docs/DECISIONS.md for the mapping rationale. */
+     blue/slate theme. See docs/DECISIONS.md for the mapping rationale. The
+     dark theme is the .dark block below; the class goes on <html>. */
+  color-scheme: light;
   --background: #fbf4ea;
   --foreground: #2b2017;
   --card: #fbf4ea;
@@ -37,35 +37,54 @@
   --muted: #f5f5f4; /* stone-100 */
   /* stone-600: 6.99:1 on --background and on --muted, 7.35:1 on --popover.
      The earlier stone-500 (#78716c) measured 4.39:1 on --background and failed
-     AA. Re-check against the dark palette in milestone 4. */
+     AA. The .dark value was re-checked on all four grounds it is painted on
+     (--background, --card, --popover, --muted); figures are in the .dark block. */
   --muted-foreground: #57534e;
   --accent: #fef3c7; /* amber-100, same as the existing selected/pinned highlight */
   --accent-foreground: #78350f; /* amber-900 */
-  /* Liquid in the timer gauge: a mid amber that keeps the dark mm:ss readout
-     above 4.5:1 at every fill level. --accent (amber-100) is too close to
-     --popover to read as a level, and --primary is too dark under the text. */
-  --gauge-liquid: #f6c453;
+  /* Liquid in the timer gauge: a deeper amber (owner answer, task 009) that
+     reads as a level against the --popover glass at 3.07:1 and keeps the
+     mm:ss readout above 4.5:1 (4.99:1) at every fill level. --accent
+     (amber-100) is too close to --popover to read as a level, and --primary
+     is too dark under the text. */
+  --gauge-liquid: #d97706;
   --destructive: #b91c1c; /* red-700, same as the existing destructive actions */
   --destructive-foreground: #ffffff;
   --border: #d6d3d1; /* stone-300, the existing default border color */
   --input: #d6d3d1;
   /* Boundary of a control, or of a control's state (custom-duration input,
-     task form fields, row action buttons, the Stats button). WCAG 1.4.11
-     asks 3:1 of exactly those boundaries; measured painted, #88837e is
-     3.44:1 on --background and --card, 3.61:1 on --popover, 3.12:1 on the
-     delete-confirm panel tint.
+     task form fields, row action buttons, the Stats button, the outline
+     Button variant, Reset, the Reload button, the unchecked stats view chips).
+     WCAG 1.4.11 asks 3:1 of exactly those boundaries. It is painted on FIVE
+     grounds; measured painted, #88837e is: 3.44:1 on --background and --card,
+     3.61:1 on --popover, 3.44:1 on --muted (disabled fields, where
+     disabled:bg-muted carries no disabled:border override), 3.12:1 on the
+     delete-confirm panel tint. The .dark value carries its own five figures.
      Why not an existing token: --border (and --input, which equals it) is
      1.36:1 on --background and 1.43:1 on --popover, and it is shared
      app-wide including by every `shadcn add`, so darkening it would restyle
-     everything. Decorative dividers and container hairlines keep --border.
-     Milestone 4 MUST give this a value in the .dark block and re-measure it
-     against the dark --background, --popover and --card at 3:1. */
+     everything. Decorative dividers and container hairlines keep --border. */
   --control-border: #88837e;
-  /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so a
-     future .dark block can pick its own scrim instead of inheriting a light
-     one from the inverted foreground. */
+  /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so the
+     .dark block can pick its own scrim instead of inheriting a light one from
+     the inverted foreground (a cream veil would lift the page, not dim it). */
   --scrim: rgb(43 32 23 / 0.45);
   --ring: #b45309; /* amber-700, matches the existing :focus-visible outline below */
+  /* Edge of the task dialog. Role: the line that separates the dialog from the
+     scrimmed page. Why not an existing token: in dark the dialog fill is
+     capped near the page's luminance (the task swatches need 3:1 on it), so
+     the fill cannot separate the dialog from the page and the edge has to,
+     which --border (a 1.4:1 hairline by design) cannot do. :root = --border,
+     so light is unchanged; .dark = #80705d, 4.12:1 against the scrimmed page
+     and 3.73:1 against the dialog fill, measured painted. */
+  --dialog-edge: var(--border);
+  /* Fill of a disabled solid button (the task form's submit). Role: a surface,
+     not a boundary. Why not an existing token: it used to be --border, which
+     is a boundary token whose dark value is chosen for a boundary job (007
+     R-6), and --muted would drop the white label to 1.08:1. :root #d6d3d1
+     (white label 1.49:1, 1.36:1 on the card); .dark #4a3d32 (label #1c140e
+     1.73:1, and 1.73:1 on the card). */
+  --disabled-surface: #d6d3d1;
   /* Reuse the already-approved, contrast-checked task color swatches
      (components/task-palette-colors.ts) rather than inventing a separate
      chart palette ahead of milestone 3 deciding it needs one. */
@@ -85,6 +104,63 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+}
+
+/* Dark theme: PROPOSED, not owner-approved (task 009, owner answer 2). Warm
+   umber, not neutral black. The grounds are pinned near L 0.008-0.009 on
+   purpose: the eight task swatches (components/task-palette-colors.ts, owner
+   data, never remapped) must stay >= 3:1 on --card and --popover, and the
+   weakest swatch (potato #8a5a2b, slate #5b6672) only clears 3:1 on a ground
+   at or below L 0.0096. Every other surface therefore sits within a hair of
+   the page, and separation comes from edges (--control-border, --dialog-edge),
+   not fills. Foreground/ground pairs are all >= 4.5:1; figures were read from
+   painted pixels and are in docs/tasks/009-dark-mode-toggle.md. --sidebar-*
+   keeps aliasing the tokens above and gets no literal here. */
+.dark {
+  color-scheme: dark;
+  --background: #1c140e;
+  --foreground: #f5ebdc;
+  --card: #1c140e;
+  --card-foreground: #f5ebdc;
+  /* Capped by the swatch floor above, so only 1.02:1 from --background; the
+     dialog is separated by --dialog-edge, not by this fill. */
+  --popover: #1e1610;
+  --popover-foreground: #f5ebdc;
+  /* Light amber: it is text (the wordmark, the stats link) and an outline
+     (--ring) on the dark ground as well as a fill, so it has to be light. */
+  --primary: #f0a550;
+  --primary-foreground: #1c140e;
+  --secondary: #2b2118;
+  --secondary-foreground: #e2d5c2;
+  --muted: #251c14;
+  --muted-foreground: #c2b19b;
+  /* --accent-foreground is painted on --accent (pinned Pin button, checked
+     stats chip) and on --background (selected mode chip): both >= 4.5:1. */
+  --accent: #3d2b14;
+  --accent-foreground: #fbd592;
+  /* Deep amber: the mm:ss readout is light cream here, so the liquid has to be
+     dark enough for 4.5:1 under it and light enough for 3:1 over the glass. */
+  --gauge-liquid: #9d570d;
+  /* Light salmon: it is text (form errors, the delete prompt) on dark. */
+  --destructive: #f58b79;
+  --destructive-foreground: #1c140e;
+  --border: #3b2f25;
+  --input: #3b2f25;
+  /* Painted on the same five grounds as :root: 3.80:1 on --background and
+     --card, 3.73:1 on --popover, 3.50:1 on --muted, 3.48:1 on the
+     delete-confirm tint (and 3.29:1 on --secondary under the Stats button). */
+  --control-border: #80705d;
+  /* Black-brown veil: it must dim the page. An inverted --foreground would be
+     a cream veil that lifts it and makes the dialog look darker than the page. */
+  --scrim: rgb(8 5 3 / 0.62);
+  --dialog-edge: #80705d;
+  --disabled-surface: #4a3d32;
+  --ring: #f0a550;
+  --chart-1: #c4915a; /* potato */
+  --chart-2: #f0705a; /* tomato */
+  --chart-3: #5fc08c; /* mint */
+  --chart-4: #5fa8dc; /* sky */
+  --chart-5: #a58fd8; /* lavender */
 }
 
 @theme inline {
@@ -111,6 +187,8 @@
   --color-input: var(--input);
   --color-control-border: var(--control-border);
   --color-ring: var(--ring);
+  --color-dialog-edge: var(--dialog-edge);
+  --color-disabled-surface: var(--disabled-surface);
   --color-scrim: var(--scrim);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -154,6 +232,6 @@ body {
    focus-visible utility class applied directly (e.g. radio inputs, before
    their peer sibling takes over the visible ring). */
 :focus-visible {
-  outline: 2px solid #b45309;
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }

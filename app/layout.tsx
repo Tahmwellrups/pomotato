@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Comfortaa, Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { ThemeSync } from "@/components/ThemeSync";
+// Leaf module, not the package index: the index re-exports the zustand store.
+import { THEME_BOOT_SCRIPT } from "@/lib/preferences/boot-script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,11 +36,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
+    // suppressHydrationWarning: the boot script adds the `dark` class to <html>
+    // before React hydrates, and the server cannot know the stored theme.
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${comfortaa.variable} ${spaceGrotesk.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
+      <body className="min-h-full flex flex-col">
+        <ThemeSync />
+        {children}
+      </body>
     </html>
   );
 }
