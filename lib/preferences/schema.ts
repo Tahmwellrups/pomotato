@@ -16,8 +16,18 @@ export type ThemePreference = (typeof THEME_VALUES)[number];
 /** The concrete theme that gets painted. `system` is never a painted value. */
 export type ResolvedTheme = "light" | "dark";
 
+/**
+ * Stable identifiers, never colours or component names. `vessel` is the liquid
+ * behind the digits (what ships today); `glyph` is the two-tone fill inside
+ * them (prototype variant 4). A further style is a new entry here plus a
+ * renderer, nothing else.
+ */
+export const GAUGE_STYLE_VALUES = ["vessel", "glyph"] as const;
+export type GaugeStylePreference = (typeof GAUGE_STYLE_VALUES)[number];
+
 export interface Preferences {
   theme: ThemePreference;
+  gaugeStyle: GaugeStylePreference;
 }
 
 /** localStorage key. Not "pomotato-timer". The boot script reads this same constant. */
@@ -26,13 +36,18 @@ export const PREFERENCES_VERSION = 1;
 
 export const DEFAULT_THEME: ThemePreference = "system";
 
+// The vessel, so no existing screen changes until someone picks otherwise.
+export const DEFAULT_GAUGE_STYLE: GaugeStylePreference = "vessel";
+
 export const PREFERENCE_DEFAULTS: Preferences = {
   theme: DEFAULT_THEME,
+  gaugeStyle: DEFAULT_GAUGE_STYLE,
 };
 
 /** The accepted value set per key. The only place a stored value is allowed to come from. */
 export const PREFERENCE_VALUES: { readonly [K in keyof Preferences]: readonly Preferences[K][] } = {
   theme: THEME_VALUES,
+  gaugeStyle: GAUGE_STYLE_VALUES,
 };
 
 function pick<K extends keyof Preferences>(key: K, raw: unknown): Preferences[K] {
@@ -50,6 +65,7 @@ export function sanitizePreferences(raw: unknown): Preferences {
     typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
     theme: pick("theme", record.theme),
+    gaugeStyle: pick("gaugeStyle", record.gaugeStyle),
   };
 }
 
@@ -62,7 +78,12 @@ export function isPreferences(raw: unknown): raw is Preferences {
   );
 }
 
-/** Version 1 is current. Unknown or older shapes are sanitised, never trusted. */
+/**
+ * Version 1 is current. Unknown or older shapes are sanitised, never trusted.
+ * A v1 payload written before `gaugeStyle` existed keeps its theme and gains the
+ * default, because `sanitizePreferences` falls back per key. That is why adding
+ * the key needed no version bump.
+ */
 export function migratePreferences(persisted: unknown): Preferences {
   return sanitizePreferences(persisted);
 }

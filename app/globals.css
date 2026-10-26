@@ -21,6 +21,16 @@
      dark theme is the .dark block below; the class goes on <html>. */
   color-scheme: light;
   --background: #fbf4ea;
+  /* Paper grain (DESIGN.md "Mood & motion"). Purpose (R-07): the cream ground
+     is the app's only large flat area, and flat cream reads as a screen; a
+     faint fibre grain makes it read as the paper of a planner, which is the
+     warm, analogue mood the potato mascot and Comfortaa headers already
+     carry. The ink is the text brown, so the grain darkens the cream the way
+     pencil dust would, never a new hue. 0.07 is the lowest value that is still
+     visible on a 1x laptop panel; it sits behind all content (see body::before)
+     so no text, control or swatch is composited over. */
+  --grain-ink: #2b2017;
+  --grain-opacity: 0.07;
   --foreground: #2b2017;
   --card: #fbf4ea;
   --card-foreground: #2b2017;
@@ -119,6 +129,12 @@
 .dark {
   color-scheme: dark;
   --background: #1c140e;
+  /* Dark ground: a dark-ink grain would vanish, so the grain flips to the
+     cream text colour and lightens the ground like dust on a dark board. Noise
+     reads louder against dark, so opacity is lower than light (0.05 vs 0.07)
+     to land at a similar perceived strength. */
+  --grain-ink: #f5ebdc;
+  --grain-opacity: 0.05;
   --foreground: #f5ebdc;
   --card: #1c140e;
   --card-foreground: #f5ebdc;
@@ -216,6 +232,25 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Paper grain, painted procedurally (no texture asset, so nothing to license).
+   The SVG is fractal noise folded into its alpha channel and used as a mask,
+   so the colour comes from --grain-ink and flips with the theme. z-index -1
+   inside the root stacking context puts it above the canvas background and
+   below every element, and pointer-events: none keeps it inert. Fixed, so it
+   adds no height or overflow. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--grain-ink);
+  opacity: var(--grain-opacity);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.6 0 0 0 -0.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.6 0 0 0 -0.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-size: 240px 240px;
 }
 
 /* Low-specificity defaults shadcn/ui components assume are in place (e.g. a

@@ -1,6 +1,7 @@
 "use client";
 
 import { useResolvedTokens } from "@/hooks/use-resolved-tokens";
+import type { GaugeStylePreference } from "@/lib/preferences";
 import SloshGauge from "./SloshGauge";
 
 const GAUGE_TOKENS = {
@@ -13,6 +14,10 @@ interface TimerGaugeProps {
   fullMs: number;
   /** False until the persisted timer has loaded, so the gauge never animates down from a stale full level. */
   ready: boolean;
+  /** `glyph` keeps the spring but paints nothing itself; the digits show the level (see onPaint). */
+  style?: GaugeStylePreference;
+  /** Spring surface (0-100) and lean (deg) after each paint. Only used by `glyph`. */
+  onPaint?: (surface: number, leanDeg: number) => void;
 }
 
 /** Remaining time as a 0-100 level, from the same remainingMs/fullMs that produce mm:ss. */
@@ -27,7 +32,7 @@ export function gaugeLevel(remainingMs: number, fullMs: number): number {
  * `data-gauge-level` is the rounded level QA reads; `data-liquid-color` and
  * `data-glass-color` are the colours currently resolved from the tokens.
  */
-export function TimerGauge({ remainingMs, fullMs, ready }: TimerGaugeProps) {
+export function TimerGauge({ remainingMs, fullMs, ready, style = "vessel", onPaint }: TimerGaugeProps) {
   const colors = useResolvedTokens(GAUGE_TOKENS);
   const level = gaugeLevel(remainingMs, fullMs);
 
@@ -37,6 +42,7 @@ export function TimerGauge({ remainingMs, fullMs, ready }: TimerGaugeProps) {
       className="pointer-events-none absolute inset-0"
       data-testid="timer-gauge"
       data-gauge-ready={ready ? "true" : "false"}
+      data-gauge-style={style}
       data-gauge-level={ready ? Math.round(level) : undefined}
       data-liquid-color={colors.liquid}
       data-glass-color={colors.glass}
@@ -45,14 +51,15 @@ export function TimerGauge({ remainingMs, fullMs, ready }: TimerGaugeProps) {
         <SloshGauge
           value={level}
           interactive={false}
-          liquidColor={colors.liquid}
-          glassColor={colors.glass}
+          liquidColor={style === "glyph" ? "transparent" : colors.liquid}
+          glassColor={style === "glyph" ? "transparent" : colors.glass}
           radius={200}
           ticks={0}
           tilt={0.2}
           splash={0.2}
           ariaLabel="Time remaining"
-          className="border border-border"
+          className={style === "glyph" ? "" : "border border-border"}
+          onPaint={style === "glyph" ? onPaint : undefined}
         />
       ) : null}
     </div>

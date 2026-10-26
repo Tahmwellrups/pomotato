@@ -4,6 +4,47 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-10-26 — `--control-border` has no contrast headroom left, and the grain is why
+Found by task 008's reviewer (R-2) after the paper grain shipped the same day. Recorded because it is a **standing constraint on the palette**, not a task.
+
+`--control-border` (`#88837e`) is the edge on every fill-less control — the unchecked mode chips, the custom-duration input, the unchecked `/settings` radio cards. It measures **3.44:1 against the flat `--background` token**, which is the figure 009 recorded and which 008's notes inherited. But the grain darkens the *painted* light ground, so against what actually renders it is **~3.26:1**, and **~3.01:1 against a worst-case full-mask grain pixel**. Dark moves 3.80 → ~3.66.
+
+**Nothing breaks: the 3:1 floor still clears.** The point is that it clears by roughly 60% less than the recorded figure suggests, which makes this the one token in the palette with nothing left to spend. The reviewer reproduced QA's painted sample (245,237,227) to within a unit by compositing `--grain-ink` at `--grain-opacity` over `--background`, so the arithmetic is independently confirmed from two directions.
+
+**How to apply.** Three things are now unsafe without re-measuring: darkening any ground this edge sits on, raising `--grain-opacity`, and reusing `--control-border` on a new fill-less control. Any of those needs a painted measurement first, not a token-level one — and `--popover` was already capped for a different reason (the dark task swatches clear it by ~1.3%). Between them, the light ground and dark `--popover` are now both pinned.
+
+**Second-order lesson, worth more than the figure.** 009's whole token foundation was measured against flat token values; the grain changed what paints without changing a single token, and every one of those figures became nominally stale at once. Only the pairs with real headroom survived unexamined. **A contrast figure is a property of what paints, not of the token** — so record the ground a figure was taken against, and re-measure when anything beneath it changes.
+
+### 2026-10-26 — Paper grain ships as a masked noise layer behind content, and one first-paint test changed shape because of it
+Milestone 4's paper grain (DESIGN.md: "at low opacity", "procedurally (SVG/CSS noise) rather than shipping a texture asset, which sidesteps the licensing question entirely"). Built on the small/self-contained track — frontend implemented, orchestrator verified, no task file.
+
+**What it is:** `body::before`, fixed, `inset: 0`, `z-index: -1`, `pointer-events: none`. An inline SVG `feTurbulence` data URI (fractal noise, base frequency 0.8, 3 octaves, 240px tile) with the noise folded into alpha, used as a **mask** over a `--grain-ink` background. The mask-over-token approach is the load-bearing choice: a data-URI with a baked-in colour could not follow the theme, so the grain's colour comes from a token and themes with everything else. No asset file, no dependency.
+
+| Theme | `--grain-ink` | `--grain-opacity` | Effect |
+|---|---|---|---|
+| Light | `#2b2017` (text brown) | 0.07 | darkens the cream, like pencil dust |
+| Dark | `#f5ebdc` (cream) | 0.05 | lightens the ground |
+
+Dark flips to light ink, because dark ink on `#1c140e` would vanish, and takes a lower opacity because noise reads louder on a dark ground.
+
+**It sits behind all content, deliberately.** Only transparent areas — the page ground — show it, so it never composites over text, controls or the eight task swatches. That was a hard requirement: the dark swatches clear `--popover` by 1.3% (potato at 3.04:1), and grain over a swatch would have broken criterion 19 outright. Verified rather than assumed: every painted-pixel contrast spec and the dark swatch checks pass unchanged.
+
+**The cost, stated:** the light page ground is now ~2.5% darker on average when painted (mean red 244.7 against the flat 251; measured spread 236-251 light, 28-40 dark). Every contrast figure recorded before today was computed against the *flat* token, so those figures are nominally a hair off for any pair measured against the page ground. No floor broke — the painted specs still pass — and for dark text on cream a slightly darker ground slightly *helps*. Recorded so nobody re-derives a figure and thinks it drifted.
+
+**One test legitimately changed shape.** `e2e/dark-theme-control.spec.ts`'s criterion 8/48 check sampled the ground pixel at (4,4) and asserted **exact** equality with the `--background` token. With grain, no ground pixel equals the flat token any more, so the assertion was testing a fact that is no longer true — while the criterion's actual intent, *the first painted frame is the right theme and not a wrong-theme flash*, still holds completely. It now asserts that intent: the pixel is within a stated grain tolerance of the correct ground **and** nearer the correct ground than the other theme's. The two themes sit ~220 apart per channel against noise of ~15, so this is a far wider margin than exact equality gave. **Proven non-vacuous** by inverting the expected ground, which fails all three cases, then restoring. Frontend escalated this rather than tuning the grain to dodge the sampled pixel, which was the right call — moving the grain could not have fixed it, since the ground is noise everywhere.
+
+**How to apply:** when a design change makes an exact-value assertion false, check whether the assertion was ever the criterion. Here the exact match was a proxy; replacing it with the intent made the test both grain-tolerant and stricter about what it was supposed to catch.
+
+### 2026-10-26 — Four scoping decisions opening task 008 (the settings surface)
+Taken after 009 closed, because 009 answered or invalidated several of 008's open questions. 008's task file predates 009 and is being refreshed by pm against these.
+
+- **The theme control stays in `widgets/HeaderNav.tsx`; `/settings` does not take it over.** `docs/PLAN.md` described the settings surface as holding "the theme controls above", and 008's own text said the theme section "lands with milestone 4's token work" — both written before 009 existed. Overruled on use: flipping the theme is a frequent, low-commitment action (the owner studies at night), so putting it one navigation away makes the common case worse. This also preserves 009's decision 4 ("one instance only"), which keeps two controls from disagreeing. `/settings` holds the gauge style and later preferences. **PLAN.md's wording is amended to match.**
+- **`react-icons` is the project's icon library.** The orchestrator recommended `lucide-react` on the grounds that shadcn/ui generates against it; **that recommendation was wrong on the facts and the owner overrode it correctly.** `lucide-react@^1.52.0` sits in `package.json` and is imported **nowhere**; all four icon usages (`TimerControls.tsx`, `StatsButton.tsx`, `TaskListDialog.tsx`) are already `react-icons`. So this ratifies what the codebase does and makes `lucide-react` an unused dependency. **Residual cost, accepted:** a future `shadcn add` may arrive with `lucide-react` imports that need translating to `react-icons` by hand. 008's criterion 18 still forbids a third library.
+- **`app/prototype/glyph-slosh` is deleted as part of 008.** It is a real route, so it is reachable in a production build and renders a gauge variant that fails AA; `hooks/use-local-slosh.ts` becomes a duplicate of the shared spring the moment 008 lands. Its purpose was choosing a gauge variant, which is what 008 settles, so it has no life after this task. 009 had excluded it from contrast measurement while still asserting it renders — that exclusion ends with the route.
+- **`widgets/` is added to CLAUDE.md's "Folder structure".** The folder exists, is committed, and now holds the theme control, but the documented structure never listed it — so the next agent adding app-level chrome had to guess between `components/` and `widgets/`. 008 flagged this when it was drafted; it is fixed now rather than asked a third time.
+
+**Proceeding on 008's own stated defaults, not re-asked:** the gauge style defaults to the vessel (so no existing screen changes on next load), and only vessel + variant 4 ship. Criterion 5 makes adding variant 3 later an enum entry plus a renderer, not a redesign.
+
 ### 2026-10-26 — The drag-active row ring is exempted, not fixed (task 009 criterion 42)
 QA pass 2 measured the dragged task row's `ring-2 ring-ring` at **2.47:1 against the page ground in light** (3:1 floor); dark passes at 3.92:1. **Exempted under criterion 42's own exemption clause**, which requires naming a carrier that is not the failing colour and that actually exists.
 

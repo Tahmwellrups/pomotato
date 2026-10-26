@@ -62,8 +62,6 @@ const ALLOWED_RAW_UTILITIES: Record<string, string[]> = {};
 const ALLOWED_LITERALS: Record<string, string> = {
   "components/task-palette-colors.ts":
     "TASK_COLOR_HEX: the eight task swatch values, owner palette decisions measured at 3:1 as data. milestone 4 remaps them per theme.",
-  "components/prototype/contrast.ts":
-    "canvas probe: fillStyle \"#000\" resets the 1x1 canvas before it samples a colour; nothing is painted to the page.",
 };
 
 // Task 007 criterion 13: the one inline style colour in the swept files. The
@@ -176,7 +174,7 @@ describe("task 007 no raw palette utility anywhere in app code", () => {
 
 describe("task 007 no colour literal in app code outside the pinned data and probe files", () => {
   it("the exempt files are exactly the pinned two, each with a reason", () => {
-    expect(Object.keys(ALLOWED_LITERALS).sort()).toEqual(["components/prototype/contrast.ts", "components/task-palette-colors.ts"]);
+    expect(Object.keys(ALLOWED_LITERALS).sort()).toEqual(["components/task-palette-colors.ts"]);
     for (const reason of Object.values(ALLOWED_LITERALS)) expect(reason.length).toBeGreaterThan(20);
   });
 

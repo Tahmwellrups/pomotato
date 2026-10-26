@@ -7,6 +7,7 @@ import {
   PREFERENCES_STORAGE_KEY,
   PREFERENCES_VERSION,
   sanitizePreferences,
+  type GaugeStylePreference,
   type Preferences,
   type ThemePreference,
 } from "./schema";
@@ -18,6 +19,7 @@ interface PreferencesState extends Preferences {
 
 interface PreferencesActions {
   setTheme: (theme: ThemePreference) => void;
+  setGaugeStyle: (gaugeStyle: GaugeStylePreference) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -29,6 +31,8 @@ export const usePreferencesStore = create<PreferencesStore>()(
       ...PREFERENCE_DEFAULTS,
       hasHydrated: false,
       setTheme: (theme) => set({ theme: sanitizePreferences({ theme }).theme }),
+      setGaugeStyle: (gaugeStyle) =>
+        set({ gaugeStyle: sanitizePreferences({ gaugeStyle }).gaugeStyle }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -38,11 +42,15 @@ export const usePreferencesStore = create<PreferencesStore>()(
       // first client render matches the server-rendered default. The painted
       // theme does not wait for this, the boot script has already set the class.
       skipHydration: true,
-      partialize: (state): Preferences => ({ theme: state.theme }),
+      partialize: (state): Preferences => ({
+        theme: state.theme,
+        gaugeStyle: state.gaugeStyle,
+      }),
       migrate: (persisted): Preferences => migratePreferences(persisted),
       // migrate is skipped when the stored version matches, so validate on every
-      // rehydration. A bad value falls back to its default and is not written
-      // back: persist only writes on a state change or a migration.
+      // rehydration. A bad value falls back to its default, and persist then
+      // writes the sanitised state back over the bad entry (QA's 009 probe;
+      // DECISIONS 2026-10-23), so malformed bytes do not survive a load.
       merge: (persisted, current) => {
         const next = isPreferences(persisted) ? persisted : sanitizePreferences(persisted);
         return { ...current, ...next };

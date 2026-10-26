@@ -15,6 +15,9 @@
  *    paint() can never read an undefined tilt regardless of effect order.
  *  - Colour defaults are `transparent` instead of hex literals. Callers pass colours
  *    resolved from CSS custom properties (see hooks/use-resolved-tokens.ts).
+ *  - Optional onPaint(surface, leanDeg), called at the end of every paint(). It lets the
+ *    in-glyph gauge style (task 008) follow this spring instead of carrying a second one.
+ *    Nothing else changes when it is omitted.
  */
 'use client';
 
@@ -44,6 +47,8 @@ export interface SloshGaugeProps {
   splash?: number;
   ariaLabel?: string;
   className?: string;
+  /** Surface height as 0-100 from the bottom, and the lean in degrees, after each paint. */
+  onPaint?: (surface: number, leanDeg: number) => void;
 }
 
 interface Sim {
@@ -70,6 +75,7 @@ interface Live {
   splash: number;
   value: number | undefined;
   onChange: ((value: number) => void) | undefined;
+  onPaint: ((surface: number, leanDeg: number) => void) | undefined;
 }
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
@@ -99,7 +105,8 @@ const SloshGauge: React.FC<SloshGaugeProps> = ({
   tilt = 0.45,
   splash = 0.42,
   ariaLabel = 'Level',
-  className = ''
+  className = '',
+  onPaint
 }) => {
   const root = useRef<HTMLDivElement>(null);
   const liquid = useRef<HTMLDivElement>(null);
@@ -109,9 +116,9 @@ const SloshGauge: React.FC<SloshGaugeProps> = ({
   const grip = useRef<Grip | null>(null);
   const reduce = useRef(false);
   const [held, setHeld] = useState(false);
-  const live = useRef<Live>({ viscosity, tilt, splash, value, onChange });
+  const live = useRef<Live>({ viscosity, tilt, splash, value, onChange, onPaint });
   useLayoutEffect(() => {
-    live.current = { viscosity, tilt, splash, value, onChange };
+    live.current = { viscosity, tilt, splash, value, onChange, onPaint };
   });
 
   const paint = () => {
@@ -126,6 +133,7 @@ const SloshGauge: React.FC<SloshGaugeProps> = ({
       liquid.current.style.clipPath = `polygon(0 calc(${top}% + ${lean}px), 100% calc(${top}% - ${lean}px), 100% 100%, 0 100%)`;
     }
     if (marker.current) marker.current.style.transform = `translateY(${((100 - L) * Hh) / 100}px)`;
+    live.current.onPaint?.(x, th);
   };
 
   const say = () => {

@@ -20,6 +20,7 @@ No `src/` — app code lives at the repo root (create-next-app default; see [doc
 - `app/` — routes (App Router)
 - `components/` — shared UI components, PascalCase filenames
 - `components/ui/` — shadcn-generated components (milestone 3 onward); the existing flat `components/*.tsx` files stay where they are, untouched
+- `widgets/` — app-level chrome that frames the routes (header nav, bottom controls), PascalCase filenames; distinct from `components/`, which holds the UI the routes are built from
 - `lib/db/` — Dexie schema, repositories, migrations, export/import (backend-owned)
 - `lib/` — other shared utilities
 - `hooks/` — custom React hooks, `use-` prefix
@@ -35,7 +36,24 @@ No `src/` — app code lives at the repo root (create-next-app default; see [doc
 ## Team workflow
 This session is the orchestrator. It delegates to five subagents in `.claude/agents/`: `pm`, `frontend`, `backend`, `qa`, `reviewer`. Each role's full responsibilities, boundaries, and definition of done live in its own agent file — this section is just the pipeline shape.
 
-For any non-trivial feature:
+### Three sizes of work, not two (owner decision, 2026-10-26)
+The full five-agent pipeline is for **major** work only. It was costing more time than it was saving on
+self-contained changes, so match the ceremony to the task:
+
+- **Trivial** (typos, one-line fixes, mechanical cleanup after a deletion) — skip the pipeline entirely.
+  The orchestrator does it directly, including the test and doc fallout, and reports what it touched.
+- **Small / self-contained** (no new data shape, no new route or surface, no persisted state — e.g. a
+  procedural visual effect, a contained style pass, a single component's behaviour) — **frontend** or
+  **backend** implements, the orchestrator verifies against the gates and checks the result itself. No
+  `pm` task file, no `qa` pass, no `reviewer`. Write the decision into `docs/DECISIONS.md` if it settles
+  anything a later task would otherwise re-ask.
+- **Major** (a new surface, a persisted preference, a schema change, anything touching many files or
+  carrying acceptance criteria worth measuring) — the full pipeline below.
+
+Judgement call, not a formula: if work starts small and turns out to need measurement across many
+surfaces, escalate it to the full pipeline rather than finishing it light.
+
+For any **major** feature:
 1. **pm** writes `docs/tasks/<id>-<slug>.md` from the goal (next unchecked item in `docs/PLAN.md`, or a direct ask).
 2. **backend** goes first if the task's data shape is undecided; otherwise **backend** and **frontend** may run in parallel, but only while they touch disjoint files.
 3. **frontend** implements against the task file's acceptance criteria.
@@ -43,8 +61,6 @@ For any non-trivial feature:
 5. On FAIL, the report goes back to whichever agent owns the failing area. Max 3 fix loops — after that, stop and ask the user instead of looping again.
 6. **reviewer** (read-only) reviews the diff and appends Review Findings.
 7. Orchestrator summarizes the outcome to the user.
-
-Trivial changes (typos, one-line fixes) skip this pipeline entirely.
 
 ## Hard rules
 - Agents communicate through files in `docs/`, never through chat with each other.

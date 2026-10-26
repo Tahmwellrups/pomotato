@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_THEME,
+  GAUGE_STYLE_VALUES,
   PREFERENCE_DEFAULTS,
   PREFERENCES_STORAGE_KEY,
   PREFERENCES_VERSION,
@@ -76,8 +77,8 @@ describe("criterion 5: sanitising malformed values falls back to the default, on
   for (const [label, value] of shapes) {
     it(`theme ${label} sanitises to system and never throws`, () => {
       expect(() => sanitizePreferences({ theme: value })).not.toThrow();
-      expect(sanitizePreferences({ theme: value })).toEqual({ theme: "system" });
-      expect(isPreferences({ theme: value })).toBe(false);
+      expect(sanitizePreferences({ theme: value })).toEqual({ theme: "system", gaugeStyle: "vessel" });
+      expect(isPreferences({ theme: value, gaugeStyle: "vessel" })).toBe(false);
     });
   }
 
@@ -90,25 +91,29 @@ describe("criterion 5: sanitising malformed values falls back to the default, on
 
   it("accepts exactly the three enum values and nothing else", () => {
     for (const value of THEME_VALUES) {
-      expect(isPreferences({ theme: value })).toBe(true);
+      for (const gaugeStyle of GAUGE_STYLE_VALUES) {
+        expect(isPreferences({ theme: value, gaugeStyle })).toBe(true);
+      }
     }
-    expect(isPreferences({ theme: "DARK" })).toBe(false);
-    expect(isPreferences({ theme: "#1c140e" })).toBe(false);
-    expect(isPreferences({ theme: "dark dark" })).toBe(false);
+    expect(isPreferences({ theme: "DARK", gaugeStyle: "vessel" })).toBe(false);
+    expect(isPreferences({ theme: "#1c140e", gaugeStyle: "vessel" })).toBe(false);
+    expect(isPreferences({ theme: "dark dark", gaugeStyle: "vessel" })).toBe(false);
+    // Each key is required: a complete theme with no gauge style is not a valid Preferences.
+    expect(isPreferences({ theme: "dark" })).toBe(false);
   });
 });
 
 describe("criterion 3 and 5 against the storage entry: read what the store writes and reads", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", hasHydrated: false });
+    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", hasHydrated: false });
   });
 
   it("persists only the enum: the written entry is exactly the zustand envelope with theme and nothing else", () => {
     usePreferencesStore.getState().setTheme("dark");
     const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
     expect(raw).not.toBeNull();
-    expect(JSON.parse(must(raw, "stored entry"))).toEqual({ state: { theme: "dark" }, version: PREFERENCES_VERSION });
+    expect(JSON.parse(must(raw, "stored entry"))).toEqual({ state: { theme: "dark", gaugeStyle: "vessel" }, version: PREFERENCES_VERSION });
     // No colour value, hex, class name or component reference reaches storage.
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}/);
     expect(raw).not.toMatch(/rgb|hsl|oklch/);
@@ -120,7 +125,8 @@ describe("criterion 3 and 5 against the storage entry: read what the store write
       usePreferencesStore.getState().setTheme(value);
       const parsed = JSON.parse(must(window.localStorage.getItem(PREFERENCES_STORAGE_KEY), "stored entry"));
       expect(parsed.state.theme).toBe(value);
-      expect(Object.keys(parsed.state)).toEqual(["theme"]);
+      expect(parsed.state.gaugeStyle).toBe("vessel");
+      expect(Object.keys(parsed.state).sort()).toEqual(["gaugeStyle", "theme"]);
     }
   });
 
@@ -188,7 +194,7 @@ describe("criterion 3 and 5 against the storage entry: read what the store write
       await usePreferencesStore.persist.rehydrate();
       const after = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
       expect(after).not.toBeNull();
-      expect(JSON.parse(must(after, "stored entry after rehydrate"))).toEqual({ state: { theme: "system" }, version: PREFERENCES_VERSION });
+      expect(JSON.parse(must(after, "stored entry after rehydrate"))).toEqual({ state: { theme: "system", gaugeStyle: "vessel" }, version: PREFERENCES_VERSION });
       expect(after).not.toContain("Dark");
       expect(after).not.toContain("auto");
     });

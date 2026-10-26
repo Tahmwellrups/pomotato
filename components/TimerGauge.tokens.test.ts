@@ -20,6 +20,10 @@ const NEW_SURFACE_FILES = [
   "./HoldButton.tsx",
   "./SloshGauge.tsx",
   "../hooks/use-resolved-tokens.ts",
+  // Task 008: the settings surface and its entry point.
+  "./SettingsPanel.tsx",
+  "./SettingsButton.tsx",
+  "../app/settings/page.tsx",
 ];
 
 // Files whose lines this task edits. Raw palette utilities in them are guarded by
@@ -39,7 +43,17 @@ describe("task 005 colour tokens", () => {
 });
 
 describe("task 005 introduces no new time source", () => {
-  for (const file of ["./TimerGauge.tsx", "./TimerDisplay.tsx", "./TimerControls.tsx", "../hooks/use-resolved-tokens.ts"]) {
+  // Task 008 (criterion 41): every component file the task adds is guarded too.
+  // SloshGauge.tsx is deliberately not listed: it holds the single rAF spring,
+  // and the spring stays in that one file (criterion 36).
+  for (const file of [
+    "./TimerGauge.tsx",
+    "./TimerDisplay.tsx",
+    "./TimerControls.tsx",
+    "../hooks/use-resolved-tokens.ts",
+    "./SettingsPanel.tsx",
+    "./SettingsButton.tsx",
+  ]) {
     it(`${file} has no setInterval, setTimeout, requestAnimationFrame or performance.now`, () => {
       expect(read(file)).not.toMatch(TIMER_SOURCE);
     });
