@@ -13,6 +13,8 @@
  * `migratePreferences`.
  */
 
+import { defaultMix, isMix, sanitizeMix, type Mix } from "../audio/mix";
+
 export const THEME_VALUES = ["light", "dark", "system"] as const;
 export type ThemePreference = (typeof THEME_VALUES)[number];
 
@@ -54,6 +56,12 @@ export interface Preferences {
   theme: ThemePreference;
   gaugeStyle: GaugeStylePreference;
   background: BackgroundPreference;
+  /**
+   * Task 011's ambient mix: which layers are on and each layer's level (an
+   * integer 0 to 100, kept while the layer is off). Whether sound is playing
+   * right now is deliberately not stored, autoplay policy forbids resuming it.
+   */
+  mix: Mix;
 }
 
 /** localStorage key. Not "pomotato-timer". The boot script reads this same constant. */
@@ -69,11 +77,12 @@ export const PREFERENCE_DEFAULTS: Preferences = {
   theme: DEFAULT_THEME,
   gaugeStyle: DEFAULT_GAUGE_STYLE,
   background: null,
+  mix: defaultMix(),
 };
 
-/** The accepted value set per closed-set key. `background` is validated by `isBackgroundId` instead. */
+/** The accepted value set per closed-set key. `background` and `mix` have validators instead. */
 export const PREFERENCE_VALUES: {
-  readonly [K in Exclude<keyof Preferences, "background">]: readonly Preferences[K][];
+  readonly [K in Exclude<keyof Preferences, "background" | "mix">]: readonly Preferences[K][];
 } = {
   theme: THEME_VALUES,
   gaugeStyle: GAUGE_STYLE_VALUES,
@@ -96,6 +105,7 @@ export function sanitizePreferences(raw: unknown): Preferences {
     theme: pick("theme", record.theme),
     gaugeStyle: pick("gaugeStyle", record.gaugeStyle),
     background: isBackgroundId(record.background) ? record.background : PREFERENCE_DEFAULTS.background,
+    mix: sanitizeMix(record.mix),
   };
 }
 
@@ -106,7 +116,11 @@ export function isPreferences(raw: unknown): raw is Preferences {
   const enumsValid = (Object.keys(PREFERENCE_VALUES) as (keyof typeof PREFERENCE_VALUES)[]).every((key) =>
     PREFERENCE_VALUES[key].some((value) => value === record[key])
   );
-  return enumsValid && (record.background === null || isBackgroundId(record.background));
+  return (
+    enumsValid &&
+    (record.background === null || isBackgroundId(record.background)) &&
+    isMix(record.mix)
+  );
 }
 
 /**

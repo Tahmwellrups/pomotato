@@ -93,6 +93,93 @@ one blocked by it. Each is non-blocking; none is a 009 regression.
       the fix lands with a test that now fails for passing.** Deferred because the palette has to move
       first and be measured once (see CLAUDE.md "Measurement ordering"); re-opening a measured task to do
       it would have cost a second sweep.
+- [ ] **`e2e/settings-gauge-style.spec.ts:397` is flaky under parallel load.** "running: navigating to
+      /settings, changing the option and returning changes no timer state" failed once in a full
+      `npm run test:e2e` (631 tests, `fullyParallel`, default worker count) and passed on a second full run
+      and in isolation. Not a task 011 regression: `lib/timer`, `lib/stats`, `lib/db`,
+      `lib/preferences/boot-script.ts` and both timer hooks have a verified empty diff against `f3f5869`.
+      The test asserts that timer state is unchanged across a navigation **while the timer is running**, so
+      it is inherently timing-sensitive, and many workers sharing one dev server can shift a tick boundary.
+      Worth either pinning the clock for that assertion or giving it a tolerance, rather than leaving a
+      known-flaky test in a suite whose whole value is that a red run means something.
+
+### Found by task 011's review, routed here deliberately (reviewer APPROVE, none blocking)
+
+- [ ] **Does the full-coverage ruling generalise to every 1 px control border in the app?** (011 review R-5.)
+      DECISIONS 2026-10-27 now says a 1 px border cannot carry a 3:1 boundary on a surface whose position
+      is not pixel-aligned. Task 011 thickened the one stroke it had measured (the fader track). The same
+      1 px shape is on the mixer's own Stop/Start button (`components/SoundscapeDialog.tsx:76-81`,
+      `variant="outline"` at the cva base), `SettingsButton`, `StatsButton` and the dialog Close.
+      **Nothing shipped is known-bad** — 010's `--control-border` figures are full-coverage readings on the
+      page ground — and none of these was in criterion 23's list, so QA had no obligation. What is open is
+      whether the ruling implies a change: **one measurement pass over the app's 1 px control borders, then
+      a decision.** Do not pre-emptively thicken anything; measure first, once, per "Measurement ordering".
+- [ ] **The first click that asks for sound builds ~3.5 MB of noise synchronously, most of it unused.**
+      (011 review R-3.) `lib/audio/noise.ts:47-52` fills white, pink and brown eagerly: 3 x 6 s x 48 kHz,
+      ~864k samples of per-sample JS, ~3.5 MB of `Float32`, on the main thread inside the gesture, because
+      autoplay policy forces the context open before the first await. **Turning on Hum alone pays the whole
+      bill and uses none of it.** Tens of ms on a laptop, plausibly 150-300 ms on a low-end phone: a one-off
+      hitch on first start, not a leak. Fix: make the bank lazy per colour, three getters memoised on the
+      context, so a layer materialises only the noise it filters. Worth doing before a fifth layer.
+- [ ] **No cue that sound is playing once the mixer is closed.** (011 review R-6, pm's call not a defect.)
+      Sound deliberately survives dialog close and client-side navigation, so she can be on `/stats` with
+      rain running and nothing on screen says so; the only way back is reopening the mixer. **This is not a
+      request for a meter** — VU, waveform, spectrum and pulsing icons are out of scope by the task's own
+      ruling and would break 010's criterion 28 (zero rAF with the timer idle). A *static* state on the
+      trigger, such as a struck-through speaker while `playing`, is not motion, needs no
+      `prefers-reduced-motion` handling, and `data-soundscape-context` is already on the trigger.
+- [ ] **The group F track-edge probe can silently measure the thumb instead of the track.** (011 review
+      R-7.) `e2e/soundscape-measure.spec.ts:130` samples a 1 px column at `sb.x + 10`; the 24 px thumb spans
+      `thumbX ± 12`, so at any level below roughly 5 the thumb covers that column. Because the pass judges
+      the *most*-contrasting non-ground pixel, a future run with a different fixture would report the
+      thumb's 4.8:1 as the track's and **pass regardless of the track**. Today's fixture (Rain 60, others
+      50) keeps them apart, and the judged pixels equalling the token hexes prove it did — but that is the
+      fixture's doing, not the harness's. Two lines: assert `Math.abs(thumbX - (sb.x + 10)) > 14`, or
+      exclude the thumb's colour from the edge probe. Both 010 and 011 lost rounds to harness bugs, so this
+      is worth closing while the measurement history is fresh.
+- [ ] **A fifth `LayerSource` with no scheduled source would throw and never dispose.** (011 review R-8.)
+      `lib/audio/sources.ts:57` reads `sources[sources.length - 1]` and assigns `onended` to it. The project
+      does not enable `noUncheckedIndexedAccess`, so TS types it non-optional, and all four shipped sources
+      push at least one scheduled node, so it is safe today. A fifth built only from constant and filter
+      nodes would make `stop()` throw inside `fadeOutAndStop`, leaving `liveNodes` permanently inflated and
+      the fade node connected. Criterion 9 promises a fifth layer is "a registry entry plus a source", so
+      this is the one sharp edge on that path. One guard closes it:
+      `if (sources.length === 0) { onDisposed(); return; }`.
+- [ ] **Two guards and two indents that do not extend themselves.** (011 review R-9b, R-9c.) Indentation
+      slips at `lib/preferences/gauge-style.test.ts:72` and `lib/preferences/preferences.test.ts:237`
+      (four spaces inside a six-space object). `components/background.guards.test.ts:82-84`'s "no first
+      `lucide-react` import" guard iterates 010's `NEW_FILES` only, so 011's nine new files sit outside it;
+      the reviewer grepped and confirmed no `lucide-react` import exists anywhere, so nothing is wrong
+      today, but a later task may assume the guard covers files it does not. Same family as the
+      `HEAD`-diff item above: a guard scoped to one task's file list silently stops guarding.
+
+- [ ] **A fader drag writes to `localStorage` on every value step (100 writes per full drag).**
+      Measured by QA on task 011, criterion 6: one 0-to-100 drag over 301 pointer moves produced 100
+      `input` events and 100 `pomotato-preferences` `setItem` calls, with the final stored level correct.
+      It **passed** the criterion, whose wording bounds writes by "committed value changes, not pointer
+      events", and each write is small (the whole entry is ~210 characters). But the level commits per
+      step rather than on pointer release, so a drag does 100 synchronous main-thread writes where 1
+      would do. `hooks/use-soundscape.ts` `setLayerLevel`. The cheap fix is to keep the audio ramp on
+      every `input` (it must stay live, that is the point of a fader) and move only the *persisted*
+      write to `onPointerUp`/`onKeyUp`/`change`, so the sound follows the finger and the storage write
+      follows the gesture. Worth doing before any second slider ships, because the next one inherits the
+      pattern.
+
+- [ ] **Guards written as a diff against `HEAD` invert the moment the work is committed.**
+      `components/background.guards.test.ts` held a test asserting that the only changed values in
+      `app/globals.css` were task 010's two `--control-border` rulings. It passed only while 010 was
+      uncommitted; `f3f5869` made the working tree equal `HEAD`, the changed-value list went empty, and
+      the test failed **because the work shipped**. Removed on 2026-10-27 (orchestrator, trivial track) —
+      its durable twin is `components/token-foundation.test.ts:85`, which pins both hexes by value. That
+      is why the unit floor is 871, not the 872 in 010's reports.
+      **The pattern is the point, and two more instances of it are already in this file:** the
+      `test.fail` in `e2e/uploaded-background-dialog-edge.spec.ts` (goes red when the light dialog edge is
+      fixed) and, in the same guards file, `"the set of declared custom property names is identical to
+      HEAD"` — which now compares a committed file to itself and can no longer fail, so it is a passing
+      no-op rather than a guard. Worth one sweep for assertions phrased against `HEAD`, `git diff` or
+      "unchanged from the previous commit": each one is a test with a shelf life that expires at commit
+      time, and it expires silently in the no-op direction and loudly in the other.
+
 - [ ] **`/settings` announces its idle state on arrival** (task 010 review R-1).
       `components/BackgroundControl.tsx:129-131` renders `notice?.text ?? stateText` inside `role="status"`,
       and `stateText` flips from `""` to "No background image." as soon as `hasHydrated` turns true — so a

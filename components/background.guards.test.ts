@@ -115,13 +115,10 @@ describe("task 010 criterion 21 and 23: the grain values and the set of custom p
     expect(names(css())).toEqual(names(git("show", "HEAD:app/globals.css")));
   });
 
-  it("the only changed values in :root or .dark are --control-border, light (#7a756f) and dark (#8a7968)", () => {
-    const values = (source: string) => [...source.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)].map((m) => `${m[1]}=${m[2].trim()}`);
-    const before = values(git("show", "HEAD:app/globals.css"));
-    const after = values(css());
-    const changed = after.filter((entry) => !before.includes(entry));
-    const removed = before.filter((entry) => !after.includes(entry));
-    expect(changed).toEqual(["--control-border=#7a756f", "--control-border=#8a7968"]);
-    expect(removed).toEqual(["--control-border=#88837e", "--control-border=#80705d"]);
-  });
+  // The two owner rulings that moved --control-border were guarded here as a diff
+  // against HEAD, which only held while 010 was uncommitted: once f3f5869 landed the
+  // tree matched HEAD, the changed-value list went empty and the assertion failed for
+  // having shipped. The durable form of the same guard is token-foundation.test.ts:85,
+  // which pins both hexes by value and asserts there are exactly two, so re-pointing
+  // this one would duplicate it.
 });

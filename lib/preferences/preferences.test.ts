@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { defaultMix } from "../audio/mix";
 import {
   DEFAULT_THEME,
   GAUGE_STYLE_VALUES,
@@ -77,7 +78,7 @@ describe("criterion 5: sanitising malformed values falls back to the default, on
   for (const [label, value] of shapes) {
     it(`theme ${label} sanitises to system and never throws`, () => {
       expect(() => sanitizePreferences({ theme: value })).not.toThrow();
-      expect(sanitizePreferences({ theme: value })).toEqual({ theme: "system", gaugeStyle: "vessel", background: null });
+      expect(sanitizePreferences({ theme: value })).toEqual({ theme: "system", gaugeStyle: "vessel", background: null, mix: defaultMix() });
       expect(isPreferences({ theme: value, gaugeStyle: "vessel" })).toBe(false);
     });
   }
@@ -92,7 +93,7 @@ describe("criterion 5: sanitising malformed values falls back to the default, on
   it("accepts exactly the three enum values and nothing else", () => {
     for (const value of THEME_VALUES) {
       for (const gaugeStyle of GAUGE_STYLE_VALUES) {
-        expect(isPreferences({ theme: value, gaugeStyle, background: null })).toBe(true);
+        expect(isPreferences({ theme: value, gaugeStyle, background: null, mix: defaultMix() })).toBe(true);
       }
     }
     expect(isPreferences({ theme: "DARK", gaugeStyle: "vessel" })).toBe(false);
@@ -106,14 +107,14 @@ describe("criterion 5: sanitising malformed values falls back to the default, on
 describe("criterion 3 and 5 against the storage entry: read what the store writes and reads", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", hasHydrated: false });
+    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
   });
 
   it("persists only the enum and the background reference: the written entry is exactly the zustand envelope", () => {
     usePreferencesStore.getState().setTheme("dark");
     const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
     expect(raw).not.toBeNull();
-    expect(JSON.parse(must(raw, "stored entry"))).toEqual({ state: { theme: "dark", gaugeStyle: "vessel", background: null }, version: PREFERENCES_VERSION });
+    expect(JSON.parse(must(raw, "stored entry"))).toEqual({ state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix() }, version: PREFERENCES_VERSION });
     // No colour value, hex, class name or component reference reaches storage.
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}/);
     expect(raw).not.toMatch(/rgb|hsl|oklch/);
@@ -126,7 +127,7 @@ describe("criterion 3 and 5 against the storage entry: read what the store write
       const parsed = JSON.parse(must(window.localStorage.getItem(PREFERENCES_STORAGE_KEY), "stored entry"));
       expect(parsed.state.theme).toBe(value);
       expect(parsed.state.gaugeStyle).toBe("vessel");
-      expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "theme"]);
+      expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "theme"]);
     }
   });
 
@@ -194,7 +195,7 @@ describe("criterion 3 and 5 against the storage entry: read what the store write
       await usePreferencesStore.persist.rehydrate();
       const after = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
       expect(after).not.toBeNull();
-      expect(JSON.parse(must(after, "stored entry after rehydrate"))).toEqual({ state: { theme: "system", gaugeStyle: "vessel", background: null }, version: PREFERENCES_VERSION });
+      expect(JSON.parse(must(after, "stored entry after rehydrate"))).toEqual({ state: { theme: "system", gaugeStyle: "vessel", background: null, mix: defaultMix() }, version: PREFERENCES_VERSION });
       expect(after).not.toContain("Dark");
       expect(after).not.toContain("auto");
     });
@@ -214,7 +215,7 @@ describe("task 010: the background reference", () => {
   const shipped = { state: { theme: "dark", gaugeStyle: "glyph" }, version: 1 };
 
   it("the literal shipped payload keeps both keys and gains the null default", () => {
-    expect(sanitizePreferences(shipped.state)).toEqual({ theme: "dark", gaugeStyle: "glyph", background: null });
+    expect(sanitizePreferences(shipped.state)).toEqual({ theme: "dark", gaugeStyle: "glyph", background: null, mix: defaultMix() });
     expect(isPreferences(shipped.state)).toBe(false);
   });
 
@@ -224,7 +225,7 @@ describe("task 010: the background reference", () => {
     const state = usePreferencesStore.getState();
     expect([state.theme, state.gaugeStyle, state.background]).toEqual(["dark", "glyph", null]);
     const written = JSON.parse(window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "null");
-    expect(written).toEqual({ state: { theme: "dark", gaugeStyle: "glyph", background: null }, version: PREFERENCES_VERSION });
+    expect(written).toEqual({ state: { theme: "dark", gaugeStyle: "glyph", background: null, mix: defaultMix() }, version: PREFERENCES_VERSION });
   });
 
   const bad: unknown[] = [42, true, {}, [], "has space", "a/b", "", "x".repeat(65), undefined];
@@ -233,6 +234,7 @@ describe("task 010: the background reference", () => {
       theme: "light",
       gaugeStyle: "glyph",
       background: null,
+    mix: defaultMix(),
     });
   });
 
@@ -240,7 +242,7 @@ describe("task 010: the background reference", () => {
     const id = "123e4567-e89b-42d3-a456-426614174000";
     usePreferencesStore.getState().setBackground(id);
     const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "";
-    expect(JSON.parse(raw).state).toEqual({ theme: usePreferencesStore.getState().theme, gaugeStyle: usePreferencesStore.getState().gaugeStyle, background: id });
+    expect(JSON.parse(raw).state).toEqual({ theme: usePreferencesStore.getState().theme, gaugeStyle: usePreferencesStore.getState().gaugeStyle, background: id, mix: usePreferencesStore.getState().mix });
     expect(raw.length).toBeLessThan(1024);
     usePreferencesStore.getState().setBackground(null);
   });

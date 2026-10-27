@@ -1,7 +1,7 @@
 ---
 id: 010
 slug: uploaded-backgrounds
-status: qa # draft | in-progress | qa | review | done | blocked
+status: done # draft | in-progress | qa | review | done | blocked
 ---
 
 # Uploaded backgrounds — a local image behind the app, without breaking legibility

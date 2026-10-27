@@ -24,6 +24,9 @@ const NEW_SURFACE_FILES = [
   "./SettingsPanel.tsx",
   "./SettingsButton.tsx",
   "../app/settings/page.tsx",
+  // Task 011: the ambient mixer's trigger and dialog, and its hook.
+  "./SoundscapeDialog.tsx",
+  "../hooks/use-soundscape.ts",
 ];
 
 // Files whose lines this task edits. Raw palette utilities in them are guarded by
@@ -60,6 +63,16 @@ describe("task 005 introduces no new time source", () => {
     "../lib/image-decode.ts",
     "../lib/db/background-repository.ts",
     "../lib/db/background-validation.ts",
+    // Task 011: the mixer's trigger, dialog and hook, and the synthesis and registry it reads.
+    "./SoundscapeDialog.tsx",
+    "../hooks/use-soundscape.ts",
+    "../lib/audio/engine.ts",
+    "../lib/audio/sources.ts",
+    "../lib/audio/noise.ts",
+    "../lib/audio/layers.ts",
+    "../lib/audio/mix.ts",
+    "../lib/audio/gain.ts",
+    "../lib/audio/types.ts",
   ]) {
     it(`${file} has no setInterval, setTimeout, requestAnimationFrame or performance.now`, () => {
       expect(read(file)).not.toMatch(TIMER_SOURCE);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { defaultMix } from "../audio/mix";
 import {
   DEFAULT_GAUGE_STYLE,
   GAUGE_STYLE_VALUES,
@@ -54,13 +55,13 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
       expect(() => {
         result = sanitizePreferences({ theme: "dark", gaugeStyle: value });
       }).not.toThrow();
-      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel", background: null });
+      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix() });
       expect(isPreferences({ theme: "dark", gaugeStyle: value })).toBe(false);
     });
   }
 
   it("a missing gaugeStyle key falls back to the vessel and keeps the theme", () => {
-    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel", background: null });
+    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel", background: null, mix: defaultMix() });
   });
 
   it("a valid gaugeStyle survives sanitising next to a bad theme", () => {
@@ -68,6 +69,7 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
       theme: "system",
       gaugeStyle: "glyph",
       background: null,
+    mix: defaultMix(),
     });
   });
 
@@ -89,7 +91,7 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
 describe("criterion 7 against the storage entry: the store rehydrates bad data and writes the sanitised payload back", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", hasHydrated: false });
+    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
   });
 
   // Each raw entry is rehydrated. Pass means no throw, the bad key defaults, the good key
@@ -142,7 +144,7 @@ describe("criterion 7 against the storage entry: the store rehydrates bad data a
       expect(state.theme).toBe(expected.theme);
       expect(state.gaugeStyle).toBe(expected.gaugeStyle);
       expect(storedEntry()).toEqual({
-        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle, background: null },
+        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle, background: null, mix: defaultMix() },
         version: PREFERENCES_VERSION,
       });
     });
@@ -160,7 +162,7 @@ describe("criterion 7 against the storage entry: the store rehydrates bad data a
 describe("the upgrade path: every existing user's payload rehydrates to theme plus the gauge default", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", hasHydrated: false });
+    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
   });
 
   it("the literal {\"state\":{\"theme\":\"dark\"},\"version\":1} keeps theme dark and gains gaugeStyle vessel", async () => {
@@ -176,7 +178,7 @@ describe("the upgrade path: every existing user's payload rehydrates to theme pl
     expect(state.hasHydrated).toBe(true);
     // Persist widens the envelope on write-back; the theme is preserved in it.
     expect(storedEntry()).toEqual({
-      state: { theme: "dark", gaugeStyle: "vessel", background: null },
+      state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix() },
       version: 1,
     });
   });

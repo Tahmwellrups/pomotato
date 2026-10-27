@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Mix } from "../audio/mix";
 import {
   isPreferences,
   migratePreferences,
@@ -22,6 +23,7 @@ interface PreferencesActions {
   setTheme: (theme: ThemePreference) => void;
   setGaugeStyle: (gaugeStyle: GaugeStylePreference) => void;
   setBackground: (background: BackgroundPreference) => void;
+  setMix: (mix: Mix) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -36,6 +38,7 @@ export const usePreferencesStore = create<PreferencesStore>()(
       setGaugeStyle: (gaugeStyle) =>
         set({ gaugeStyle: sanitizePreferences({ gaugeStyle }).gaugeStyle }),
       setBackground: (background) => set({ background: sanitizePreferences({ background }).background }),
+      setMix: (mix) => set({ mix: sanitizePreferences({ mix }).mix }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -49,6 +52,7 @@ export const usePreferencesStore = create<PreferencesStore>()(
         theme: state.theme,
         gaugeStyle: state.gaugeStyle,
         background: state.background,
+        mix: state.mix,
       }),
       migrate: (persisted): Preferences => migratePreferences(persisted),
       // migrate is skipped when the stored version matches, so validate on every
