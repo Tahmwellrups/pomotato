@@ -1,8 +1,10 @@
 /**
  * The one file the rain layer plays. Swapping the recording is a change to this
  * line alone: nothing else reads the file's length, channel count or format.
+ * `next/link` gets the deployment's sub-path applied for it; a bare `fetch` does
+ * not, so the prefix is spelled out here or the file 404s under GitHub Pages.
  */
-export const RAIN_FILE_PATH = "/sounds/rain-865572.m4a";
+export const RAIN_FILE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/sounds/rain-865572.m4a`;
 
 /**
  * Decoding needs a context, but the real one only exists after a gesture and a
