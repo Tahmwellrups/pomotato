@@ -174,9 +174,9 @@ test.describe("criterion 3, 5, 40: storage, malformed values, immediate change, 
     await openThemed(page, { stored: "system", osDark: false });
     await themeLabel(page, "Dark").click();
     const raw = await page.evaluate((key) => window.localStorage.getItem(key), THEME_KEY);
-    // Task 008 widened the entry to { theme, gaugeStyle }; the gauge key is the vessel default.
-    expect(raw).toBe(JSON.stringify({ state: { theme: "dark", gaugeStyle: "vessel" }, version: 1 }));
-    expect(Object.keys(JSON.parse(raw ?? "null").state).sort()).toEqual(["gaugeStyle", "theme"]);
+    // Task 008 widened the entry to { theme, gaugeStyle }; task 010 adds the background reference, null here.
+    expect(raw).toBe(JSON.stringify({ state: { theme: "dark", gaugeStyle: "vessel", background: null }, version: 1 }));
+    expect(Object.keys(JSON.parse(raw ?? "null").state).sort()).toEqual(["background", "gaugeStyle", "theme"]);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class|hsl/i);
   });
 

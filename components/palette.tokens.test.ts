@@ -284,3 +284,31 @@ describe("task 007 the guard patterns see what the task 005 pattern missed", () 
     expect(INLINE_STYLE_COLOR.test("style={{ transform: t }}")).toBe(false);
   });
 });
+
+// Task 010 criterion 31: every file the task adds is inside the palette guard's
+// FILES walk, the allowlists are unchanged, and the break-and-restore of the
+// guard itself is recorded in the task file's QA Report.
+// lib/ is not in SCANNED_DIRS, so the lib/ files of task 010 are guarded by
+// components/background.guards.test.ts instead, with the same regexes.
+const TASK_010_FILES = ["components/BackgroundControl.tsx", "components/BackgroundLayer.tsx", "hooks/use-background-image.ts"];
+
+describe("task 010 criterion 31: the new files are covered and the allowlists did not grow", () => {
+  for (const file of TASK_010_FILES) {
+    it(`${file} is inside FILES`, () => {
+      expect(FILES).toContain(file);
+    });
+  }
+
+  it("ALLOWED_RAW_UTILITIES is still empty", () => {
+    expect(ALLOWED_RAW_UTILITIES).toEqual({});
+  });
+
+  it("ALLOWED_LITERALS still has its single entry", () => {
+    expect(Object.keys(ALLOWED_LITERALS)).toEqual(["components/task-palette-colors.ts"]);
+  });
+
+  it("the one inline style exemption is unchanged (no second exemption added for the image)", () => {
+    expect(INLINE_STYLE_EXEMPTION.file).toBe("components/TaskColorDot.tsx");
+    expect(INLINE_STYLE_EXEMPTION.expression).toBe("style={{ backgroundColor: TASK_COLOR_HEX[colorId] }}");
+  });
+});

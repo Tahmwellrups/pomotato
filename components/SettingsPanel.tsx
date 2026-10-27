@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BackgroundControl } from "@/components/BackgroundControl";
 import { GAUGE_STYLE_VALUES, DEFAULT_GAUGE_STYLE, usePreferencesStore, type GaugeStylePreference } from "@/lib/preferences";
 
 const linkClass =
@@ -20,9 +21,11 @@ const GAUGE_COPY: Record<GaugeStylePreference, { name: string; detail: string }>
 };
 
 // Native radios in a fieldset, the ThemeControl shape. Checked is carried by a
-// bold name and a 2px primary edge against the 1px control edge, never by fill,
-// so it holds in greyscale and forced colours. No lifted background: dark
-// --popover has no headroom to raise.
+// bold name and a 2px primary edge against the 1px control edge, never by fill.
+// That holds in greyscale. Forced colours repaints every border in one system
+// colour and drops box-shadow, so there the checked card gets a 3px border
+// instead (padding shrinks by the same 2px, so nothing moves). No lifted
+// background: dark --popover has no headroom to raise.
 export function SettingsPanel() {
   const hasHydrated = usePreferencesStore((state) => state.hasHydrated);
   const storedStyle = usePreferencesStore((state) => state.gaugeStyle);
@@ -51,13 +54,15 @@ export function SettingsPanel() {
               onChange={() => setGaugeStyle(value)}
               className="peer sr-only"
             />
-            <span className="flex min-h-11 flex-col gap-1 rounded-lg border border-control-border px-4 py-3 transition-colors peer-checked:border-primary peer-checked:shadow-[inset_0_0_0_1px_var(--primary)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring motion-reduce:transition-none">
+            <span className="flex min-h-11 flex-col gap-1 rounded-lg border border-control-border px-4 py-3 transition-colors peer-checked:border-primary peer-checked:shadow-[inset_0_0_0_1px_var(--primary)] peer-checked:forced-colors:border-[3px] peer-checked:forced-colors:px-3.5 peer-checked:forced-colors:py-2.5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring motion-reduce:transition-none">
               <span className={gaugeStyle === value ? "font-bold" : "font-medium"}>{GAUGE_COPY[value].name}</span>
               <span className="text-sm text-secondary-foreground">{GAUGE_COPY[value].detail}</span>
             </span>
           </label>
         ))}
       </fieldset>
+
+      <BackgroundControl />
     </main>
   );
 }

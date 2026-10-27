@@ -62,6 +62,19 @@ For any **major** feature:
 6. **reviewer** (read-only) reviews the diff and appends Review Findings.
 7. Orchestrator summarizes the outcome to the user.
 
+### Measurement ordering (owner decision, 2026-10-26)
+Task 010's QA pass ran ~3 hours, and two of its three expensive rounds came from *ordering*, not rigour:
+a palette token was re-pointed twice by owner ruling **after** the measurement sweep had been taken, so
+the sweep was taken three times in all.
+
+- **Settle palette and token values before the measurement sweep, not after.** If a task may move a token,
+  move it first and measure once. A ruling that lands mid-sweep costs a full re-measure.
+- **A criterion that names a figure must name where the figure came from** (painted pixel, which theme,
+  which ground). 010 carried three wrong numbers — two recorded from the wrong pixel, one from the wrong
+  colour — and each cost a round to catch.
+- `qa`'s own cost rules live in `.claude/agents/qa.md` under "Cost discipline". Read them before
+  escalating a task to the full pipeline: they are what keeps the e2e sweep affordable.
+
 ## Hard rules
 - Agents communicate through files in `docs/`, never through chat with each other.
 - Only `frontend` and `backend` edit application code (`app/`, `components/`, `lib/`, `hooks/`).

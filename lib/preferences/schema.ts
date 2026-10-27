@@ -6,8 +6,11 @@
  * To add a preference (task 008's gauge style is the first): add the field to
  * `Preferences`, its default to `PREFERENCE_DEFAULTS`, its allowed values to
  * `PREFERENCE_VALUES`, and one `pick` line to `sanitizePreferences`. Nothing
- * else changes. Bump `PREFERENCES_VERSION` only when an existing key's meaning
- * changes, and handle the old version in `migratePreferences`.
+ * else changes. A key whose value is not a closed set (task 010's background
+ * reference) gets a validator instead of a value-set entry, plus the same one
+ * `pick` line and one line in `isPreferences`. Bump `PREFERENCES_VERSION` only
+ * when an existing key's meaning changes, and handle the old version in
+ * `migratePreferences`.
  */
 
 export const THEME_VALUES = ["light", "dark", "system"] as const;
@@ -25,9 +28,32 @@ export type ResolvedTheme = "light" | "dark";
 export const GAUGE_STYLE_VALUES = ["vessel", "glyph"] as const;
 export type GaugeStylePreference = (typeof GAUGE_STYLE_VALUES)[number];
 
+/**
+ * The uploaded background is a reference, never the image: the `id` of the one
+ * row in the Dexie `backgrounds` table (`lib/db/background-repository.ts`), or
+ * `null` for no background. The bytes cannot live here, localStorage is a ~5 MB
+ * string-encoded quota shared with the timer and a failed write loses every key.
+ * A reference whose row is gone is not an error: the reader treats it as none.
+ */
+export type BackgroundPreference = string | null;
+
+export const BACKGROUND_ID_MAX_LENGTH = 64;
+const BACKGROUND_ID_PATTERN = /^[A-Za-z0-9-]+$/;
+
+/** True for a plausible row id (a UUID in practice). Shape only: it does not look the row up. */
+export function isBackgroundId(raw: unknown): raw is string {
+  return (
+    typeof raw === "string" &&
+    raw.length > 0 &&
+    raw.length <= BACKGROUND_ID_MAX_LENGTH &&
+    BACKGROUND_ID_PATTERN.test(raw)
+  );
+}
+
 export interface Preferences {
   theme: ThemePreference;
   gaugeStyle: GaugeStylePreference;
+  background: BackgroundPreference;
 }
 
 /** localStorage key. Not "pomotato-timer". The boot script reads this same constant. */
@@ -42,15 +68,18 @@ export const DEFAULT_GAUGE_STYLE: GaugeStylePreference = "vessel";
 export const PREFERENCE_DEFAULTS: Preferences = {
   theme: DEFAULT_THEME,
   gaugeStyle: DEFAULT_GAUGE_STYLE,
+  background: null,
 };
 
-/** The accepted value set per key. The only place a stored value is allowed to come from. */
-export const PREFERENCE_VALUES: { readonly [K in keyof Preferences]: readonly Preferences[K][] } = {
+/** The accepted value set per closed-set key. `background` is validated by `isBackgroundId` instead. */
+export const PREFERENCE_VALUES: {
+  readonly [K in Exclude<keyof Preferences, "background">]: readonly Preferences[K][];
+} = {
   theme: THEME_VALUES,
   gaugeStyle: GAUGE_STYLE_VALUES,
 };
 
-function pick<K extends keyof Preferences>(key: K, raw: unknown): Preferences[K] {
+function pick<K extends keyof typeof PREFERENCE_VALUES>(key: K, raw: unknown): Preferences[K] {
   const match = PREFERENCE_VALUES[key].find((value) => value === raw);
   return match === undefined ? PREFERENCE_DEFAULTS[key] : match;
 }
@@ -66,6 +95,7 @@ export function sanitizePreferences(raw: unknown): Preferences {
   return {
     theme: pick("theme", record.theme),
     gaugeStyle: pick("gaugeStyle", record.gaugeStyle),
+    background: isBackgroundId(record.background) ? record.background : PREFERENCE_DEFAULTS.background,
   };
 }
 
@@ -73,16 +103,17 @@ export function sanitizePreferences(raw: unknown): Preferences {
 export function isPreferences(raw: unknown): raw is Preferences {
   if (typeof raw !== "object" || raw === null) return false;
   const record = raw as Record<string, unknown>;
-  return (Object.keys(PREFERENCE_VALUES) as (keyof Preferences)[]).every((key) =>
+  const enumsValid = (Object.keys(PREFERENCE_VALUES) as (keyof typeof PREFERENCE_VALUES)[]).every((key) =>
     PREFERENCE_VALUES[key].some((value) => value === record[key])
   );
+  return enumsValid && (record.background === null || isBackgroundId(record.background));
 }
 
 /**
  * Version 1 is current. Unknown or older shapes are sanitised, never trusted.
  * A v1 payload written before `gaugeStyle` existed keeps its theme and gains the
  * default, because `sanitizePreferences` falls back per key. That is why adding
- * the key needed no version bump.
+ * `gaugeStyle` and then `background` needed no version bump.
  */
 export function migratePreferences(persisted: unknown): Preferences {
   return sanitizePreferences(persisted);

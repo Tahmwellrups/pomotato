@@ -117,3 +117,60 @@ export interface SessionValidationIssue {
   field: "runId" | "mode" | "startedAt" | "endedAt" | "plannedDurationMs" | "from" | "to";
   message: string;
 }
+
+/** MIME types the background store accepts. Decided from the file's bytes, never its name or declared type. */
+export type BackgroundMimeType = "image/png" | "image/jpeg" | "image/webp";
+
+/**
+ * The single row of the `backgrounds` table. Bytes are held as an
+ * `ArrayBuffer`, not a `Blob`, so the repository can re-check them on read and
+ * so older IndexedDB implementations that mishandle stored Blobs are not a risk.
+ */
+export interface BackgroundRecord {
+  /** `crypto.randomUUID()`. The value the `background` preference holds. A replace mints a new one. */
+  id: string;
+  mimeType: BackgroundMimeType;
+  bytes: ArrayBuffer;
+  /** Original file name, trimmed and cut to `BACKGROUND_FILE_NAME_MAX_LENGTH`; `""` when the source had none. Display only. */
+  fileName: string;
+  /** Byte length of `bytes`. */
+  size: number;
+  /** Epoch ms of the write. */
+  storedAt: number;
+}
+
+/** What the UI may know about a stored background without touching the bytes. */
+export interface BackgroundInfo {
+  id: string;
+  mimeType: BackgroundMimeType;
+  fileName: string;
+  size: number;
+}
+
+/** A background ready to paint: the info plus a `Blob` the caller turns into an object URL (and revokes). */
+export interface LoadedBackground extends BackgroundInfo {
+  blob: Blob;
+}
+
+export type BackgroundIssueCode = "empty" | "too-large" | "unsupported-type" | "animated" | "corrupt";
+
+/** Why a file was rejected. `message` is complete, user-facing, and states the limit where one applies. */
+export interface BackgroundValidationIssue {
+  code: BackgroundIssueCode;
+  message: string;
+}
+
+/** Outcome of `storeBackground`. A rejection writes nothing and leaves the previous background untouched. */
+export type StoreBackgroundResult =
+  | { ok: true; background: BackgroundInfo }
+  | { ok: false; issue: BackgroundValidationIssue };
+
+/**
+ * Outcome of `loadBackground`. `missing` covers a `null` id, no row, a row with
+ * a different id, and stored bytes that no longer pass validation. `unavailable`
+ * covers IndexedDB absent or blocked. Both mean "paint no background".
+ */
+export type LoadBackgroundResult =
+  | { status: "found"; background: LoadedBackground }
+  | { status: "missing" }
+  | { status: "unavailable" };

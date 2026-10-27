@@ -53,6 +53,13 @@ describe("task 005 introduces no new time source", () => {
     "../hooks/use-resolved-tokens.ts",
     "./SettingsPanel.tsx",
     "./SettingsButton.tsx",
+    // Task 010: the background control, its layer, the hook and the decode helper.
+    "./BackgroundControl.tsx",
+    "./BackgroundLayer.tsx",
+    "../hooks/use-background-image.ts",
+    "../lib/image-decode.ts",
+    "../lib/db/background-repository.ts",
+    "../lib/db/background-validation.ts",
   ]) {
     it(`${file} has no setInterval, setTimeout, requestAnimationFrame or performance.now`, () => {
       expect(read(file)).not.toMatch(TIMER_SOURCE);

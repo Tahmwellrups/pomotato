@@ -7,6 +7,7 @@ import {
   PREFERENCES_STORAGE_KEY,
   PREFERENCES_VERSION,
   sanitizePreferences,
+  type BackgroundPreference,
   type GaugeStylePreference,
   type Preferences,
   type ThemePreference,
@@ -20,6 +21,7 @@ interface PreferencesState extends Preferences {
 interface PreferencesActions {
   setTheme: (theme: ThemePreference) => void;
   setGaugeStyle: (gaugeStyle: GaugeStylePreference) => void;
+  setBackground: (background: BackgroundPreference) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -33,6 +35,7 @@ export const usePreferencesStore = create<PreferencesStore>()(
       setTheme: (theme) => set({ theme: sanitizePreferences({ theme }).theme }),
       setGaugeStyle: (gaugeStyle) =>
         set({ gaugeStyle: sanitizePreferences({ gaugeStyle }).gaugeStyle }),
+      setBackground: (background) => set({ background: sanitizePreferences({ background }).background }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -45,6 +48,7 @@ export const usePreferencesStore = create<PreferencesStore>()(
       partialize: (state): Preferences => ({
         theme: state.theme,
         gaugeStyle: state.gaugeStyle,
+        background: state.background,
       }),
       migrate: (persisted): Preferences => migratePreferences(persisted),
       // migrate is skipped when the stored version matches, so validate on every

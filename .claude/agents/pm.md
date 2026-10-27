@@ -29,3 +29,14 @@ One new file: `docs/tasks/<id>-<slug>.md`. Increment `<id>` from the highest exi
 
 ## Definition of done
 File exists, every acceptance criterion is independently checkable, scope boundaries are explicit, and `status: draft` is set in the frontmatter.
+
+## Scoping measurement (added 2026-10-26)
+A criterion that enumerates cases is a criterion someone pays for in wall-clock. When a task needs
+contrast or pixel measurement:
+
+- **Write the bound, not the list.** "Prove the extremes bound the range, then measure the bound" beats
+  "measure these seven images". 010 asked for seven; three would have proven the same thing, and the 1 px
+  checker turned out identical to plain black.
+- **Say which theme and which pixel** a named figure refers to, so nobody re-derives it from the wrong one.
+- **Keep measurement criteria separate from behaviour criteria**, so a token change re-runs only the first
+  group. See `.claude/agents/qa.md` "Cost discipline" and CLAUDE.md "Measurement ordering".

@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import { DatabaseBlockedError, DatabaseUnavailableError } from "./errors";
-import type { AppMetaRecord, SessionRecord, TaskRecord } from "./types";
+import type { AppMetaRecord, BackgroundRecord, SessionRecord, TaskRecord } from "./types";
 
 export const DATABASE_NAME = "pomotato";
 
@@ -13,8 +13,8 @@ export const DATABASE_NAME = "pomotato";
  */
 export const SCHEMA_VERSION = 1;
 
-/** The schema version the app opens. Version 2 adds the `sessions` table. */
-export const CURRENT_SCHEMA_VERSION = 2;
+/** The schema version the app opens. Version 2 adds `sessions`, version 3 adds `backgrounds`. */
+export const CURRENT_SCHEMA_VERSION = 3;
 
 /**
  * How long an upgrade may stay blocked by another open connection (usually
@@ -28,6 +28,7 @@ export class PomotatoDatabase extends Dexie {
   tasks!: EntityTable<TaskRecord, "id">;
   appMeta!: EntityTable<AppMetaRecord, "key">;
   sessions!: EntityTable<SessionRecord, "id">;
+  backgrounds!: EntityTable<BackgroundRecord, "id">;
   /** True from the moment an open attempt reports it is blocked until an open succeeds. */
   blockedByOtherConnection = false;
 
@@ -46,8 +47,14 @@ export class PomotatoDatabase extends Dexie {
     //   id       primary key
     //   &runId   UNIQUE: the durable exactly-once guard, enforced by IndexedDB
     //   endedAt  range index for the stats window query
-    this.version(CURRENT_SCHEMA_VERSION).stores({
+    this.version(2).stores({
       sessions: "id, &runId, endedAt",
+    });
+    // Added beside the version-2 block, same rule. Purely additive: one new
+    // table, nothing restated, no `.upgrade()` callback, so no existing row is
+    // read or rewritten. At most one row is ever stored (task 010).
+    this.version(CURRENT_SCHEMA_VERSION).stores({
+      backgrounds: "id",
     });
     this.on("blocked", () => {
       this.blockedByOtherConnection = true;

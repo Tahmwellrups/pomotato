@@ -54,19 +54,20 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
       expect(() => {
         result = sanitizePreferences({ theme: "dark", gaugeStyle: value });
       }).not.toThrow();
-      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel" });
+      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel", background: null });
       expect(isPreferences({ theme: "dark", gaugeStyle: value })).toBe(false);
     });
   }
 
   it("a missing gaugeStyle key falls back to the vessel and keeps the theme", () => {
-    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel" });
+    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel", background: null });
   });
 
   it("a valid gaugeStyle survives sanitising next to a bad theme", () => {
     expect(sanitizePreferences({ theme: "Dark", gaugeStyle: "glyph" })).toEqual({
       theme: "system",
       gaugeStyle: "glyph",
+      background: null,
     });
   });
 
@@ -141,7 +142,7 @@ describe("criterion 7 against the storage entry: the store rehydrates bad data a
       expect(state.theme).toBe(expected.theme);
       expect(state.gaugeStyle).toBe(expected.gaugeStyle);
       expect(storedEntry()).toEqual({
-        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle },
+        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle, background: null },
         version: PREFERENCES_VERSION,
       });
     });
@@ -175,7 +176,7 @@ describe("the upgrade path: every existing user's payload rehydrates to theme pl
     expect(state.hasHydrated).toBe(true);
     // Persist widens the envelope on write-back; the theme is preserved in it.
     expect(storedEntry()).toEqual({
-      state: { theme: "dark", gaugeStyle: "vessel" },
+      state: { theme: "dark", gaugeStyle: "vessel", background: null },
       version: 1,
     });
   });

@@ -27,3 +27,24 @@ export { DatabaseBlockedError, SessionValidationError } from "./errors";
 export { SESSION_MODES, isFocusTypeMode, isSessionMode } from "./session-modes";
 export { listSessionsInRange, logCompletedSession } from "./session-repository";
 export { legacyRunId } from "./session-identity";
+export type {
+  BackgroundInfo,
+  BackgroundIssueCode,
+  BackgroundMimeType,
+  BackgroundRecord,
+  BackgroundValidationIssue,
+  LoadBackgroundResult,
+  LoadedBackground,
+  StoreBackgroundResult,
+} from "./types";
+export {
+  BACKGROUND_ACCEPT_ATTRIBUTE,
+  BACKGROUND_ACCEPTED_TYPES,
+  BACKGROUND_FILE_NAME_MAX_LENGTH,
+  BACKGROUND_MAX_BYTES,
+  BACKGROUND_MAX_MEGABYTES_LABEL,
+  BACKGROUND_TYPES_LABEL,
+  validateBackgroundBytes,
+  validateBackgroundSize,
+} from "./background-validation";
+export { loadBackground, removeBackground, storeBackground } from "./background-repository";

@@ -297,12 +297,12 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
     await expect(page.locator("main")).toHaveCount(1);
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.locator("h1")).toHaveText("Settings");
-    await expect(page.locator("fieldset legend")).toHaveText("Timer gauge");
+    await expect(page.locator("legend", { hasText: "Timer gauge" })).toHaveText("Timer gauge");
     await expect(page.locator('input[type="radio"][name="gauge-style"]')).toHaveCount(2);
     expect(await page.evaluate(() => document.querySelectorAll('input[name="theme"]').length)).toBe(0);
   });
 
-  test("every interactive element on /settings acts: the back link and both radios, nothing else", async ({ page }) => {
+  test("every interactive element on /settings acts: the back link, both radios and the background picker, nothing else", async ({ page }) => {
     await open(page, { path: "/settings" });
     const names = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]')].map(
@@ -310,7 +310,7 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
       ),
     );
     expect(names.sort()).toEqual(
-      ["a::Back to the timer", "input:radio:", "input:radio:"].sort(),
+      ["a::Back to the timer", "input:radio:", "input:radio:", "input:file:"].sort(),
     );
     await backLink(page).click();
     await expect(page).toHaveURL(/\/$/);
@@ -347,7 +347,7 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
 test.describe("criterion 19, 20: labels say what each option does", () => {
   test("the group label is visible and each option states its behaviour", async ({ page }) => {
     await open(page, { path: "/settings" });
-    await expect(page.locator("fieldset legend")).toBeVisible();
+    await expect(page.locator("legend", { hasText: "Timer gauge" })).toBeVisible();
     const glyph = optionLabel(page, "glyph");
     await expect(glyph).toContainText("At full and at empty they are one flat colour, so no level shows then.");
     const vessel = optionLabel(page, "vessel");
@@ -378,13 +378,13 @@ test.describe("criterion 24: a chosen option reaches the real timer and survives
     await tab.close();
   });
 
-  test("the stored entry is one key whose state holds exactly theme and gaugeStyle", async ({ page }) => {
+  test("the stored entry is one key whose state holds exactly theme, gaugeStyle and the background reference", async ({ page }) => {
     await open(page, { path: "/settings", style: "vessel" });
     await optionLabel(page, "glyph").click();
     const raw = await page.evaluate((key) => window.localStorage.getItem(key), THEME_KEY);
     const parsed = JSON.parse(raw ?? "null") as { state: Record<string, unknown>; version: number };
     expect(Object.keys(parsed).sort()).toEqual(["state", "version"]);
-    expect(Object.keys(parsed.state).sort()).toEqual(["gaugeStyle", "theme"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "theme"]);
     expect(parsed.state.gaugeStyle).toBe("glyph");
     expect(parsed.version).toBe(1);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class/i);

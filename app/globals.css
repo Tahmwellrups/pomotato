@@ -64,17 +64,24 @@
   --input: #d6d3d1;
   /* Boundary of a control, or of a control's state (custom-duration input,
      task form fields, row action buttons, the Stats button, the outline
-     Button variant, Reset, the Reload button, the unchecked stats view chips).
-     WCAG 1.4.11 asks 3:1 of exactly those boundaries. It is painted on FIVE
-     grounds; measured painted, #88837e is: 3.44:1 on --background and --card,
-     3.61:1 on --popover, 3.44:1 on --muted (disabled fields, where
-     disabled:bg-muted carries no disabled:border override), 3.12:1 on the
-     delete-confirm panel tint. The .dark value carries its own five figures.
+     Button variant, Reset, the Reload button, the unchecked stats view chips,
+     the unchecked /settings radio cards). WCAG 1.4.11 asks 3:1 of exactly
+     those boundaries. It is painted on FIVE grounds, and the figures below
+     are PAINTED ones, not flat-token ones: only --background carries the paper
+     grain (body::before sits behind every opaque surface), so its figure is
+     taken on the darkest grained pixel, 236,229,218. #7a756f is: 3.65:1 on
+     that grained --background, 4.18:1 on --card, 4.39:1 on --popover, 4.18:1
+     on --muted (disabled fields, where disabled:bg-muted carries no
+     disabled:border override), 3.79:1 on the delete-confirm panel tint. Over a
+     dimmed uploaded background (task 010) the grained ground moves to 3.36:1
+     at worst. The previous #88837e was 3.00:1 on the grained --background, so
+     its floor was spent before any image existed.
+     The .dark value carries its own five figures.
      Why not an existing token: --border (and --input, which equals it) is
      1.36:1 on --background and 1.43:1 on --popover, and it is shared
      app-wide including by every `shadcn add`, so darkening it would restyle
      everything. Decorative dividers and container hairlines keep --border. */
-  --control-border: #88837e;
+  --control-border: #7a756f;
   /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so the
      .dark block can pick its own scrim instead of inheriting a light one from
      the inverted foreground (a cream veil would lift the page, not dim it). */
@@ -85,8 +92,12 @@
      capped near the page's luminance (the task swatches need 3:1 on it), so
      the fill cannot separate the dialog from the page and the edge has to,
      which --border (a 1.4:1 hairline by design) cannot do. :root = --border,
-     so light is unchanged; .dark = #80705d, 4.12:1 against the scrimmed page
-     and 3.73:1 against the dialog fill, measured painted. */
+     so light is unchanged; .dark = #80705d, 3.98:1 against the scrimmed page
+     and 3.73:1 against the dialog fill, 6 px ring sampler over a real dialog
+     (3.92 under a white image, 4.01 under black). An earlier comment here read
+     4.12 against the scrim, from a different sampler; the floor is 3:1 either way.
+     Light is a known sub-floor at 2.00:1 against the scrim and 1.43:1 against
+     the fill -- pre-existing, deferred out of 010, see docs/PLAN.md. */
   --dialog-edge: var(--border);
   /* Fill of a disabled solid button (the task form's submit). Role: a surface,
      not a boundary. Why not an existing token: it used to be --border, which
@@ -162,10 +173,17 @@
   --destructive-foreground: #1c140e;
   --border: #3b2f25;
   --input: #3b2f25;
-  /* Painted on the same five grounds as :root: 3.80:1 on --background and
-     --card, 3.73:1 on --popover, 3.50:1 on --muted, 3.48:1 on the
-     delete-confirm tint (and 3.29:1 on --secondary under the Stats button). */
-  --control-border: #80705d;
+  /* Painted on the same five grounds as :root, and these are PAINTED figures:
+     only --background carries the paper grain, which lightens it here, so its
+     figure is taken on the lightest grained pixel, 40,31,25. #8a7968 is: 3.86:1
+     on that grained --background, 4.34:1 on --card, 4.26:1 on --popover, 4.00:1
+     on --muted, 3.98:1 on the delete-confirm tint (and 3.76:1 on --secondary
+     under the Stats button). Over a dimmed uploaded background (task 010) the
+     grained ground is 3.55:1 at worst (a white or split image under the 97%
+     scrim, lightest pixel 46,38,32). It was lightened from #80705d (3.11:1 at
+     that worst pixel) so dark holds more edge than light's 3.36:1. The light
+     value is separate. */
+  --control-border: #8a7968;
   /* Black-brown veil: it must dim the page. An inverted --foreground would be
      a cream veil that lifts it and makes the dialog look darker than the page. */
   --scrim: rgb(8 5 3 / 0.62);

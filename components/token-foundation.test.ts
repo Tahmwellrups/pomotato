@@ -82,9 +82,9 @@ describe("task 007 criteria 18 and 19: the interactive-boundary token and its co
 
   // Task 009 criterion 11/14: one declaration per theme block, in order.
   // :root is the light value this task keeps; .dark is the dark value.
-  it("defines --control-border once in :root (#88837e) and once in .dark (#80705d)", () => {
+  it("defines --control-border once in :root (#7a756f) and once in .dark (#8a7968)", () => {
     const matches = css().match(/--control-border:\s*[^;]+;/g) ?? [];
-    expect(matches).toEqual(["--control-border: #88837e;", "--control-border: #80705d;"]);
+    expect(matches).toEqual(["--control-border: #7a756f;", "--control-border: #8a7968;"]);
   });
 
   it("maps --color-control-border inside the existing @theme inline block", () => {
