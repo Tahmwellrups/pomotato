@@ -7,7 +7,7 @@ import { fmt, paintedColours, type Rect } from "./helpers/background";
 // track edge is read from one screenshot: the edge row against the row inside the
 // track and the row of fill above it, the same way the painted measurements are read.
 async function settleDialog(page: Page) {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   await page.waitForTimeout(400);
 }
 
@@ -107,7 +107,9 @@ test.describe("criterion 29: 320 px survives a fourth control", () => {
     ]) {
       test(`${theme} ${viewport.width}px: four cluster controls at least 44 px, none overlapping, no horizontal scroll, dialog fits`, async ({ page }) => {
         await open(page, theme, viewport);
-        const cluster = page.locator("div.fixed.bottom-0").first();
+        // The cluster is in flow below lg and pinned (.fixed) at lg. Anchor on the Settings link
+        // and take its grandparent: link -> SettingsButton wrapper -> cluster.
+        const cluster = page.locator('a[href="/settings"]').locator("xpath=../..");
         const controls = cluster.locator("button, a");
         const count = await controls.count();
         expect(count).toBe(4);

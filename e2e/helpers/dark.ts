@@ -42,7 +42,7 @@ export async function openThemed(
 
 /** Waits for in-flight CSS transitions and animations, then a short tail. Frontend's 50 ms reads were mid-fade. */
 export async function settle(page: Page) {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   await page.waitForTimeout(400);
 }
 

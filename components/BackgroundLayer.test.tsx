@@ -51,11 +51,17 @@ describe("task 010 criteria 22 and 26: the layer's markup maps the image state o
     expect(layer.querySelector("img")?.className).toContain("object-cover");
   });
 
-  it("the scrim is the page's own --background at 97 percent, not a new colour", () => {
+  // Task 012 criterion 26: the 97% scrim assertion is replaced, not deleted. The
+  // element it pinned is gone; the new truth is that the image layer has exactly
+  // one child, the <img>, with no overlay painted over it.
+  it("the image paints with no overlay: the only child is the img, and no bg-background or opacity tint sits over it (criterion 3)", () => {
     vi.mocked(useBackgroundImage).mockReturnValue("blob:qa-1");
     const { container } = render(<BackgroundLayer />);
-    const scrim = (container.firstElementChild as HTMLElement).children[1] as HTMLElement;
-    expect(scrim.className).toContain("bg-background/97");
+    const layer = container.firstElementChild as HTMLElement;
+    expect(layer.children).toHaveLength(1);
+    expect(layer.children[0].tagName).toBe("IMG");
+    expect(layer.className).not.toMatch(/bg-background/);
+    expect(layer.innerHTML).not.toMatch(/bg-background|\/97|bg-black|bg-white/);
     expect(container.innerHTML).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgb\(|oklch\(/);
   });
 });

@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,7 +38,13 @@ const SOURCE_RULES: [string, RegExp][] = [
 function listFiles(root: string): string[] {
   return execSync("git ls-files -co --exclude-standard", { cwd: root, encoding: "utf8" })
     .split("\n")
-    .filter((line) => line.length > 0);
+    .filter((line) => line.length > 0)
+    // -c lists the index, which still names a file that has been deleted or renamed
+    // in the working tree but not yet staged. Such a file does not ship, so it is not
+    // in scope here, and reading it would throw ENOENT. Dropping it keeps the guard
+    // honest in both directions: a tracked file that vanished is still caught by the
+    // decode exemption's own toContain assertion below.
+    .filter((file) => existsSync(join(root, file)));
 }
 
 interface Finding {

@@ -7,15 +7,17 @@ import { useBackgroundImage } from "@/hooks/use-background-image";
 // mounted by app/page.tsx, so leaving "/" unmounts it and /settings and /stats
 // keep the plain ground (owner ruling 4).
 //
-// Paint order, back to front: canvas (--background), this layer's image, this
-// layer's scrim, body::before (the paper grain, z -1), then all content. The
-// layer sits at z -20 so the grain stays on top of it.
+// Paint order, back to front: canvas (--background), this layer's image,
+// body::before (the paper grain, z -1, switched off while this layer is
+// "active"; see app/globals.css), then all content. The layer sits at z -20 so
+// it is under everything.
 //
-// The scrim is the page's own --background at 97%, so it is themed with no new
-// token and the image reads as a faint tint of the ground, never a photograph.
-// Image and scrim live in one element that fades in as a group, so no frame
-// shows the dim without the image, and every intermediate frame is a blend of
-// two in-band grounds.
+// The image paints at full opacity with no scrim, filter or blend (task 012,
+// superseding 010's 97% dim). Nothing textual sits on it: text sits on the
+// surfaces in components/Surface.tsx, which is what keeps the contrast figures
+// off the photograph. The one fade is the layer's own arrival, so a frame never
+// shows a half-painted image over a missing surface: the surfaces are markup
+// and are already there.
 //
 // The image is an <img> with object-cover, not a CSS background: it needs no
 // inline style (the 007 palette guard flags an inline background) and it keeps
@@ -35,7 +37,6 @@ export function BackgroundLayer() {
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- a blob: URL from IndexedDB, nothing for next/image to optimise */}
       <img src={url} alt="" onLoad={() => setLoadedUrl(url)} className="absolute inset-0 size-full object-cover" />
-      <div className="absolute inset-0 bg-background/97" />
     </div>
   );
 }

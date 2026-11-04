@@ -67,10 +67,27 @@ for (const viewport of viewports) {
       // Top edge of the group equals the top edge of the first button: the legend takes no flow space.
       expect(Math.abs((groupBox?.y ?? 0) - (firstBox?.y ?? -100))).toBeLessThanOrEqual(1);
       // Buttons are centred in the group (justify-center): the legend does not push them off-centre.
+      // The chips wrap (at 320 px, 2 + 1), so centring is checked PER ROW. A row's centre is the
+      // midpoint of its own leftmost and rightmost chip; a single span from the first chip's left
+      // edge to the last chip's right edge is only valid when everything sits on one row.
       const groupCentre = (groupBox?.x ?? 0) + (groupBox?.width ?? 0) / 2;
-      const rowCentre = ((firstBox?.x ?? 0) + ((lastBox?.x ?? 0) + (lastBox?.width ?? 0))) / 2;
-      // 2 px tolerance covers subpixel rounding of the centred row; a legend in flow would shift it by far more.
-      expect(Math.abs(groupCentre - rowCentre)).toBeLessThanOrEqual(2);
+      const boxes = await labels.evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top, left: r.left, right: r.right };
+        }),
+      );
+      const rows = new Map<number, { left: number; right: number }>();
+      for (const b of boxes) {
+        const key = Math.round(b.top);
+        const row = rows.get(key) ?? { left: Infinity, right: -Infinity };
+        rows.set(key, { left: Math.min(row.left, b.left), right: Math.max(row.right, b.right) });
+      }
+      expect(rows.size).toBeGreaterThan(0);
+      for (const row of rows.values()) {
+        // 2 px tolerance covers subpixel rounding of the centred row; a legend in flow would shift it by far more.
+        expect(Math.abs(groupCentre - (row.left + row.right) / 2)).toBeLessThanOrEqual(2);
+      }
     });
 
     test("no horizontal page scroll with the legend in place", async ({ page }) => {

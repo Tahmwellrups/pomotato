@@ -2,10 +2,8 @@
 
 import { useTimerStore } from "@/lib/timer/store";
 import { MODE_LABELS } from "@/lib/timer/labels";
-import type { TimerMode } from "@/lib/timer/types";
+import { TIMER_MODES } from "@/lib/timer/modes";
 import { modeChipVariants } from "./ui/mode-chip";
-
-const MODE_ORDER: TimerMode[] = ["focus", "shortBreak", "longBreak", "custom"];
 
 export function ModeSelector() {
   const mode = useTimerStore((state) => state.mode);
@@ -15,7 +13,7 @@ export function ModeSelector() {
     <fieldset className="w-full">
       <legend className="sr-only">Timer mode</legend>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        {MODE_ORDER.map((value) => {
+        {TIMER_MODES.map((value) => {
           const checked = mode === value;
           return (
             <label key={value} className="cursor-pointer">

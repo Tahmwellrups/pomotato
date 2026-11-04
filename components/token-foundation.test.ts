@@ -119,7 +119,7 @@ describe("task 007 criterion 44: no any in the changed code", () => {
     "components/TaskListDialog.tsx",
     "components/TaskColorDot.tsx",
     "components/StatsButton.tsx",
-    "components/CustomDurationInput.tsx",
+    "components/FocusLengthInput.tsx",
     "components/ModeSelector.tsx",
     "components/ui/mode-chip.tsx",
     "components/task-palette-colors.ts",

@@ -32,7 +32,7 @@ async function addTask(page: Page, title: string) {
 
 /** Lets the open/colour transitions finish before a painted reading. */
 async function settle(page: Page) {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   await page.waitForTimeout(250);
 }
 
@@ -52,8 +52,8 @@ test.describe("task 007 criteria 17, 21, 22, 23: the interactive boundary token 
     await page.goto("/");
     await page.evaluate(() => localStorage.clear());
     await page.reload();
-    await page.getByText("Custom", { exact: true }).click();
-    const input = page.locator("input#custom-duration");
+    await page.getByText("Focus", { exact: true }).click();
+    const input = page.locator("input#focus-length");
     await expect(input).toBeVisible();
     await settle(page);
     const reading = await readPainted(page, input);
@@ -250,13 +250,23 @@ test.describe("task 007 criterion 31: no state is conveyed by colour alone", () 
     await addTask(page, "Alpha");
     await addTask(page, "Bravo");
     const handle = page.getByRole("button", { name: "Reorder Alpha", exact: true });
+    // Wait on the state, not the clock: the handle must hold focus before Space starts the keyboard drag, and the
+    // drag is in flight only once dnd-kit reports it as aria-pressed="true" (the same signal TaskListDialog's Escape
+    // guard reads). Under parallel load Space can land before either is true, so each step waits for its own state.
     await handle.focus();
+    await expect(handle).toBeFocused();
     await page.keyboard.press("Space");
+    await expect(handle).toHaveAttribute("aria-pressed", "true");
+    // dnd-kit sets the in-flight state first and arms its keyboard listener (Escape included) in a setTimeout(0)
+    // after it (KeyboardSensor.attach). A key pressed inside that gap is ignored, so wait for that same task to run.
+    await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     const dragging = rowFor(page, "Alpha");
     await expect.poll(async () => dragging.evaluate((el) => getComputedStyle(el).opacity)).toBe("0.6");
-    const ringed = await dragging.evaluate((el) => getComputedStyle(el).boxShadow);
-    expect(ringed).not.toBe("none");
+    // Poll, do not read once: the ring is a box-shadow transition that starts with the drag.
+    await expect.poll(async () => dragging.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe("none");
     await page.keyboard.press("Escape");
+    // dnd-kit omits aria-pressed when no drag is in flight (it is "true" only while dragging), so assert the absence of "true".
+    await expect(handle).not.toHaveAttribute("aria-pressed", "true");
     await expect.poll(async () => dragging.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
   });
 
@@ -273,9 +283,9 @@ test.describe("task 007 criterion 31: no state is conveyed by colour alone", () 
     await page.goto("/");
     await page.evaluate(() => localStorage.clear());
     await page.reload();
-    await page.getByText("Custom", { exact: true }).click();
+    await page.getByText("Focus", { exact: true }).click();
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await expect(page.locator("input#custom-duration")).toBeDisabled();
+    await expect(page.locator("input#focus-length")).toBeDisabled();
   });
 });
 

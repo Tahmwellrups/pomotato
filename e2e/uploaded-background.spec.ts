@@ -32,7 +32,7 @@ async function waitActive(page: Page) {
   await expect
     .poll(() => page.locator('[data-background="active"]').evaluate((el) => getComputedStyle(el).opacity))
     .toBe("1");
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
 }
 
 test.describe("criterion 3: the bytes are not in localStorage", () => {
@@ -242,7 +242,9 @@ test.describe("criterion 29: nothing leaves the device, and the timer does not n
     await page.getByRole("button", { name: "Remove background" }).click();
     await expect(statusLine(page)).toContainText("plain ground");
     // blob: URLs are the page's own object URLs for the decoded image, resolved in memory, not network.
-    const external = requests.filter((r) => !r.url.startsWith("blob:") && !r.url.startsWith("http://localhost:3000"));
+    // The app's own origin is whatever the run serves (3000 in dev, 3100 in the QA scratch run).
+    const origin = new URL(page.url()).origin;
+    const external = requests.filter((r) => !r.url.startsWith("blob:") && !r.url.startsWith(origin));
     expect(external).toEqual([]);
     expect(requests.filter((r) => r.body !== null)).toEqual([]);
     expect(requests.filter((r) => r.method !== "GET" && r.method !== "HEAD")).toEqual([]);

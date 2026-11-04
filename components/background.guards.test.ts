@@ -89,10 +89,19 @@ describe("task 010 criterion 6 and 6 of Scope: no new dependency, no first lucid
   });
 });
 
-describe("task 010 criterion 2: the timer, stats and boot script are untouched against HEAD", () => {
-  it("lib/timer, lib/stats, the two timer hooks and the boot script have an empty diff", () => {
-    const paths = ["lib/timer", "lib/stats", "hooks/use-timer-clock.ts", "hooks/use-hydrate-timer-store.ts", "lib/preferences/boot-script.ts", "lib/preferences/boot-script.test.ts"];
-    expect(git("diff", "--name-only", "HEAD", "--", ...paths).trim()).toBe("");
+describe("task 010 criterion 2 (re-pointed by task 013 criterion 57): the boot script and the one clock still exist by value", () => {
+  // Retired: the HEAD-diff over lib/timer and the timer hooks. It went red the
+  // moment task 013 changed lib/timer on purpose, which is the shelf-life defect
+  // PLAN.md records. What it guarded, the clock being the only interval and the
+  // boot script being intact, is pinned by value below.
+  it("hooks/use-timer-clock.ts still has its one setNow(Date.now()) tick and no other timer source", () => {
+    const clock = read("hooks/use-timer-clock.ts");
+    expect(clock).toMatch(/setNow\(Date\.now\(\)\)/);
+    expect((clock.match(/setInterval\(/g) ?? []).length).toBe(1);
+  });
+
+  it("the boot script file exists and is still the one that sets the theme before first paint", () => {
+    expect(existsSync(`lib/preferences/boot-script.ts`)).toBe(true);
   });
 });
 
@@ -110,9 +119,13 @@ describe("task 010 criterion 21 and 23: the grain values and the set of custom p
     expect(css()).toMatch(/body::before\s*\{[^}]*z-index:\s*-1/);
   });
 
-  it("the set of declared custom property names is identical to HEAD (no new token)", () => {
+  // Task 012 criterion 27: the HEAD comparison is replaced by the expected set,
+  // by value, with this task's two additions (--surface-glass, --surface-blur).
+  // A new token now means editing this list, in the same diff, on purpose.
+  it("the declared custom property names are exactly the pinned set (criterion 27)", () => {
     const names = (source: string) => [...new Set([...source.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]))].sort();
-    expect(names(css())).toEqual(names(git("show", "HEAD:app/globals.css")));
+    const EXPECTED = ["--accent", "--accent-foreground", "--background", "--border", "--card", "--card-foreground", "--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5", "--color-accent", "--color-accent-foreground", "--color-background", "--color-border", "--color-card", "--color-card-foreground", "--color-chart-1", "--color-chart-2", "--color-chart-3", "--color-chart-4", "--color-chart-5", "--color-control-border", "--color-destructive", "--color-destructive-foreground", "--color-dialog-edge", "--color-disabled-surface", "--color-foreground", "--color-input", "--color-muted", "--color-muted-foreground", "--color-popover", "--color-popover-foreground", "--color-primary", "--color-primary-foreground", "--color-ring", "--color-scrim", "--color-secondary", "--color-secondary-foreground", "--color-sidebar", "--color-sidebar-accent", "--color-sidebar-accent-foreground", "--color-sidebar-border", "--color-sidebar-foreground", "--color-sidebar-primary", "--color-sidebar-primary-foreground", "--color-sidebar-ring", "--control-border", "--destructive", "--destructive-foreground", "--dialog-edge", "--disabled-surface", "--font-comfortaa", "--font-geist", "--font-geist-mono", "--font-heading", "--font-mono", "--font-sans", "--font-space-grotesk", "--foreground", "--gauge-liquid", "--grain-ink", "--grain-opacity", "--input", "--muted", "--muted-foreground", "--popover", "--popover-foreground", "--primary", "--primary-foreground", "--radius", "--radius-2xl", "--radius-3xl", "--radius-4xl", "--radius-lg", "--radius-md", "--radius-sm", "--radius-xl", "--ring", "--scrim", "--secondary", "--secondary-foreground", "--sidebar", "--sidebar-accent", "--sidebar-accent-foreground", "--sidebar-border", "--sidebar-foreground", "--sidebar-primary", "--sidebar-primary-foreground", "--sidebar-ring", "--surface-blur", "--surface-glass"];
+    expect(names(css())).toEqual([...EXPECTED].sort());
   });
 
   // The two owner rulings that moved --control-border were guarded here as a diff

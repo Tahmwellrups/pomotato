@@ -1,4 +1,5 @@
-export type TimerMode = "focus" | "shortBreak" | "longBreak" | "custom";
+/** The three modes a user can select. A fourth must be added here on purpose; see `TIMER_MODES`. */
+export type TimerMode = "focus" | "shortBreak" | "longBreak";
 
 export type TimerStatus = "idle" | "running" | "paused" | "complete";
 
@@ -8,7 +9,14 @@ export type TimerStatus = "idle" | "running" | "paused" | "complete";
  */
 export interface PersistedTimerState {
   mode: TimerMode;
-  customMinutes: number;
+  /** Length of a Focus run, whole minutes 1 to 180. Formerly `customMinutes`. */
+  focusMinutes: number;
+  /**
+   * Focus runs completed in the current cycle, integer 0 to 4. 4 is a legal
+   * resting value: the long break is owed or running. Only a completed Focus
+   * run (+1, capped at 4) and a completed long break (back to 0) change it.
+   */
+  cyclePosition: number;
   status: TimerStatus;
   /** Epoch ms when the current run ends. Only meaningful while running. */
   endTimestamp: number | null;

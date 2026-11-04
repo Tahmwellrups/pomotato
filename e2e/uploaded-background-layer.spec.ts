@@ -232,7 +232,7 @@ test.describe("criterion 28: nothing animates, nothing loops, and the handle cou
     expect(idleAfter - idleBefore).toBe(0);
     expect(frameA.equals(frameB)).toBe(true);
     // Positive control: the same probe must see callbacks when the timer is running.
-    await seedTimerState(page, { mode: "focus", customMinutes: 25, status: "running", runId: "qa-raf-run", startedAt: Date.now() - 1000, endTimestamp: Date.now() + 10 * 60 * 1000, pausedRemainingMs: null });
+    await seedTimerState(page, { mode: "focus", focusMinutes: 25, status: "running", runId: "qa-raf-run", startedAt: Date.now() - 1000, endTimestamp: Date.now() + 10 * 60 * 1000, pausedRemainingMs: null });
     await page.reload();
     await waitActive(page);
     await page.evaluate(() => {
@@ -306,7 +306,10 @@ test.describe("criterion 28: nothing animates, nothing loops, and the handle cou
 
 test.describe("criterion 21 and 24: the grain is unchanged; the first-paint ground with a background set is observed, not relaxed", () => {
   for (const theme of ["light", "dark"] as const) {
-    test(`body::before is identical with and without a background in ${theme}`, async ({ page }) => {
+    // Criterion 13 ruling (012): the grain is suppressed while an uploaded image is active
+    // (body:has([data-background="active"])::before { opacity: 0 }). Everything except the
+    // opacity is still identical, and the opacity is the one property that flips.
+    test(`body::before is identical except opacity, which the image suppresses, in ${theme}`, async ({ page }) => {
       await setPrefs(page, { theme });
       await page.goto("/");
       const plain = await page.evaluate(() => {
@@ -320,7 +323,11 @@ test.describe("criterion 21 and 24: the grain is unchanged; the first-paint grou
         const s = getComputedStyle(document.body, "::before");
         return { content: s.content, color: s.backgroundColor, opacity: s.opacity, mask: s.maskImage.length > 4, position: s.position, z: s.zIndex };
       });
-      expect(withImage).toEqual(plain);
+      const { opacity: plainOpacity, ...plainRest } = plain;
+      const { opacity: imageOpacity, ...imageRest } = withImage;
+      expect(imageRest).toEqual(plainRest);
+      expect(plainOpacity).not.toBe("0");
+      expect(imageOpacity, "grain is suppressed while the image is active (criterion 13 ruling)").toBe("0");
       expect(withImage.mask).toBe(true);
       expect(withImage.color).not.toBe("rgba(0, 0, 0, 0)");
     });

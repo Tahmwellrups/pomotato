@@ -61,7 +61,7 @@ async function themed(page: Page, stored: Preference, path = "/") {
 
 /** Seeds the custom-duration mode (idle), so the custom field and its label are rendered. */
 async function seedCustomIdle(page: Page) {
-  await seedTimerState(page, { status: "idle", mode: "custom", customMinutes: 5, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
+  await seedTimerState(page, { status: "idle", mode: "focus", focusMinutes: 5, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
   await page.reload();
   await page.waitForLoadState("networkidle");
   await settle(page);
@@ -120,7 +120,10 @@ async function assertRings(page: Page, testInfo: TestInfo, theme: Theme, checks:
     sheet.note(`focus ring ${c.name} own-fill (informational)`, c.vsFill.toFixed(2));
     if (!c.focusVisible) sheet.failures.push(`${tag(theme, c.name)}: :focus-visible does not match, so no focus indicator is shown`);
     if (c.width !== "2px") sheet.failures.push(`${tag(theme, c.name)}: outline width ${c.width}, expected 2px`);
-    if (c.offset !== "2px") sheet.failures.push(`${tag(theme, c.name)}: outline offset ${c.offset}, expected 2px`);
+    // 012 round 3, criterion 14: the theme chip's ring is pulled 5 px inside the chip (peer-focus-visible:-outline-offset-5)
+    // so the whole ring sits on the header fill. Its offset is pinned to -5px by value; every other control stays at 2px.
+    const expectedOffset = c.name.startsWith("theme ") ? "-5px" : "2px";
+    if (c.offset !== expectedOffset) sheet.failures.push(`${tag(theme, c.name)}: outline offset ${c.offset}, expected ${expectedOffset}`);
     if (!c.colour || c.colour.join() !== ring.join()) sheet.failures.push(`${tag(theme, c.name)}: outline colour ${c.colour?.join(",")} is not --ring ${ring.join(",")}`);
   }
   sheet.done();
@@ -157,7 +160,7 @@ test.describe("criterion 28 (amended): every listed control shows a 2 px ring at
       }
       checks.push(await ringCheck(page, "Start", page.getByRole("button", { name: "Start", exact: true }), page.getByRole("button", { name: "Start", exact: true })));
       checks.push(await ringCheck(page, "Reset", resetControl(page), resetControl(page)));
-      checks.push(await ringCheck(page, "custom duration input", page.locator("input#custom-duration"), page.locator("input#custom-duration")));
+      checks.push(await ringCheck(page, "custom duration input", page.locator("input#focus-length"), page.locator("input#focus-length")));
       const tasks = page.getByRole("button", { name: "Your tasks", exact: true });
       checks.push(await ringCheck(page, "Tasks trigger", tasks, tasks));
       const stats = page.locator('a[href="/stats"]').first();
@@ -269,15 +272,15 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
       sheet.row("Reset label vs fill", textVsFill(await readPainted(page, reset)), 4.5);
 
       // Custom duration: label, field text, field edge, and the error state.
-      const label = page.locator('label[for="custom-duration"]');
+      const label = page.locator('label[for="focus-length"]');
       sheet.row("custom duration label vs page", textVsGround(await readPainted(page, label)), 4.5);
-      const field = page.locator("input#custom-duration");
+      const field = page.locator("input#focus-length");
       const fieldReading = await readPainted(page, field);
       sheet.row("custom duration field text vs field fill", textVsFill(fieldReading), 4.5);
       sheet.row("custom duration field edge vs page", borderVsGround(fieldReading), 3);
       await field.fill("abc");
       await field.press("Tab");
-      const error = page.locator("#custom-duration-error");
+      const error = page.locator("#focus-length-error");
       await expect(error).toBeVisible();
       sheet.row("custom duration error text vs page", textVsGround(await readPainted(page, error)), 4.5);
       const errorField = await readPainted(page, field);
@@ -453,8 +456,8 @@ test.describe("criterion 43 and 26: disabled states, dark figures not worse than
     await openThemed(page, { stored: "light", osDark: false, viewport: DESKTOP });
     await seedTimerState(page, {
       status: "running",
-      mode: "custom",
-      customMinutes: 5,
+      mode: "focus",
+      focusMinutes: 5,
       endTimestamp: Date.now() + 600_000,
       startedAt: Date.now(),
       runId: "qa-disabled",
@@ -466,7 +469,7 @@ test.describe("criterion 43 and 26: disabled states, dark figures not worse than
 
     const measure = async (): Promise<Record<string, number>> => {
       const out: Record<string, number> = {};
-      const field = page.locator("input#custom-duration");
+      const field = page.locator("input#focus-length");
       await expect(field).toBeDisabled();
       const fr = await readPainted(page, field);
       out["custom field (running) text vs fill"] = textVsFill(fr);

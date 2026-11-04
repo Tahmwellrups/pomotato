@@ -3,7 +3,7 @@
 import { useCurrentTask } from "@/hooks/use-current-task";
 import { TaskColorDot } from "./TaskColorDot";
 
-const cardClass = "flex w-full max-w-md flex-col items-center gap-2 rounded-2xl border border-none bg-none px-6";
+const cardClass = "flex w-full max-w-md flex-col items-center gap-2 px-2";
 
 export function CurrentTaskCard() {
   const query = useCurrentTask();

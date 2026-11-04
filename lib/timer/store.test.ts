@@ -7,7 +7,7 @@ describe("useTimerStore", () => {
     // Reset the store state before each test
     useTimerStore.setState({
       mode: "focus",
-      customMinutes: 25,
+      focusMinutes: 25,
       status: "idle",
       endTimestamp: null,
       pausedRemainingMs: null,
@@ -16,11 +16,11 @@ describe("useTimerStore", () => {
   });
 
   describe("initial state", () => {
-    it("starts with Focus mode, idle status, and 25 minutes custom", () => {
+    it("starts with Focus mode, idle status, and a 25 minute Focus length", () => {
       const state = useTimerStore.getState();
       expect(state.mode).toBe("focus");
       expect(state.status).toBe("idle");
-      expect(state.customMinutes).toBe(25);
+      expect(state.focusMinutes).toBe(25);
       expect(state.endTimestamp).toBeNull();
       expect(state.pausedRemainingMs).toBeNull();
     });
@@ -87,9 +87,9 @@ describe("useTimerStore", () => {
     it("switches mode from complete to idle", () => {
       const store = useTimerStore.getState();
       useTimerStore.setState({ status: "complete" });
-      store.selectMode("custom");
+      store.selectMode("longBreak");
       const state = useTimerStore.getState();
-      expect(state.mode).toBe("custom");
+      expect(state.mode).toBe("longBreak");
       expect(state.status).toBe("idle");
     });
   });
@@ -270,82 +270,83 @@ describe("useTimerStore", () => {
       expect(state.status).toBe("idle");
     });
 
-    it("does not touch customMinutes", () => {
+    it("does not touch focusMinutes", () => {
       const store = useTimerStore.getState();
-      useTimerStore.setState({ customMinutes: 50 });
+      useTimerStore.setState({ focusMinutes: 50 });
       store.start();
       store.reset();
       const state = useTimerStore.getState();
-      expect(state.customMinutes).toBe(50);
+      expect(state.focusMinutes).toBe(50);
     });
   });
 
-  describe("setCustomMinutes", () => {
-    it("updates customMinutes when idle", () => {
+  describe("setFocusMinutes", () => {
+    it("updates focusMinutes when idle", () => {
       const store = useTimerStore.getState();
-      store.setCustomMinutes(30);
+      store.setFocusMinutes(30);
       const state = useTimerStore.getState();
-      expect(state.customMinutes).toBe(30);
+      expect(state.focusMinutes).toBe(30);
     });
 
-    it("updates customMinutes when complete", () => {
+    it("updates focusMinutes when complete", () => {
       const store = useTimerStore.getState();
       useTimerStore.setState({ status: "complete" });
-      store.setCustomMinutes(50);
+      store.setFocusMinutes(50);
       const state = useTimerStore.getState();
-      expect(state.customMinutes).toBe(50);
+      expect(state.focusMinutes).toBe(50);
     });
 
-    it("no-op when custom mode is running", () => {
+    it("no-op when focus is running", () => {
       const store = useTimerStore.getState();
-      useTimerStore.setState({ mode: "custom", customMinutes: 25 });
+      useTimerStore.setState({ mode: "focus", focusMinutes: 25 });
       store.start();
-      store.setCustomMinutes(50);
+      store.setFocusMinutes(50);
       const state = useTimerStore.getState();
-      expect(state.customMinutes).toBe(25);
+      expect(state.focusMinutes).toBe(25);
     });
 
-    it("no-op when custom mode is paused", () => {
+    it("no-op when focus is paused", () => {
       const store = useTimerStore.getState();
-      useTimerStore.setState({ mode: "custom", customMinutes: 25 });
+      useTimerStore.setState({ mode: "focus", focusMinutes: 25 });
       store.start();
       store.pause();
-      store.setCustomMinutes(50);
+      store.setFocusMinutes(50);
       const state = useTimerStore.getState();
-      expect(state.customMinutes).toBe(25);
+      expect(state.focusMinutes).toBe(25);
     });
 
-    it("allows updates while other modes are running", () => {
+    it("allows updates while a break is running (criterion 7: the next Focus run is not begun)", () => {
       const store = useTimerStore.getState();
-      useTimerStore.setState({ mode: "focus" });
+      useTimerStore.setState({ mode: "shortBreak" });
       store.start();
-      store.setCustomMinutes(50);
+      store.setFocusMinutes(50);
       const state = useTimerStore.getState();
-      expect(state.customMinutes).toBe(50);
+      expect(state.focusMinutes).toBe(50);
     });
   });
 
   describe("completeIfExpired", () => {
-    it("transitions to complete when now >= endTimestamp", () => {
+    it("advances to shortBreak and starts it when a Focus run reaches its end (criterion 13)", () => {
       const store = useTimerStore.getState();
       store.start();
-      const startingState = useTimerStore.getState();
-      const endTimestamp = startingState.endTimestamp!;
-      // Simulate reaching or passing the end time
+      const endTimestamp = useTimerStore.getState().endTimestamp!;
       store.completeIfExpired(endTimestamp);
-      const completeState = useTimerStore.getState();
-      expect(completeState.status).toBe("complete");
-      expect(completeState.endTimestamp).toBeNull();
+      const after = useTimerStore.getState();
+      expect(after.mode).toBe("shortBreak");
+      expect(after.status).toBe("running");
+      expect(after.endTimestamp).toBe(endTimestamp + 5 * MS_PER_MINUTE);
+      expect(after.cyclePosition).toBe(1);
     });
 
-    it("transitions to complete when now is far past endTimestamp", () => {
+    it("a Focus run far past its end lands idle on the break, not running (criterion 19)", () => {
       const store = useTimerStore.getState();
       store.start();
-      const startingState = useTimerStore.getState();
-      const endTimestamp = startingState.endTimestamp!;
-      store.completeIfExpired(endTimestamp + 10000);
-      const completeState = useTimerStore.getState();
-      expect(completeState.status).toBe("complete");
+      const endTimestamp = useTimerStore.getState().endTimestamp!;
+      store.completeIfExpired(endTimestamp + 10 * MS_PER_MINUTE);
+      const after = useTimerStore.getState();
+      expect(after.mode).toBe("shortBreak");
+      expect(after.status).toBe("idle");
+      expect(after.endTimestamp).toBeNull();
     });
 
     it("no-op when not running", () => {
@@ -427,12 +428,11 @@ describe("useTimerStore", () => {
     });
 
     it("reload while running preserves running state", () => {
-      const store = useTimerStore.getState();
       useTimerStore.setState({
         mode: "focus",
         status: "running",
         endTimestamp: Date.now() + 10 * MS_PER_MINUTE,
-        customMinutes: 25,
+        focusMinutes: 25,
       });
       // Simulate a reload by checking the state
       const state = useTimerStore.getState();
@@ -441,14 +441,15 @@ describe("useTimerStore", () => {
       expect(state.endTimestamp).toBeDefined();
     });
 
-    it("complete on expiry, then start again", () => {
+    it("after an auto-advance, Reset clears the break and start() begins a new run", () => {
       const store = useTimerStore.getState();
       store.start();
-      store.completeIfExpired(Date.now() + 30 * MS_PER_MINUTE);
-      let state = useTimerStore.getState();
-      expect(state.status).toBe("complete");
+      store.completeIfExpired(useTimerStore.getState().endTimestamp!);
+      expect(useTimerStore.getState().status).toBe("running");
+      store.reset();
+      expect(useTimerStore.getState().status).toBe("idle");
       store.start();
-      state = useTimerStore.getState();
+      const state = useTimerStore.getState();
       expect(state.status).toBe("running");
       expect(state.endTimestamp).toBeDefined();
     });

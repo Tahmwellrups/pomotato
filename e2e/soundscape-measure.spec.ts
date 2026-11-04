@@ -37,7 +37,7 @@ interface Row {
 const rowsLog: Row[] = [];
 
 async function settle(page: Page) {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   await page.waitForTimeout(400);
 }
 
@@ -210,6 +210,9 @@ test.describe("criterion 22: the dialog fill is identical with the most adversar
     test(`${theme}: the fill strip with ${theme === "light" ? "white" : "black"} active equals the no-background fill`, async ({ page }) => {
       const strip = async (dialog: Locator): Promise<string> => {
         const d = await box(dialog);
+        // Finish the dialog's open transition first: the reference is the settled paint. (paintedColours no
+        // longer freezes animations, so an unsettled fade would read as a difference.)
+        await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
         const maps = await paintedColours(page, [{ x: d.x + 3, y: d.y + 120, w: 8, h: 40 }]);
         return JSON.stringify([...maps[0].entries()].sort());
       };

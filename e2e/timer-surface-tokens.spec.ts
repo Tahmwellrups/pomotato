@@ -184,8 +184,8 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
   });
 
   test("custom duration input: text on fill 4.5:1, error text on page 4.5:1, disabled text not worse than HEAD (2.37:1)", async ({ page }) => {
-    await page.getByText("Custom", { exact: true }).click();
-    const input = page.locator("input#custom-duration");
+    await page.getByText("Focus", { exact: true }).click();
+    const input = page.locator("input#focus-length");
     await expect(input).toBeVisible();
     await settle(page);
     const field = await readPaint(input);
@@ -203,11 +203,11 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
   });
 
   test("custom duration input, running: disabled text on disabled fill is not worse than HEAD (2.37:1)", async ({ page }) => {
-    await page.getByText("Custom", { exact: true }).click();
+    await page.getByText("Focus", { exact: true }).click();
     await startButton(page).click();
-    await expect(page.locator("input#custom-duration")).toBeDisabled();
+    await expect(page.locator("input#focus-length")).toBeDisabled();
     await settle(page);
-    const disabled = await readPaint(page.locator("input#custom-duration"));
+    const disabled = await readPaint(page.locator("input#focus-length"));
     expect(disabled.background).toEqual(await resolveToken(page, "--muted"));
     expect(contrast(disabled.color, disabled.background)).toBeGreaterThanOrEqual(2.37);
   });
@@ -234,7 +234,7 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
     for (const viewport of viewports) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await settle(page);
-      for (const mode of ["focus", "shortBreak", "longBreak", "custom"]) {
+      for (const mode of ["focus", "shortBreak", "longBreak"]) {
         const box = await chip(page, mode).boundingBox();
         expect(box, `${mode} chip box at ${viewport.width}px`).not.toBeNull();
         expect(box!.height).toBeGreaterThanOrEqual(44);
@@ -342,8 +342,8 @@ test.describe("task 006 axe-core on the timer surface (criterion 19)", () => {
           const results = await new AxeBuilder({ page }).analyze();
           expect(seriousOrCritical(results.violations)).toEqual([]);
         };
-        await page.getByText("Custom", { exact: true }).click();
-        const input = page.locator("input#custom-duration");
+        await page.getByText("Focus", { exact: true }).click();
+        const input = page.locator("input#focus-length");
         await input.focus();
         await scan();
         await input.fill("abc");
@@ -385,14 +385,17 @@ test.describe("task 006 console and hydration (criteria 32 and 33)", () => {
       await expect(startButton(page)).toBeVisible();
 
       // Completion, retroactively after a closed tab.
-      await seedTimerState(page, { status: "running", endTimestamp: Date.now() - 1000, startedAt: Date.now() - 60_000, runId: "qa-run" });
+      // Task 013 criterion 36: a Focus run stale by more than a break lands IDLE on the break (one step).
+      // A run that expired one second ago would chain into a RUNNING break (criterion 19's derived end is
+      // still in the future), so this seeds a two-hour-old run to keep the reload idle with Start visible.
+      await seedTimerState(page, { status: "running", endTimestamp: Date.now() - 2 * 60 * 60_000, startedAt: Date.now() - 2 * 60 * 60_000 - 25 * 60_000, runId: "qa-run" });
       await page.reload();
       await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
 
       await page.locator('label:has(input[value="shortBreak"])').click();
-      await page.getByText("Custom", { exact: true }).click();
-      await page.locator("input#custom-duration").fill("30");
-      await page.locator("input#custom-duration").fill("abc");
+      await page.getByText("Focus", { exact: true }).click();
+      await page.locator("input#focus-length").fill("30");
+      await page.locator("input#focus-length").fill("abc");
       await expect(page.locator('p[role="alert"]')).toBeVisible();
       await page.reload();
       await settle(page);

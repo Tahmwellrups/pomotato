@@ -1,24 +1,21 @@
 import {
-  CUSTOM_MINUTES_MAX,
-  CUSTOM_MINUTES_MIN,
-  FOCUS_MINUTES,
+  FOCUS_MINUTES_MAX,
+  FOCUS_MINUTES_MIN,
   LONG_BREAK_MINUTES,
   MS_PER_MINUTE,
   SHORT_BREAK_MINUTES,
 } from "./constants";
 import type { TimerMode, TimerStatus } from "./types";
 
-/** The full duration of a mode, in ms. Custom mode uses the stored custom minutes. */
-export function fullDurationMs(mode: TimerMode, customMinutes: number): number {
+/** The full duration of a mode, in ms. Focus uses the stored Focus length; both breaks are fixed. */
+export function fullDurationMs(mode: TimerMode, focusMinutes: number): number {
   switch (mode) {
     case "focus":
-      return FOCUS_MINUTES * MS_PER_MINUTE;
+      return focusMinutes * MS_PER_MINUTE;
     case "shortBreak":
       return SHORT_BREAK_MINUTES * MS_PER_MINUTE;
     case "longBreak":
       return LONG_BREAK_MINUTES * MS_PER_MINUTE;
-    case "custom":
-      return customMinutes * MS_PER_MINUTE;
   }
 }
 
@@ -62,10 +59,10 @@ export function formatRemaining(remainingMs: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-export type CustomMinutesResult = { ok: true; value: number } | { ok: false; error: string };
+export type FocusMinutesResult = { ok: true; value: number } | { ok: false; error: string };
 
-/** Validates raw custom-duration input: whole minutes, 1 to 180 inclusive. */
-export function parseCustomMinutes(raw: string): CustomMinutesResult {
+/** Validates raw Focus-length input: whole minutes, 1 to 180 inclusive. */
+export function parseFocusMinutes(raw: string): FocusMinutesResult {
   const trimmed = raw.trim();
   if (trimmed === "") {
     return { ok: false, error: "Enter a duration in minutes." };
@@ -74,8 +71,8 @@ export function parseCustomMinutes(raw: string): CustomMinutesResult {
     return { ok: false, error: "Enter a whole number of minutes, with no decimals." };
   }
   const value = Number(trimmed);
-  if (value < CUSTOM_MINUTES_MIN || value > CUSTOM_MINUTES_MAX) {
-    return { ok: false, error: `Enter a number from ${CUSTOM_MINUTES_MIN} to ${CUSTOM_MINUTES_MAX}.` };
+  if (value < FOCUS_MINUTES_MIN || value > FOCUS_MINUTES_MAX) {
+    return { ok: false, error: `Enter a number from ${FOCUS_MINUTES_MIN} to ${FOCUS_MINUTES_MAX}.` };
   }
   return { ok: true, value };
 }

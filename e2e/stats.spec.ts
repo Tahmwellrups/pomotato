@@ -695,8 +695,14 @@ test.describe("/stats route", () => {
               const db = request.result;
               const tx = db.transaction(["sessions"], "readwrite");
               const sessions = tx.objectStore("sessions");
+              // Half the sessions end within the last 17 minutes so the default Day view has rows; the rest spread across the
+              // month so Month has more than twenty buckets. (Task 013 round 2: seeding only the month left
+              // Day empty, so the table never rendered.)
+              const nowMs = Date.now();
               for (let i = 0; i < 2000; i++) {
-                const endedAt = startMs + (i % 28) * 86_400_000 + (i % 12) * 3_600_000 + i * 1000;
+                const endedAt = i < 1000
+                  ? nowMs - (i + 1) * 1000
+                  : startMs + (i % 28) * 86_400_000 + (i % 12) * 3_600_000 + i * 1000;
                 sessions.put({
                   id: `perf-${i}`,
                   runId: `perf-run-${i}`,

@@ -5,6 +5,7 @@ import {
   DESKTOP,
   NARROW,
   chooseOnSettings,
+  contrastRatio,
   extremes,
   fmt,
   mergeColours,
@@ -17,6 +18,7 @@ import {
   type Rgb,
 } from "./helpers/background";
 import { compositeOver } from "./helpers/painted";
+import { clipToSurface } from "./helpers/surface-sampler";
 import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
 import { seedTimerState } from "./helpers/timer-hold";
 
@@ -119,6 +121,24 @@ interface Scene {
   focus: { ratio: number; worst: Rgb } | null;
 }
 
+/**
+ * 012 criterion 4 two-tone rule: the larger of the 1 px border ring and the 1 px popover halo, each against the
+ * flat ground three pixels above the border. The outer halo alone is low by design over white and black.
+ */
+async function twoToneEdge(page: Page, locator: Locator): Promise<{ ratio: number; border: Rgb; halo: Rgb; ground: Rgb }> {
+  const b = (await boxOf(locator)) as Rect;
+  const cx = Math.floor(b.x + b.w / 2);
+  const top = Math.floor(b.y);
+  const maps = await paintedColours(page, [
+    { x: cx, y: top, w: 1, h: 1 },
+    { x: cx, y: top - 1, w: 1, h: 1 },
+    { x: cx, y: top - 3, w: 1, h: 1 },
+  ]);
+  const [border, halo, ground] = maps.map((m) => fromKey([...m.keys()][0]));
+  return { ratio: Math.max(contrastRatio(border, ground), contrastRatio(halo, ground)), border, halo, ground };
+}
+const fromKey = (k: string): Rgb => k.split(",").map(Number) as Rgb;
+
 async function measureScene(page: Page, theme: Theme, viewport: { width: number; height: number }): Promise<Scene> {
   void theme;
   await page.setViewportSize(viewport);
@@ -133,25 +153,40 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
     }),
   );
   // A ring side that touches another control is dropped: its pixels are that control's anti-aliased edge, not ground.
-  const ringFor = (box: Rect, name: string, pad = RING_PAD): Rect[] => {
+  // Task 012 round 2 ruling: a ring is clipped to the surface its element sits in, so a side that
+  // crosses that surface's edge is never measured as the ground it is painted on. Elements with no
+  // surface (the Settings and Stats links on the bare photograph) keep the whole ring, by design.
+  // The padding box, not the border box: a surface's 1 px --border edge is its own paint, not ground.
+  const surfaceOf = (locator: Locator) =>
+    locator.evaluate((el) => {
+      const s = el.closest("[data-surface]");
+      if (!s) return null;
+      const r = s.getBoundingClientRect();
+      const cs = getComputedStyle(s);
+      const bl = parseFloat(cs.borderLeftWidth) || 0;
+      const br = parseFloat(cs.borderRightWidth) || 0;
+      const bt = parseFloat(cs.borderTopWidth) || 0;
+      const bb = parseFloat(cs.borderBottomWidth) || 0;
+      return { x: r.x + bl, y: r.y + bt, w: r.width - bl - br, h: r.height - bt - bb };
+    });
+  const ringFor = (box: Rect, name: string, surface: Rect | null, pad = RING_PAD): Rect[] => {
     const others = candidates.filter((c) => !(Math.abs(c.x - box.x) < 0.5 && Math.abs(c.y - box.y) < 0.5 && Math.abs(c.w - box.w) < 0.5 && Math.abs(c.h - box.h) < 0.5));
     const clean = ringAround(box, pad).filter((side) => others.every((o) => !overlaps(side, o, 1)));
-    if (clean.length === 0) throw new Error(`no clean ground ring for `);
-    return clean;
+    if (clean.length === 0) throw new Error(`no clean ground ring for ${name}`);
+    return surface ? clipToSurface(clean, surface, name) : clean;
   };
   const readoutEl = page.locator("p.tabular-nums").first();
   const readoutBox = (await boxOf(readoutEl)) as Rect;
   const readoutInk = await colourOf(page, readoutEl, "color");
   const wordEl = page.locator("main h1").first();
   const wordBox = await boxOf(wordEl);
-  const chipOnEl = page.getByText("Custom", { exact: true });
+  const chipOnEl = page.getByText("Focus", { exact: true });
   const chipOffEl = page.getByText("Focus", { exact: true });
   const chipOnBox = await boxOf(chipOnEl);
   const chipOffBox = await boxOf(chipOffEl);
+  // Stats and Settings are two-tone edges (012 criterion 4): measured by twoToneEdge() below, not by the worst-of-ring rule.
   const edgeEls: Record<string, Locator> = {
-    duration: page.locator("#custom-duration"),
-    stats: page.locator('a[href="/stats"]'),
-    settings: page.locator('a[href="/settings"]'),
+    duration: page.locator("#focus-length"),
     reset: page.getByRole("button", { name: "Reset", exact: true }),
   };
   const edgeData: Record<string, { box: Rect; border: Rgb; borderWidth: string } | null> = {};
@@ -174,11 +209,11 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
   const take = (name: string, rects: Rect[]) => {
     index[name] = rects.map((r) => rings.push(r) - 1);
   };
-  take("readout", ringFor(readoutBox, "readout"));
-  if (wordBox) take("wordmark", ringFor(wordBox, "wordmark"));
-  if (chipOnBox) take("chipOn", ringFor(chipOnBox, "chipOn"));
-  if (chipOffBox) take("chipOff", ringFor(chipOffBox, "chipOff"));
-  for (const [name, data] of Object.entries(edgeData)) if (data) take(`edge:${name}`, ringFor(data.box, `edge:${name}`));
+  take("readout", ringFor(readoutBox, "readout", await surfaceOf(readoutEl)));
+  if (wordBox) take("wordmark", ringFor(wordBox, "wordmark", await surfaceOf(wordEl)));
+  if (chipOnBox) take("chipOn", ringFor(chipOnBox, "chipOn", await surfaceOf(chipOnEl)));
+  if (chipOffBox) take("chipOff", ringFor(chipOffBox, "chipOff", await surfaceOf(chipOffEl)));
+  for (const [name, data] of Object.entries(edgeData)) if (data) take(`edge:${name}`, ringFor(data.box, `edge:${name}`, await surfaceOf(edgeEls[name])));
   const painted = await paintedColours(page, rings);
   const ringColours = (name: string) => mergeColours(index[name].map((i) => painted[i]));
 
@@ -210,14 +245,16 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
   // ring 5 to 9 px outside the control: outside the 2 px offset plus 2 px outline.
   if (focusBox) {
     await statsLink.focus();
-    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+    await page.evaluate(() => Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
     const ring = await statsLink.evaluate((el) => {
       const s = getComputedStyle(el);
       return { color: s.outlineColor, visible: el.matches(":focus-visible"), width: s.outlineWidth };
     });
     if (ring.visible) {
       const ringColour = await cssColour(page, ring.color);
-      const ground = mergeColours(await paintedColours(page, ringFor({ x: focusBox.x - 5, y: focusBox.y - 5, w: focusBox.w + 10, h: focusBox.h + 10 }, "focus", 4)));
+      // The ring's outer row sits 4 px above the box; the halo row directly outside it is 5 px above (012 criterion 14).
+      // Centre column only: the halo's corners are rounded, so a full-width row reads the photograph at its ends.
+      const ground = mergeColours(await paintedColours(page, [{ x: Math.floor(focusBox.x + focusBox.w / 2), y: Math.floor(focusBox.y) - 5, w: 1, h: 1 }]));
       const worst = worstAgainst(dropColour(ground, ringColour), ringColour);
       scene.focus = { ratio: worst.ratio, worst: worst.pixel };
     }
@@ -235,7 +272,7 @@ test.describe("criteria 13-17: the composited ground and every floor, over the a
   for (const theme of ["light", "dark"] as const) {
     test(`${theme}: plain ground, then each adversarial image; floors hold; band reported`, async ({ page }) => {
       await setPrefs(page, { theme });
-      await seedTimerState(page, { mode: "custom", customMinutes: 25, status: "idle" });
+      await seedTimerState(page, { mode: "focus", focusMinutes: 25, status: "idle" });
       await page.goto("/");
       await page.waitForLoadState("networkidle");
       await seedPinnedTask(page);
@@ -264,12 +301,40 @@ test.describe("criteria 13-17: the composited ground and every floor, over the a
         // The wordmark is 36 px bold: large text, so its floor is 3:1 (WCAG 1.4.3), not 4.5:1.
         if (scene.wordmark) expect(scene.wordmark.ratio, `${theme} ${name} wordmark (large text)`).toBeGreaterThanOrEqual(3);
         if (scene.chipOff) expect(scene.chipOff.ratio, `${theme} ${name} chip`).toBeGreaterThanOrEqual(4.5);
+        // Control edges, all of them. Since 012 round 3 the Settings and Stats triggers carry a two-tone
+        // edge (criterion 4), so they are asserted here with the rest.
         for (const [edge, value] of Object.entries(scene.edges)) {
           if (value) expect(value.ratio, `${theme} ${name} edge ${edge}`).toBeGreaterThanOrEqual(3);
         }
-        if (scene.focus) expect(scene.focus.ratio, `${theme} ${name} focus`).toBeGreaterThanOrEqual(3);
       }
       expect(Object.values(results).some((s) => s.focus !== null), "focus indicator measured").toBe(true);
+    });
+  }
+});
+
+// Criterion 4 (012 round 3, owner ruling 2026-10-29): the four bottom-cluster triggers carry a two-tone edge
+// (1 px --foreground border plus a 1 px --popover halo) while the image shows, so the larger of the two rings
+// clears 3:1 against any flat ground. Real assertions now; the former test.fail flipped when the gap healed.
+test.describe("criterion 4 (012 round 3): bare-photograph control edges and Stats focus ring over white and grey", () => {
+  test.describe.configure({ timeout: 240_000 });
+  for (const theme of ["light", "dark"] as const) {
+    test(`${theme}: Settings and Stats edges and the Stats focus ring reach 3:1 over white and grey`, async ({ page }) => {
+      await setPrefs(page, { theme });
+      await seedTimerState(page, { mode: "focus", focusMinutes: 25, status: "idle" });
+      for (const name of ["white", "grey 50%"] as const) {
+        await chooseOnSettings(page, ADVERSARIAL[name](), `deferred-${name.replace(/[^a-z0-9]+/gi, "-")}.png`);
+        await page.goto("/");
+        await waitActive(page);
+        const scene = await measureScene(page, theme, DESKTOP);
+        for (const [edge, locator] of [
+          ["stats", page.locator('a[href="/stats"]')],
+          ["settings", page.locator('a[href="/settings"]')],
+        ] as const) {
+          const two = await twoToneEdge(page, locator);
+          expect(two.ratio, `${theme} ${name} edge ${edge} two-tone (border ${fmt(two.border)}, halo ${fmt(two.halo)}, ground ${fmt(two.ground)})`).toBeGreaterThanOrEqual(3);
+        }
+        if (scene.focus) expect(scene.focus.ratio, `${theme} ${name} Stats focus ring (bare photograph)`).toBeGreaterThanOrEqual(3);
+      }
     });
   }
 });
@@ -292,7 +357,7 @@ test.describe("criterion 18: the timer readout at levels 100, 50 and 0, both gau
             await page.goto("/");
             // A paused or running state needs a runId and startedAt, or the app resets it to idle.
             const live = state.status !== "idle";
-            await seedTimerState(page, { mode: "focus", customMinutes: 25, runId: live ? "qa-level-run" : null, startedAt: live ? Date.now() - 1000 : null, endTimestamp: null, pausedRemainingMs: null, ...state });
+            await seedTimerState(page, { mode: "focus", focusMinutes: 25, runId: live ? "qa-level-run" : null, startedAt: live ? Date.now() - 1000 : null, endTimestamp: null, pausedRemainingMs: null, ...state });
             await page.reload();
             await waitActive(page);
             await page.waitForTimeout(400);
@@ -346,7 +411,7 @@ test.describe("criterion 14: painted interiors of a task swatch, a filled contro
   for (const theme of ["light", "dark"] as const) {
     test(`${theme}: fill and ink interiors match the plain-ground screenshot for white, black and checker`, async ({ page }) => {
       await setPrefs(page, { theme, gaugeStyle: "glyph" });
-      await seedTimerState(page, { mode: "focus", customMinutes: 25, status: "idle" });
+      await seedTimerState(page, { mode: "focus", focusMinutes: 25, status: "idle" });
       await page.goto("/");
       await page.waitForLoadState("networkidle");
       await seedPinnedTask(page);
@@ -472,7 +537,7 @@ test.describe("criterion 32: zero console errors or warnings across the whole fl
         if (msg.type() === "error" || msg.type() === "warning") messages.push(`${msg.type()}: ${msg.text()}`);
       });
       await setPrefs(page, { theme });
-      await seedTimerState(page, { mode: "focus", customMinutes: 25, status: "idle" });
+      await seedTimerState(page, { mode: "focus", focusMinutes: 25, status: "idle" });
       await page.goto("/");
       await waitActive(page).catch(() => undefined);
       await chooseOnSettings(page, ADVERSARIAL["grey 50%"](), "flow.png");

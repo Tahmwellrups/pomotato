@@ -26,15 +26,15 @@ const optionRadio = (page: Page, style: Style) =>
 
 interface TimerSeed {
   status: Status;
-  mode?: "focus" | "custom";
-  customMinutes?: number;
+  mode?: "focus" | "shortBreak";
+  focusMinutes?: number;
   endInMs?: number;
   pausedRemainingMs?: number;
 }
 
 function timerOverrides(seed: TimerSeed) {
   const now = Date.now();
-  const base = { mode: seed.mode ?? "focus", customMinutes: seed.customMinutes ?? 25 };
+  const base = { mode: seed.mode ?? "focus", focusMinutes: seed.focusMinutes ?? 25 };
   if (seed.status === "running") {
     return { ...base, status: "running" as const, endTimestamp: now + (seed.endInMs ?? 300_000), startedAt: now, runId: "qa-run-running", pausedRemainingMs: null };
   }
@@ -466,7 +466,10 @@ test.describe("criterion 27: / with each option in each status, both themes, bot
             expect(await seriousViolations(page)).toEqual([]);
             const cluster = await page.evaluate(() => {
               const link = document.querySelector<HTMLElement>('a[aria-label="Settings"]');
-              const container = link?.closest<HTMLElement>(".fixed");
+              // The cluster is in flow below lg and pinned (.fixed) at lg, so .fixed is not a
+              // stable selector. Its structure is fixed: Settings <a> -> SettingsButton wrapper
+              // <div> -> cluster <div>.
+              const container = link?.parentElement?.parentElement ?? null;
               if (!container) return null;
               const controls = [...container.querySelectorAll<HTMLElement>("a, button")].map((el) => el.getBoundingClientRect());
               return {
@@ -654,7 +657,7 @@ test.describe("criterion 34: reduced motion still tracks the level, with lean su
     test(`${motion}: the level follows the derived remaining time for both options`, async ({ page }) => {
       for (const style of ["vessel", "glyph"] as const) {
         await page.emulateMedia({ reducedMotion: motion, colorScheme: "light" });
-        await open(page, { style, timer: { status: "running", mode: "custom", customMinutes: 1, endInMs: 30_000 } });
+        await open(page, { style, timer: { status: "running", mode: "focus", focusMinutes: 1, endInMs: 30_000 } });
         const sampleLevel = async () => {
           const state = await readTimerState(page);
           const level = Number(await gauge(page).getAttribute("data-gauge-level"));
@@ -672,7 +675,7 @@ test.describe("criterion 34: reduced motion still tracks the level, with lean su
   test("reduce: glyph lean stays zero through a pause, default motion does move it (positive control)", async ({ page }) => {
     const leans = async (motion: "reduce" | "no-preference") => {
       await page.emulateMedia({ reducedMotion: motion, colorScheme: "light" });
-      await open(page, { style: "glyph", timer: { status: "running", mode: "custom", customMinutes: 1, endInMs: 30_000 } });
+      await open(page, { style: "glyph", timer: { status: "running", mode: "focus", focusMinutes: 1, endInMs: 30_000 } });
       await page.getByRole("button", { name: "Pause", exact: true }).click();
       const seen: number[] = [];
       for (let i = 0; i < 8; i++) {
@@ -802,8 +805,10 @@ function readDrawnLevel(kind: Style): number {
 
 test.describe("criterion 52: a level change is drawn through several frames and settles, for both options", () => {
   for (const style of ["vessel", "glyph"] as const) {
-    test(`${style}: switching from Custom (about half) to Focus (full) is drawn over several frames and settles`, async ({ page }) => {
-      await open(page, { style, timer: { status: "running", mode: "custom", customMinutes: 1, endInMs: 30_000 } });
+    // Custom was removed by 013. The level change is now a running Short break (a partial level,
+    // about a tenth of its 5 minutes left) switched to Focus (full).
+    test(`${style}: switching from a running Short break (partial) to Focus (full) is drawn over several frames and settles`, async ({ page }) => {
+      await open(page, { style, timer: { status: "running", mode: "shortBreak", focusMinutes: 25, endInMs: 30_000 } });
       await page.waitForTimeout(300);
       const before = await page.evaluate(readDrawnLevel, style);
       expect(Number.isNaN(before), `${style}: a drawn level exists before the switch`).toBe(false);
@@ -858,8 +863,10 @@ test.describe("criterion 48: a completed run logs exactly one session row under 
     test(`${style}: completion logs one row and does not double-count`, async ({ page }) => {
       await open(page, { style, timer: { status: "running", endInMs: 1500 } });
       const before = await readSessionCount(page);
-      await expect(readout(page)).toHaveText("00:00", { timeout: 10_000 });
-      await expect.poll(() => readSessionCount(page), { timeout: 5000 }).toBe(before + 1);
+      // Auto-advance (013): completion hands straight to the 5-minute short break, so the readout
+      // is the break under way (about 05:00), not 00:00. The session count is the completion signal.
+      await expect.poll(() => readSessionCount(page), { timeout: 10_000 }).toBe(before + 1);
+      await expect(readout(page)).toHaveText(/^0[45]:\d\d$/, { timeout: 5000 });
       await page.waitForTimeout(1500);
       expect(await readSessionCount(page)).toBe(before + 1);
     });

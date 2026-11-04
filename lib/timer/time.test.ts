@@ -3,10 +3,10 @@ import {
   fullDurationMs,
   getRemainingMs,
   formatRemaining,
-  parseCustomMinutes,
+  parseFocusMinutes,
 } from "./time";
 import {
-  FOCUS_MINUTES,
+  DEFAULT_FOCUS_MINUTES,
   SHORT_BREAK_MINUTES,
   LONG_BREAK_MINUTES,
   MS_PER_MINUTE,
@@ -15,7 +15,7 @@ import {
 describe("time.ts", () => {
   describe("fullDurationMs", () => {
     it("returns focus duration in ms", () => {
-      expect(fullDurationMs("focus", 25)).toBe(FOCUS_MINUTES * MS_PER_MINUTE);
+      expect(fullDurationMs("focus", DEFAULT_FOCUS_MINUTES)).toBe(DEFAULT_FOCUS_MINUTES * MS_PER_MINUTE);
       expect(fullDurationMs("focus", 25)).toBe(25 * 60_000);
     });
 
@@ -29,15 +29,17 @@ describe("time.ts", () => {
       expect(fullDurationMs("longBreak", 25)).toBe(15 * 60_000);
     });
 
-    it("returns custom duration based on customMinutes parameter", () => {
-      expect(fullDurationMs("custom", 30)).toBe(30 * MS_PER_MINUTE);
-      expect(fullDurationMs("custom", 1)).toBe(1 * MS_PER_MINUTE);
-      expect(fullDurationMs("custom", 180)).toBe(180 * MS_PER_MINUTE);
+    it("returns the stored Focus length for focus, at the 1 and 180 minute bounds", () => {
+      expect(fullDurationMs("focus", 30)).toBe(30 * MS_PER_MINUTE);
+      expect(fullDurationMs("focus", 1)).toBe(1 * MS_PER_MINUTE);
+      expect(fullDurationMs("focus", 180)).toBe(180 * MS_PER_MINUTE);
     });
 
-    it("ignores customMinutes for non-custom modes", () => {
-      expect(fullDurationMs("focus", 100)).toBe(FOCUS_MINUTES * MS_PER_MINUTE);
-      expect(fullDurationMs("shortBreak", 200)).toBe(SHORT_BREAK_MINUTES * MS_PER_MINUTE);
+    it("ignores the Focus length for both break modes (criterion 5)", () => {
+      expect(fullDurationMs("shortBreak", 1)).toBe(5 * MS_PER_MINUTE);
+      expect(fullDurationMs("shortBreak", 180)).toBe(5 * MS_PER_MINUTE);
+      expect(fullDurationMs("longBreak", 1)).toBe(15 * MS_PER_MINUTE);
+      expect(fullDurationMs("longBreak", 180)).toBe(15 * MS_PER_MINUTE);
     });
   });
 
@@ -143,68 +145,68 @@ describe("time.ts", () => {
     });
   });
 
-  describe("parseCustomMinutes", () => {
+  describe("parseFocusMinutes", () => {
     it("accepts valid integers from 1 to 180", () => {
-      expect(parseCustomMinutes("1")).toEqual({ ok: true, value: 1 });
-      expect(parseCustomMinutes("25")).toEqual({ ok: true, value: 25 });
-      expect(parseCustomMinutes("180")).toEqual({ ok: true, value: 180 });
-      expect(parseCustomMinutes("60")).toEqual({ ok: true, value: 60 });
+      expect(parseFocusMinutes("1")).toEqual({ ok: true, value: 1 });
+      expect(parseFocusMinutes("25")).toEqual({ ok: true, value: 25 });
+      expect(parseFocusMinutes("180")).toEqual({ ok: true, value: 180 });
+      expect(parseFocusMinutes("60")).toEqual({ ok: true, value: 60 });
     });
 
     it("rejects empty input", () => {
-      const result = parseCustomMinutes("");
+      const result = parseFocusMinutes("");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe("Enter a duration in minutes.");
     });
 
     it("rejects whitespace-only input", () => {
-      const result = parseCustomMinutes("   ");
+      const result = parseFocusMinutes("   ");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe("Enter a duration in minutes.");
     });
 
     it("rejects decimal values", () => {
-      const result = parseCustomMinutes("2.5");
+      const result = parseFocusMinutes("2.5");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("rejects negative numbers", () => {
-      const result = parseCustomMinutes("-5");
+      const result = parseFocusMinutes("-5");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("rejects zero", () => {
-      const result = parseCustomMinutes("0");
+      const result = parseFocusMinutes("0");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toContain("Enter a number from");
     });
 
     it("rejects values above 180", () => {
-      const result = parseCustomMinutes("181");
+      const result = parseFocusMinutes("181");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toContain("Enter a number from");
     });
 
     it("rejects non-numeric text", () => {
-      const result = parseCustomMinutes("abc");
+      const result = parseFocusMinutes("abc");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("rejects mixed alphanumeric", () => {
-      const result = parseCustomMinutes("25m");
+      const result = parseFocusMinutes("25m");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("trims whitespace before validation", () => {
-      expect(parseCustomMinutes("  25  ")).toEqual({ ok: true, value: 25 });
+      expect(parseFocusMinutes("  25  ")).toEqual({ ok: true, value: 25 });
     });
   });
 });

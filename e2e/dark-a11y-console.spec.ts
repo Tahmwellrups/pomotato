@@ -117,8 +117,8 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
 
       // Mode switch and custom-duration edits: one valid, one invalid.
       await page.locator('label:has(input[name="timer-mode"][value="shortBreak"])').click();
-      await page.locator('label:has(input[name="timer-mode"][value="custom"])').click();
-      const custom = page.locator("input#custom-duration");
+      await page.locator('label:has(input[name="timer-mode"][value="focus"])').click();
+      const custom = page.locator("input#focus-length");
       await custom.fill("5");
       await custom.fill("0");
       await custom.fill("5");
@@ -126,10 +126,11 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
 
       // Completion: a timer that ends while the page is open.
       const now = Date.now();
-      await seedTimerState(page, { status: "running", mode: "focus", customMinutes: 25, endTimestamp: now + 1500, startedAt: now, runId: "qa-complete", pausedRemainingMs: null });
+      await seedTimerState(page, { status: "running", mode: "focus", focusMinutes: 25, endTimestamp: now + 1500, startedAt: now, runId: "qa-complete", pausedRemainingMs: null });
       await page.reload();
       await page.waitForLoadState("networkidle");
-      await expect.poll(async () => (await readTimerState(page))?.status, { timeout: 15_000 }).toBe("complete");
+      // Auto-advance (013): the finished focus run hands straight to the Short break, which is running.
+      await expect.poll(async () => { const t = await readTimerState(page); return t ? `${t.mode}/${t.status}` : null; }, { timeout: 15_000 }).toBe("shortBreak/running");
 
       // Task dialog: open, add, pin, edit, delete, close.
       await openTaskList(page);

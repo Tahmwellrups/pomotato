@@ -914,6 +914,28 @@ test.describe("Task List Feature", () => {
 
       await titleInput.fill("Tempest");
       await titleInput.press("Enter");
+      // Wait for the write to commit to IndexedDB before reloading: under a loaded run the reload can
+      // otherwise land before the transaction completes and the task reads back absent.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              new Promise<number>((resolve, reject) => {
+                const req = indexedDB.open("pomotato");
+                req.onerror = () => reject(req.error);
+                req.onsuccess = () => {
+                  const db = req.result;
+                  const count = db.transaction("tasks", "readonly").objectStore("tasks").count();
+                  count.onsuccess = () => {
+                    db.close();
+                    resolve(count.result);
+                  };
+                  count.onerror = () => reject(count.error);
+                };
+              }),
+          ),
+        )
+        .toBeGreaterThan(0);
 
       await page.reload();
 
@@ -1165,9 +1187,13 @@ test.describe("Task List Feature", () => {
       // Wait a moment for the state to settle
       await page.waitForTimeout(200);
 
-      // The timer should be complete (showing 00:00)
+      // Auto-advance contract: the completed focus run hands straight to the
+      // short break, so the break is under way and the display is its remaining
+      // time (about 03:55 here), not 00:00.
+      await expect(page.getByRole("radio", { name: "Short break" })).toBeChecked();
       const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
-      await expect(timerDisplay).toContainText("00:00");
+      await expect(timerDisplay).not.toContainText("00:00");
+      await expect(timerDisplay).toContainText(/0[0-5]:\d\d/);
 
       await openTaskList(page);
 

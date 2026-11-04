@@ -32,10 +32,72 @@ bottom before reading the git log.
 - [ ] **6. Music embeds** — official embeds from pasted playlist URLs. No scraping, no unofficial APIs.
 - [ ] **7. PWA + export/import** — installable PWA, JSON export/import. Sync is a later, separate milestone.
 
+## Owner feedback, 2026-10-28
+
+One round of feedback on shipped milestones 1, 2 and 4. Not milestone work, and not maintenance either:
+the owner asked for behaviour changes to things already shipped. **Built in the order below, which is
+not the stated priority order** — see DECISIONS.md 2026-10-28 for why (the scrim removal moves the
+ground 013's and 014's figures would otherwise be measured against, so priority order would mean
+measuring both twice).
+
+- [ ] **012. Full-opacity background and the surface system.** ([docs/tasks/012-full-opacity-background-frosted-surfaces.md](tasks/012-full-opacity-background-frosted-surfaces.md))
+      Owner's third priority, built first. Image at 100%, the 97% page scrim gone, one frosted surface
+      (the timer) and one solid (the header), both painting only while an image is active so the no-image
+      default is unchanged from HEAD. Implemented and gate-verified; **not yet through `qa` or `reviewer`.**
+- [ ] **013. Focus cycle.** ([docs/tasks/013-focus-cycle.md](tasks/013-focus-cycle.md)) Owner's first
+      priority. Auto-advance with auto-start, a four-dot cycle indicator, long break after the fourth
+      focus, and Custom folded into a customizable Focus. 59 criteria. **Backend goes first and alone**:
+      `lib/db/types.ts` aliases `SessionMode` to `TimerMode`, so shrinking the selectable union would
+      silently shrink the stored one and drop existing `custom` sessions out of stats.
+- [ ] **014. Visible task checklist.** ([docs/tasks/014-visible-task-checklist.md](tasks/014-visible-task-checklist.md))
+      Owner's second priority. An always-visible panel, a `done` checkbox (Dexie 3 to 4), the pin retired
+      in favour of "current = first not-done task", reordering kept. 60 criteria. Largest risk is that the
+      frontend diff is a restructure, not an addition: `TaskList.tsx` and `TaskRow.tsx` split into panel
+      and dialog variants, with 89 e2e tests and two `lib/db` suites in the blast radius.
+
 ## Maintenance & polish
 
 Work no milestone asked for: refactors of already-shipped milestones, and visual polish.
 Tracked here so it stops appearing in the git log as if it were milestone progress.
+
+### Found by task 012's verification
+
+- [ ] **Start is not tappable at rest at 320x568, and was not at HEAD either.** With 012 the control's top
+      13 px are on screen and uncovered, but its centre sits at y 577 against a 568 px fold. At HEAD the
+      centre was on screen at y 566 and **55% covered** by the then-pinned control cluster, so neither
+      state is tappable at rest and a scroll has always been required. 012 moved the cluster into page
+      flow below `lg`, which closed the covering outright and fixed the real regression it had introduced
+      at 375x667 (Start 43% covered, now reachable). It then gave back 16 px of the 27 px it had added
+      below `sm` (panel `p-4` to `p-2`, header `py-1` to `py-0`), leaving the controls 11 px lower than
+      HEAD. **Closing the last 11 px means spending `pt-12`, `gap-10` or the timer's internal spacing,
+      all of which predate 012**, which is why it stopped there. This is the same surface as the "320 px
+      header density" item below, and the two should be taken together: that one notes 40 px matters on a
+      568 px viewport, and this one says where 11 of them would come from. Figures are at-rest,
+      no-scroll, from an `elementFromPoint` grid per control on the built page.
+- [ ] **Reserved bottom padding is not a substitute for not overlaying, and this pattern will recur.**
+      `pb-28` reserves space at the **document** end while a fixed element occupies the bottom of the
+      **viewport** at every scroll position, so a document only slightly taller than the viewport still
+      puts content under the overlay at rest. Recorded in DECISIONS.md 2026-10-28. Task 014 adds a second
+      fixed widget and inherits the `lg` breakpoint rule from 012; **any third one needs the same rule
+      rather than more padding.**
+
+- [ ] **Owner decision needed: the bottom cluster's control edges sit on the bare photograph.** Task 012
+      criterion 4, confirmed by QA. The Settings, Stats and Soundscape triggers carry
+      `border-control-border` over an opaque `--background` fill and sit directly on the uploaded image,
+      so neither the border nor the fill can hold 3:1 against an arbitrary photograph with any single
+      colour. This is the straddle problem: a fixed foreground's worst ground is interior to the band the
+      image can produce, so no re-tuned token value fixes it. **A cluster-wide surface is already ruled
+      out**: it was built and measured to collide with the timer panel below `lg` (218x62 px at 320x568).
+      The two live options both change how the controls look, which is why this is the owner's call and
+      not a fix to take: **(a)** give each trigger its own opaque ground, or **(b)** a two-tone hairline
+      (light inner, dark outer) so one of the two strokes always registers whatever the photo does. The
+      same question will be asked again by any control 014 places over the image.
+- [ ] **Light `--scrim` is still at 0.45 and its dialog edge fails the ground floor.** The dark scrim went
+      0.62 to 0.90 to fix the criterion 12 blocker (DECISIONS 2026-10-28). Light was deliberately left
+      alone, because its edge-vs-fill hairline is the separate owner-deferred sub-floor from 010. For the
+      record, the ground side is a one-value fix: light `--scrim` 0.45 to 0.62 lifts the light dialog
+      edge from **1.856:1 to 3.056:1** against the scrimmed ground over a white image, and 0.90 would give
+      7.865:1. The edge-vs-fill 1.43:1 hairline is untouched by any of that and remains deferred.
 
 ### Found by 009's two-theme sweep, deliberately not absorbed by it
 009 measured every shipped surface in both themes, which surfaced pre-existing gaps it did not cause.
