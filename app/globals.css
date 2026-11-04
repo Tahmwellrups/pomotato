@@ -28,7 +28,10 @@
      carry. The ink is the text brown, so the grain darkens the cream the way
      pencil dust would, never a new hue. 0.07 is the lowest value that is still
      visible on a 1x laptop panel; it sits behind all content (see body::before)
-     so no text, control or swatch is composited over. */
+     so no text, control or swatch is composited over. It paints only where the
+     page ground is plain paper: over an uploaded photograph it is switched off
+     (see body::before), because the grain exists to make flat cream read as
+     paper and a photograph is not flat cream. */
   --grain-ink: #2b2017;
   --grain-opacity: 0.07;
   --foreground: #2b2017;
@@ -66,16 +69,24 @@
      task form fields, row action buttons, the Stats button, the outline
      Button variant, Reset, the Reload button, the unchecked stats view chips,
      the unchecked /settings radio cards). WCAG 1.4.11 asks 3:1 of exactly
-     those boundaries. It is painted on FIVE grounds, and the figures below
-     are PAINTED ones, not flat-token ones: only --background carries the paper
-     grain (body::before sits behind every opaque surface), so its figure is
-     taken on the darkest grained pixel, 236,229,218. #7a756f is: 3.65:1 on
-     that grained --background, 4.18:1 on --card, 4.39:1 on --popover, 4.18:1
-     on --muted (disabled fields, where disabled:bg-muted carries no
-     disabled:border override), 3.79:1 on the delete-confirm panel tint. Over a
-     dimmed uploaded background (task 010) the grained ground moves to 3.36:1
-     at worst. The previous #88837e was 3.00:1 on the grained --background, so
-     its floor was spent before any image existed.
+     those boundaries. It is painted on FIVE grounds, and the figures are
+     PAINTED ones, not flat-token ones. On the plain page ground (/settings,
+     /stats, and the dialogs, which never show the uploaded image) only
+     --background carries the paper grain, so its figure is taken on the
+     darkest grained pixel, 236,229,218: #7a756f is 3.65:1 on that grained --background, 4.18:1 on
+     --card, 4.39:1 on --popover, 4.18:1 on --muted (disabled fields, where
+     disabled:bg-muted carries no disabled:border override), 3.79:1 on the
+     delete-confirm panel tint. The previous #88837e was 3.00:1 on the grained
+     --background, so its floor was spent before any image existed.
+     Beyond those five, on "/" the uploaded image paints at full opacity (task 012), so the 3.36:1
+     "over a dimmed uploaded background" figure task 010 recorded described a
+     97% scrim that no longer exists and is gone. The "/" grounds are now: the
+     solid surface (--popover, flat, no image dependency): 4.39:1, the outline
+     buttons' own --background fill on it: 4.18:1; and the frosted panel
+     (--surface-glass, image-dependent): 3.51:1 at worst, the fill over a black
+     image, 4.40:1 over white. Those two frosted figures are computed from the
+     fill composite, not yet read from painted pixels (task 012 group D replaces
+     them).
      The .dark value carries its own five figures.
      Why not an existing token: --border (and --input, which equals it) is
      1.36:1 on --background and 1.43:1 on --popover, and it is shared
@@ -88,17 +99,35 @@
   --scrim: rgb(43 32 23 / 0.45);
   --ring: #b45309; /* amber-700, matches the existing :focus-visible outline below */
   /* Edge of the task dialog. Role: the line that separates the dialog from the
-     scrimmed page. Why not an existing token: in dark the dialog fill is
+     page behind it. Why not an existing token: in dark the dialog fill is
      capped near the page's luminance (the task swatches need 3:1 on it), so
      the fill cannot separate the dialog from the page and the edge has to,
      which --border (a 1.4:1 hairline by design) cannot do. :root = --border,
-     so light is unchanged; .dark = #80705d, 3.98:1 against the scrimmed page
-     and 3.73:1 against the dialog fill, 6 px ring sampler over a real dialog
-     (3.92 under a white image, 4.01 under black). An earlier comment here read
-     4.12 against the scrim, from a different sampler; the floor is 3:1 either way.
-     Light is a known sub-floor at 2.00:1 against the scrim and 1.43:1 against
-     the fill -- pre-existing, deferred out of 010, see docs/PLAN.md. */
+     so light is unchanged. .dark = #80705d against --scrim at 0.90: 3.469:1
+     over a white image and 4.266:1 over a black image, and 3.731:1 against
+     the dialog fill (image-independent). All three are arithmetic sRGB
+     composites of the token values, not sampled pixels.
+     Why the edge and not the fill carries the delineation: the dark fill
+     #1e1610 is only 1.154:1 against its scrimmed ground over a black image,
+     and its luminance sits inside the band of grounds the image can produce,
+     so no scrim alpha makes the fill work at both extremes. Light is a known
+     sub-floor at 2.00:1 against the scrim and 1.43:1 against the fill,
+     pre-existing and deferred out of 010, see docs/PLAN.md. */
   --dialog-edge: var(--border);
+  /* Fill of the one frosted surface, the timer panel (app/globals.css
+     .surface-frosted). Role: the ground under the timer panel's text, so the
+     fill carries legibility and the blur only carries the look; with the blur
+     unavailable the panel is unchanged in contrast. Why not an existing
+     token: every opaque token hides the picture (criterion 9 asks for at least
+     8 per channel of it), and none carries an alpha. :root = --popover at 0.90,
+     the highest translucency that keeps --control-border (the tightest pair)
+     at 3:1 over a black image. Computed from the fill composite over flat
+     white and flat black, the two ends that bound it: mm:ss and task title
+     #2b2017 12.2:1 at worst; chip text #44403c 7.90:1, checked chip
+     #78350f 6.98:1, muted text 5.87:1, error text 4.98:1; --control-border
+     3.51:1; --ring 3.86:1. Worst end for all of them is black. Not yet read
+     from painted pixels (task 012 group D). */
+  --surface-glass: rgb(255 250 243 / 0.9);
   /* Fill of a disabled solid button (the task form's submit). Role: a surface,
      not a boundary. Why not an existing token: it used to be --border, which
      is a boundary token whose dark value is chosen for a boundary job (007
@@ -173,21 +202,32 @@
   --destructive-foreground: #1c140e;
   --border: #3b2f25;
   --input: #3b2f25;
-  /* Painted on the same five grounds as :root, and these are PAINTED figures:
-     only --background carries the paper grain, which lightens it here, so its
-     figure is taken on the lightest grained pixel, 40,31,25. #8a7968 is: 3.86:1
-     on that grained --background, 4.34:1 on --card, 4.26:1 on --popover, 4.00:1
-     on --muted, 3.98:1 on the delete-confirm tint (and 3.76:1 on --secondary
-     under the Stats button). Over a dimmed uploaded background (task 010) the
-     grained ground is 3.55:1 at worst (a white or split image under the 97%
-     scrim, lightest pixel 46,38,32). It was lightened from #80705d (3.11:1 at
-     that worst pixel) so dark holds more edge than light's 3.36:1. The light
-     value is separate. */
+  /* Same grounds as :root, and these are PAINTED figures: on the plain page
+     ground (/settings, /stats, dialogs) only --background carries the paper
+     grain, which lightens it here, so its figure is taken on the lightest
+     grained pixel, 40,31,25. #8a7968 is: 3.86:1 on that grained --background,
+     4.34:1 on --card, 4.26:1 on --popover, 4.00:1 on --muted, 3.98:1 on the
+     delete-confirm tint (and 3.76:1 on --secondary under the Stats button).
+     On "/" the image paints at full opacity (task 012), so the 3.55:1 "over a
+     dimmed uploaded background" figure from task 010, which described a 97%
+     scrim that no longer exists, is gone. The "/" grounds are now: the solid
+     surface (--popover, flat): 4.26:1, the outline buttons' --background fill
+     on it: 4.34:1; the frosted panel (--surface-glass): 3.23:1 at worst, the
+     fill over a white image, 4.35:1 over black. The frosted figures are
+     computed from the fill composite, not yet read from painted pixels (task
+     012 group D replaces them). It was lightened from #80705d in task 010 so
+     dark holds more edge than light. The light value is separate. */
   --control-border: #8a7968;
   /* Black-brown veil: it must dim the page. An inverted --foreground would be
      a cream veil that lifts it and makes the dialog look darker than the page. */
-  --scrim: rgb(8 5 3 / 0.62);
+  --scrim: rgb(8 5 3 / 0.90);
   --dialog-edge: #80705d;
+  /* Same role as :root, --popover at 0.90. Worst end is a white image for the
+     light-on-dark text: #f5ebdc text 11.5:1, chip text #e2d5c2 9.36:1, checked
+     chip #fbd592 9.69:1, muted text 6.48:1, error text 5.70:1; --control-border
+     3.23:1 (the tightest pair, and the reason the alpha is not lower); --ring
+     6.57:1. Computed, not yet read from painted pixels (task 012 group D). */
+  --surface-glass: rgb(30 22 16 / 0.9);
   --disabled-surface: #4a3d32;
   --ring: #f0a550;
   --chart-1: #c4915a; /* potato */
@@ -269,6 +309,133 @@ body::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.6 0 0 0 -0.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.6 0 0 0 -0.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   mask-size: 240px 240px;
+  transition: opacity 500ms;
+}
+
+/* Grain ruling (task 012): it is switched off while an uploaded image shows.
+   Reason: at 7% (5% dark) of --grain-ink over a photograph it is dirt on the
+   owner's picture, and it has no job there, since it exists to make flat cream
+   read as paper (R-07). The fade runs on the image layer's own 500 ms so the
+   two cross as one arrival; nothing else here moves. Under forced colours the
+   image layer is hidden, so the grain stays. :has() is the only link between
+   the layer's data-background state and body::before; where it is unsupported
+   the grain keeps painting, which costs a faint texture and no contrast. */
+@media not (forced-colors: active) {
+  body:has([data-background="active"])::before {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    transition: none;
+  }
+}
+
+/* The two surface kinds on "/", each defined once and applied through
+   components/Surface.tsx. They paint only while an uploaded image shows
+   (body:has([data-background="active"]), the same CSS-only link the grain uses,
+   so there is no React state and no server/client mismatch). Reason: panels
+   defend text against a photograph, and with no photo they are chrome with no
+   job (DESIGN.md: no clutter). The box is the same in both states: the 1 px
+   border is kept transparent rather than removed, so adding or removing an
+   image moves no pixel of layout. Under forced colours a transparent border is
+   forced visible, so the no-image state pins it to Canvas, where it vanishes.
+   Radius steps up the existing --radius scale instead of one pill for all: the
+   panel is the page, the solid bars are chrome. Shadow (R-12) is the elevation
+   marker for both and has one reason: they sit on a photograph, where a 1.4:1
+   --border hairline alone does not hold an edge. Forced colours zero the shadow
+   and force the border to a system colour, so neither surface depends on it. */
+@utility surface-solid {
+  border: 1px solid transparent;
+  border-radius: var(--radius-xl);
+  @media (forced-colors: active) {
+    border-color: Canvas;
+  }
+  body:has([data-background="active"]) & {
+    /* Fully opaque, no blur, no alpha: what paints on it never depends on the
+       image, so its contrast figures are flat token measurements. --popover is
+       the existing opaque ground the task swatches are already held to 3:1 on,
+       which is why the task list (task 014) can reuse this and add no colour. */
+    background-color: var(--popover);
+    border-color: var(--border);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08);
+  }
+}
+
+@utility surface-frosted {
+  border: 1px solid transparent;
+  border-radius: var(--radius-2xl);
+  @media (forced-colors: active) {
+    border-color: Canvas;
+  }
+  body:has([data-background="active"]) & {
+    /* The page's one blurred surface (R-10, owner ruling). The fill is what
+       makes the text readable and the blur is only the look: a browser without
+       it paints the same fill, so every foreground stays on a ground bounded by
+       the fill over white and over black. Under prefers-reduced-transparency the
+       fill goes opaque (--popover) and the blur value becomes none, so nothing
+       is left to see through. The blur is a variable so the property is
+       declared once. */
+    --surface-blur: blur(10px);
+    background-color: var(--surface-glass);
+    border-color: var(--border);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08);
+    backdrop-filter: var(--surface-blur);
+    @media (prefers-reduced-transparency: reduce) {
+      background-color: var(--popover);
+      --surface-blur: none;
+    }
+  }
+}
+
+/* Edge of the four bottom-cluster triggers (tasks, ambient sound, stats,
+   settings), which sit directly on the photograph with no surface behind them
+   (a cluster-wide surface collided with the timer panel below lg and is
+   closed). Unlayered on purpose: it must beat the Button's own border and ring
+   utilities, including the tasks trigger's border-none.
+   Purpose: no single border colour holds 3:1 against an arbitrary photograph,
+   because a photograph can be any luminance. Two rings of opposite luminance
+   cover the whole range: the 1 px border is --foreground (ink in light, cream
+   in dark) and a 1 px halo outside it is --popover (cream in light, umber in
+   dark). Whichever side the photograph lands on, one ring contrasts with it
+   and the other contrasts with that ring. Both are existing tokens, so no
+   colour is added and both themes flip with the class.
+   Computed with the sRGB formula (ink/halo vs flat ground; the figure to read
+   is the larger of the two, the other is allowed to vanish):
+   light, ink #2b2017 / halo #fffaf3: white 15.89 / 1.04, black 1.32 / 20.22,
+   50% grey #808080 4.02 / 3.80. dark, cream #f5ebdc / halo #1e1610: white
+   1.18 / 17.84, black 17.80 / 1.18, 50% grey 3.35 / 4.52. Swept over every
+   grey from 0 to 255 the larger figure never drops below 3.91 (light, at grey
+   126) or 3.90 (dark, at grey 117). The old #7a756f border was 1.14:1 at 50%
+   grey, where it sits between the two ends it was chosen for.
+   Focus: the 2 px --ring outline sits 2 px off the border, and --ring is only
+   2.06:1 against a white photograph in dark. The halo widens to 5 px on focus,
+   so the outline is flanked by --popover on both sides: --ring on --popover is
+   4.84:1 light and 8.67:1 dark, whatever the photograph does behind it.
+   Painted only while an uploaded image shows, like the surfaces, so a page with
+   no image keeps the grey --control-border edge it was measured with; the
+   border is already 1 px on three of the four triggers and the tasks trigger's
+   fixed 44 px box does not change, so nothing moves on arrival.
+   Forced colours: box-shadow is removed and non-system colours are overridden,
+   and the tasks trigger's border is 0 (border-none) with its fill removed,
+   which left it as Canvas on Canvas, 1.000:1. A 1 px ButtonBorder edge on all
+   four gives each one a system-colour boundary that does not rely on a fill. */
+@media not (forced-colors: active) {
+  body:has([data-background="active"]) .control-edge {
+    border: 1px solid var(--foreground);
+    box-shadow: 0 0 0 1px var(--popover);
+  }
+  /* :where() keeps the focus state at the same specificity as the rule above,
+     so source order alone decides and it follows that rule. */
+  body:has([data-background="active"]) .control-edge:where(:focus-visible) {
+    box-shadow: 0 0 0 5px var(--popover);
+  }
+}
+@media (forced-colors: active) {
+  .control-edge {
+    border: 1px solid ButtonBorder;
+  }
 }
 
 /* Low-specificity defaults shadcn/ui components assume are in place (e.g. a
@@ -299,5 +466,69 @@ body::before {
   html .hb-root {
     transition-property: none !important;
     transition-duration: 0s !important;
+  }
+}
+
+/* Cycle dots (components/CycleDots.tsx). Every dot is one 16 px box with a
+   2 px border in every treatment, so no treatment changes the group's size.
+   Colours are existing tokens: --accent-foreground for done and the ring,
+   --control-border for pending. The inner fill is inset, so pending reads
+   smaller than done as well as lighter (a non-colour difference that survives
+   greyscale), and the ring is unfilled. The pulse exists only for
+   active-running and is the sole animation here; reduced motion collapses it
+   into the ring. Forced colours use system colours, where size and fill carry
+   the difference. */
+.cycle-dot {
+  box-sizing: border-box;
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--accent-foreground);
+  border-radius: 9999px;
+  background-color: var(--accent-foreground);
+}
+.cycle-dot[data-treatment="pending"] {
+  border-color: transparent;
+  border-width: 4px;
+  background-color: var(--control-border);
+  background-clip: padding-box;
+}
+.cycle-dot[data-treatment="active-idle"] {
+  background-color: transparent;
+}
+.cycle-dot[data-treatment="active-running"] {
+  animation: cycle-dot-pulse 1.6s ease-in-out infinite alternate;
+}
+@keyframes cycle-dot-pulse {
+  from {
+    background-color: var(--control-border);
+    border-color: var(--control-border);
+  }
+  to {
+    background-color: var(--accent-foreground);
+    border-color: var(--accent-foreground);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cycle-dot[data-treatment="active-running"] {
+    animation: none;
+    background-color: transparent;
+  }
+}
+@media (forced-colors: active) {
+  .cycle-dot {
+    border-color: CanvasText;
+    background-color: CanvasText;
+  }
+  .cycle-dot[data-treatment="pending"] {
+    border-color: Canvas;
+    background-color: GrayText;
+  }
+  .cycle-dot[data-treatment="active-idle"] {
+    background-color: Canvas;
+  }
+  .cycle-dot[data-treatment="active-running"] {
+    animation: none;
+    background-color: Canvas;
   }
 }

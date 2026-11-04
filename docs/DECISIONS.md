@@ -4,6 +4,313 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-10-29 — Two rings of opposite luminance, because one colour cannot win against a photograph
+Task 012 let an uploaded photo paint at full opacity, which left the bottom-cluster controls
+(Settings, Stats, Soundscape, Tasks) sitting on an unknown ground. A single border colour cannot hold
+3:1 there: tune it for a light photo and it vanishes on a dark one. Measured, the old single grey edge
+read **1.140:1** over 50% grey. A cluster-wide surface was tried first and **measured to collide** with
+the timer panel below `lg` (218x62 px at 320x568), so that route stayed closed.
+
+**The edge is now two rings: a 1 px `--foreground` border with a 1 px `--popover` halo outside it**,
+drawn with `box-shadow` so it costs no layout, and painting only while `body:has([data-background="active"])`.
+Whichever way the photograph goes, one of the two rings contrasts against it.
+
+The pass condition is therefore **`max(border, halo) >= 3`**, not "every ring clears 3:1". By design the
+outer ring alone reads 1.04:1 (light over white) and 1.18:1 (dark over black). Swept across all 256
+greys, the larger ring never drops below **3.91** (light, at grey 126) or **3.90** (dark, at grey 117);
+the two rings are 15.3:1 (light) and 15.1:1 (dark) against each other, so the pair always reads as an
+edge. **A sampler that reads only the outer row will report a false failure** — that trap is why the
+figures live here.
+
+Both ring colours are existing tokens that flip with the theme, so no new token and no criterion 6 churn.
+On `:focus-visible` the halo widens to 5 px, which is what fixed the focus ring that used to extend past
+its surface onto the bare photo (2.058:1 -> 8.665:1 dark, 4.835:1 light).
+
+**The cost, accepted:** while an image shows, the control borders read as ink or cream rather than soft
+grey, which is more assertive than the calm direction `DESIGN.md` asks for. `DESIGN.md` settles that
+trade in advance — "accessibility is not negotiable against aesthetics" — and the alternative was
+controls that disappear on half the photographs a user might upload.
+
+Related: under `forced-colors: active` a fill-only control has no edge at all once the fill is removed
+(the Tasks trigger measured **1.000:1**, Canvas on Canvas). Fixed in the same rule with
+`border: 1px solid ButtonBorder`. **A literal colour would have been ignored in that mode** — forced
+colours only honours system colour keywords.
+
+---
+
+### 2026-10-29 — A screenshot taken with `animations: "disabled"` lies about an animated element
+Tasks 012 and 013 disagreed with themselves: two pixel samplers returned different colours for the
+same rect, and the number that survived into 012's criterion 14 was wrong. Settled by probing one
+element with a **known opaque** fill, rather than carrying the disagreement into another sweep.
+
+On a `span.cycle-dot` computing to `rgb(121, 84, 61)`: `groundPixels` read `121,82,58`;
+`paintedColours` read `120,53,15`. That second value is `#78350f` — the dot's *pending* base colour,
+which is to say the animation's initial keyframe.
+
+**Playwright's `animations: "disabled"` cancels an infinite animation to its initial state.** It does
+not freeze it where it is. The two helpers are otherwise line-for-line identical; the flag at
+`e2e/helpers/background.ts:146` is the whole difference. So any element carrying an infinite animation
+— the cycle dots, anything that pulses — screenshots as its *first* frame, and a contrast figure taken
+that way describes a colour the user never sees at that moment.
+
+**`groundPixels` is the sampler of record for painted figures.** If a measurement needs motion held
+still, pause the animations in the page (`el.getAnimations().forEach(a => a.pause())`) and screenshot
+without the flag: a paused animation keeps painting its current value, so the pixel and the computed
+style describe the same instant. A cancelled one does not.
+
+The same class of error produced 012's other bad number, from a different cause: a 6 px ring sampled
+around the wordmark overflowed its 50 px surface by 1 px and reported the photograph behind it as the
+wordmark's ground (2.925:1, where the real ground is 4.835:1). **A probe that samples near an edge
+must be clipped to the surface under test and must fail loudly when nothing in-surface is left** — a
+sampler reading the wrong pixel is worse than one that errors, because it is believed.
+
+Both are the measurement-ordering lesson again (2026-10-26): a figure must name the painted pixel,
+the theme and the ground it came from, or it cannot be checked.
+
+---
+
+### 2026-10-28 — Task 014: the pin is retired, and "current" is derived rather than stored
+Settled while scoping 014 so the implementation does not re-ask any of it.
+
+**The current task is the first task whose `done` is false.** Not the first row outright, and not a
+stored flag. Auto-sorting finished tasks to the bottom was considered and **rejected**: it rewrites
+`position` behind the user's back, so a list the user arranged by hand silently rearranges itself the
+moment a box is ticked. Finished tasks stay where they are and the marker moves past them.
+
+**`done` is a new independent field, not a reuse of the pin.** The pin answered "which one is current",
+which is now derived, so the pin has no remaining job and is retired. The v3 -> v4 `.upgrade()` moves the
+last pinned task to position 0, so the one thing the pin was expressing survives the migration.
+
+**The dialog survives, scoped down.** The panel owns the checkbox, the current marker, drag and the
+keyboard move; the dialog owns add, edit, delete and the +/-1 controls. Exactly one `DndContext` exists
+across both, because two would fight over the same ids. `CurrentTaskCard` stays: it is the only surface
+that shows the current task at the size the timer needs it.
+
+**Placement:** fixed lower-left from `lg` up, ordinary page flow below, which is the same ruling already
+recorded for the floating bottom cluster and for the same measured reason.
+
+---
+
+### 2026-10-28 — A fixed colour cannot win against a photograph, so the dialog's ground had to stop being one
+Task 012 let the uploaded image paint at 100% and removed the page's 97% scrim. That moved the ground
+behind an open task dialog from a near-opaque page colour to the photograph itself, dimmed only by
+`--scrim`. Dark `--dialog-edge` `#80705d` fell from a recorded 3.98:1 to **1.232:1** against that ground
+over a white image. QA raised it as the blocker criterion 12 told it to raise.
+
+The obvious fix, letting the dialog's opaque fill carry the delineation instead of the edge, **was
+measured and rejected**: over a white image the dark fill `#1e1610` is 3.028:1 against its scrimmed
+ground, but over a black image it is **1.154:1**. The dark fill's luminance sits *inside* the band of
+grounds the image can produce, so there is no scrim alpha that rescues it. Raising the alpha improves
+the edge over white while making the fill worse over white, and changes nothing at all over black. This
+is the same trap recorded on 2026-10-28 under the luminance-vs-contrast correction: for a fixed
+foreground the worst ground is interior to the band, so bounding the image by black and white does not
+bound the contrast.
+
+**Decided: dark `--scrim` goes 0.62 -> 0.90, and `--dialog-edge` is the delineator.** The only
+image-independent figure in the system is edge vs dialog fill, 3.731:1, so the edge is the only candidate;
+making it work means making the ground predictable rather than making the stroke louder. At 0.90 the edge
+clears 3:1 on both sides at both extremes: 3.469:1 against the ground over a white image, 4.266:1 over a
+black one, 3.731:1 against the fill. 0.86 is the arithmetic minimum; 0.90 was chosen for margin against
+sampler rounding. This does not contradict the owner's "full image visible" decision, because `--scrim`
+paints only while a modal dialog is open.
+
+The generalisable rule: **when a surface must sit over arbitrary user imagery, fix the ground, do not
+re-tune the foreground.** Re-pointing a token against one sampled image buys a figure that the next image
+invalidates.
+
+Also found: the `--dialog-edge` comment still cited the pre-012 figures. Criterion 11 rewrote the
+`--control-border` comments for exactly this reason and this file was missed, so the lesson from
+2026-10-26 ("a criterion that names a figure must name where the figure came from") now has a corollary:
+when a ground moves, grep for *every* comment that cites a figure against it, not just the ones a
+criterion happens to name.
+
+---
+
+### 2026-10-28 — Two QA criteria were read literally and ruled out of scope, rather than widened
+QA correctly reported two literal failures and asked for rulings instead of guessing. Both were ruled
+PASS, because both criteria were aimed at something narrower than their wording.
+
+- **012 criterion 6** requires "any new custom property" to carry a painted figure per theme.
+  `--surface-blur` is a filter length, identical in both themes, with no painted figure to carry. The
+  criterion is about colours, whose legibility is theme-dependent. Out of scope.
+- **013 criterion 46** bans timers in the files the task touches. `components/PomotatoTimer.tsx` has a
+  one-shot `setTimeout` that clears a spent aria-live sentence. The criterion exists to enforce the
+  project rule that the remaining time is derived from a stored end timestamp and never counted by
+  ticks. This timeout counts no time and feeds nothing back into the store. Out of scope, and the guard
+  was deliberately **not** widened to ban every `setTimeout`, which would ban correct accessibility code.
+
+The pattern worth keeping: a guard written to stop one specific defect will eventually catch something
+innocent that matches its wording. Rule on the defect the guard was built for; do not widen the guard to
+make the literal reading true, and do not weaken it either.
+
+---
+
+### 2026-10-28 — A `git ls-files` test broke on an unstaged rename, and the fix is to trust the disk
+Renaming `CustomDurationInput.tsx` to `FocusLengthInput.tsx` without staging left the index naming a file
+the working tree no longer has. `lib/audio/no-audio-asset.test.ts` builds its scan list from
+`git ls-files -co`, so it handed `readFileSync` a path that does not exist and three guards died with
+ENOENT. QA's reported "0 failing" predated its own rename and so was stale.
+
+`listFiles` now drops paths that are not on disk: a file deleted in the working tree does not ship, so it
+is not in scope for a "what ships" scan, whatever state anyone's index is in. The guard still
+discriminates (red-proofed: a `decodeAudioData` probe in an untracked source file turns it red), and a
+tracked file that genuinely vanished is still caught by the decode exemption's own `toContain`.
+
+This is the same family as the HEAD-diff anti-pattern already recorded: **a test whose result depends on
+git bookkeeping rather than on the tree will invert or crash for reasons that have nothing to do with the
+code.** `components/background.guards.test.ts` still holds three such assertions from 010; they pass
+today and are filed in `docs/PLAN.md`.
+
+---
+
+### 2026-10-28 — One round of owner feedback, split into tasks 012, 013 and 014, and built in that order
+The owner gave three pieces of feedback and named the focus timer the highest priority. The work is
+sequenced **012 (surfaces) then 013 (focus cycle) then 014 (task list)** anyway, which is the reverse of
+the stated priority for the first item. The reason is this log's own 2026-10-26 "Measurement ordering"
+ruling: taking the page scrim out moves the ground every contrast figure in `app/globals.css` was read
+against, and 013 and 014 both add UI that sits on that ground. Measured in priority order, 013 and 014
+each get measured twice. **Priority decided what shipped, not what was measured first.**
+
+Six owner decisions were taken up front so no task re-asks them:
+1. **Auto-advance switches the mode and auto-starts the next timer.** "Switch, then wait for Start" was
+   shown and rejected.
+2. **Only the Focus length is editable** (1 to 180 whole minutes, the old custom range). Short break stays
+   5, long break stays 15. Making all three editable was shown and rejected.
+3. **The pin is dropped; position 0 is the current task.** Reordering is how the current task changes. This
+   supersedes the reasoning in `lib/db/types.ts`'s `Task` comment, which argues the pin is deliberately not
+   a field so "exactly one task pinned" stays structural. A dense, unique `position` gives the same
+   guarantee at position 0, so the property is kept by different means.
+4. **Full-opacity background with frosted panels, no page scrim.** A lighter full-page scrim was shown and
+   rejected: text would still sit on arbitrary photo pixels.
+5. **Exactly one blurred surface, the timer panel.** See the R-10 entry below.
+6. **The panels paint only while a background image is active.** With no image, `/` is unchanged from HEAD:
+   open cream, no panel fills, borders or shadows. Panels defend text against a photograph, so permanent
+   panel chrome is cost without purpose (R-31), and DESIGN.md asks for "minimalist, no clutter of widgets
+   competing for attention". **Geometry is identical in both states and only the paint is conditional**, so
+   adding an image never reflows the page. This is also a measurement saving worth keeping visible: the
+   no-image state is layout- and paint-identical to HEAD, so its figures are already proven by 007, 009 and
+   010 and need no re-measurement. Only the with-image state is swept.
+
+### 2026-10-28 — The focus cycle: what `cyclePosition` means, and the two types that stopped being one
+Task 013. `cyclePosition` counts **Focus runs completed in the current cycle**, 0 to 4. Only completing the
+**long break** zeroes it (`lib/timer/cycle.ts`); a short break leaves it alone, and neither `reset()` nor
+`selectMode` touches it. `reset()` clearing only the current run is deliberate: a mis-held hold-to-confirm
+must not be able to destroy four Focus runs with no undo. The cost of that choice is that **no manual cycle
+reset ships**, so a position stuck at 3 brings the long break one run early.
+
+**`cyclePosition` can be 4 while the mode is `focus`, and it is defined, not undefined.** Skip an owed long
+break by picking Focus from the chip row and all four dots are already solid with no index left to mark
+active. `Math.min(position + 1, CYCLE_LENGTH)` pins it there, so every subsequent Focus earns another long
+break until one is actually completed, which then resets to 0. It renders as four done dots with nothing
+active and nothing animating, and reads as "Focus, 4 of 4 runs done, long break owed". Found by tracing the
+transition function during orchestrator verification, before frontend reached it; left as-is because it is
+self-limiting and self-healing.
+
+**Drift.** Each next run's `endTimestamp` is the **completed run's own stored end** plus the next mode's
+duration, never the wall clock at the moment completion was noticed, so noticing-latency cannot accumulate
+across a cycle. One step only: if that computed end is already in the past, the timer lands idle rather
+than chaining, which is what stops a tab closed for hours from replaying history on reload. A full cycle at
+a 1-minute Focus therefore ends exactly 2,040,000 ms after the first start (1+5+1+5+1+5+1+15 minutes), and
+the criterion asserting it carries **no tolerance**, because a correct implementation has no rounding to
+forgive.
+
+**`SessionMode` and `TimerMode` stopped being an alias.** `lib/db/types.ts` had `export type SessionMode =
+TimerMode`, so narrowing the selectable modes to three would have silently narrowed the **stored** union and
+dropped existing `mode: "custom"` rows out of stats. It is now `SessionMode = TimerMode |
+LegacySessionMode`, a superset by construction: a new selectable mode becomes loggable automatically, and
+shrinking `TimerMode` cannot remove `"custom"` because it is named explicitly. Both lists are derived from
+exhaustive `Record` types (`lib/db/session-modes.ts`, `lib/timer/modes.ts`), so dropping a value or adding
+an unlisted one fails **typecheck** rather than failing quietly. `custom` stays focus-type in
+`isFocusTypeMode` forever; no new row ever gets it.
+
+**Renames**, for anything reading older task files: `customMinutes` to `focusMinutes`, `setCustomMinutes` to
+`setFocusMinutes`, `parseCustomMinutes` to `parseFocusMinutes`, `CUSTOM_MINUTES_*` to `FOCUS_MINUTES_*`, and
+the input id `custom-duration` to `focus-length`. The old fixed `FOCUS_MINUTES` constant is gone, since the
+Focus length is now stored state.
+
+### 2026-10-28 — Two task-013 criteria were wrong, and both were caught by looking at the painted page
+Recorded because of *how* they were caught, which is the reusable part.
+
+**Criterion 25 contradicted criterion 27.** 25 said the active dot shows the static ring "in a break mode of
+any status"; 27's step-by-step sequence said "nothing animating, no dot active" during a break. **27 was
+right** and is now the spec: the dots count Focus runs, so during a break none is active and there is
+nothing for a ring to mark. The ring exists only because R-19 forbids an endless pulse on an idle timer,
+which is a Focus-mode problem. **Frontend implemented 27 and raised the conflict instead of picking
+silently**, which is the behaviour that stopped QA measuring a state the spec disagreed with itself about.
+
+**Criterion 7 said the duration field is "absent in both break modes".** Built exactly as written, it left a
+conspicuous empty gap for 5 or 15 minutes of every cycle. Frontend had reserved the slot so the controls
+would not jump under the cursor during an unattended auto-advance, which was the right call given the
+wording. The defect only became visible in a screenshot: an empty reserved slot is **leftover space, not
+structural whitespace**. The owner ruled the field present in every mode, interactive except while a *Focus*
+run is running or paused. That also recovered a real loss nobody had noticed: **a break is the natural
+moment to decide the next Focus length**, and hiding the field removed the control exactly when it was most
+usable.
+**How to apply:** a criterion that passes code review can still be the wrong criterion. Both of these were
+satisfiable as written and both were wrong, and neither would have surfaced from a diff. Render the states
+and look at them before QA spends a round measuring them.
+
+### 2026-10-28 — Floating chrome goes into page flow below `lg`, because Start was not pressable on a phone
+Found in orchestrator verification of task 012, not by QA. The fixed control cluster sits over the timer at
+phone sizes, so **Start needed a scroll before it could be pressed**, on an app whose whole job is that
+button. Probed with `elementFromPoint` at each control's own centre rather than rect maths, and attributed
+by neutralising only the padding and border 012 added, which reproduces HEAD's vertical geometry:
+
+| viewport | at HEAD | with 012 before the fix |
+|---|---|---|
+| 320x568 | Start 55% covered | Start below the fold (y 571 in a 568 viewport) |
+| 375x667 | reachable | Start 43% / Reset 55% covered (y 524 to 571) |
+| 320x700 | reachable | reachable |
+
+**375x667 was a 012 regression** (27 px, exactly `p-4` plus a 1 px border on the panel and `py-1` plus 1 px
+on the header); **320x568 was already broken at HEAD**. Recorded split like this on purpose: PLAN.md's
+convention is that a task which merely *finds* a gap should not be credited with causing it.
+
+**Why padding cannot fix this, which is the generalisable part.** `pb-28` reserves space at the **document**
+end, while a fixed element occupies the bottom of the **viewport** at every scroll position. When the
+document is only a little taller than the viewport, the at-rest position therefore puts content under the
+overlay no matter how much bottom padding the page reserves. **Reserved padding is not a substitute for not
+overlaying.**
+
+**The ruling:** below `lg`, floating chrome stops floating and sits in normal page flow; at `lg` and up it
+stays fixed. This covers `widgets/BottomControls.tsx` and, by the same rule, task 014's task-list panel, so
+the two widgets follow one rule rather than two. The owner was shown shrinking the panel instead (fixes
+375x667 only partly, leaves 320x568 broken, since the panel is taller than that viewport regardless) and
+accepting it as a floating action bar, and chose flow.
+
+### 2026-10-28 — Two antislop collisions resolved inside the rules, with no override
+antislop ran in `during` mode. Two owner requests collided with named rules; per R-37 each was raised with
+the element and the rule named, rather than followed or overridden silently. **Both resolved without an
+override**, which is worth recording because the resolutions are now constraints, not preferences.
+
+**R-10 (glassmorphism dose cap) vs "frosted panels".** Blur on the timer, the task list and the bottom
+controls is three or more surfaces; R-10 caps it at one or two, and `antislop-ui` states the reason as
+"when every surface is glass, nothing is foreground". Resolved by frosting **only the timer panel**, which
+makes it the page's single focal point (core Part 3), with every other surface opaque. This is a
+strengthening rather than a compromise: an opaque ground is a fully provable contrast ground, so those
+surfaces need flat token figures and no adversarial-image sweep at all. **A later task proposing glass on a
+second surface is reopening an owner ruling, not making a style choice.**
+
+**R-19 and "Decorative Status Dot" vs the pulsing cycle dot.** The guidance is that a dot marking a real
+state should "drop the endless pulse", and task 010 pinned that nothing animates while the timer is idle.
+Resolved by scoping the pulse to `status === "running"` and giving the active dot a **static outlined ring**
+when idle, paused or complete. So there are four painted treatments, not three, and `prefers-reduced-motion`
+collapses the pulse into the ring rather than into nothing, which leaves reduced-motion users a real cue.
+
+### 2026-10-28 — Bounding an image-dependent ground by black and white bounds luminance, not contrast
+Found by `pm` while scoping 012, correcting an instruction from the orchestrator's own brief. This log's
+qa cost rule 3 says to bound an adversarial image set by the extremes. That is sound for a *ground's
+luminance* and wrong for a *contrast ratio*: for a fixed foreground, the worst ground is the one nearest it
+in luminance, which is **interior to the band**. The wordmark's `--primary` `#b45309` (relative luminance
+about 0.168) measures about 4.83:1 on pure white and about 4.35:1 on pure black, both clearing its 3:1
+large-text floor, while a mid-tone photo at the same luminance gives about 1:1. **Measuring the extremes
+would have reported a comfortable pass on unreadable text.**
+**How to apply:** the extremes bound an image-dependent ground only when the band does not contain the
+foreground's own luminance. A band that straddles a foreground it carries is a failure, not a figure. 012
+carries this as a straddle clause QA must state per foreground, and it is why the header wordmark got a
+solid surface: arithmetic, not taste. The extremes bound still holds behind the frosted panel, because the
+fill keeps the band narrow.
+
 ### 2026-10-27 — `npm run typecheck` generates route types first, because `tsc` alone cannot pass a clean tree
 `tsc --noEmit` on a fresh checkout fails with `app/layout.tsx: error TS2304: Cannot find name 'LayoutProps'`. Next 16 generates `LayoutProps`/`PageProps` into `.next/types` during `dev` or `build`; `.next/` is gitignored, so **the gate only ever passed here because a build had already run on this machine**. CI runs `typecheck` before `build` on an empty runner and fails every time. Caught in a dress rehearsal (`git archive HEAD` into a scratch dir, `npx npm@10 ci`, then each gate) rather than by a third red deploy.
 **The script is now `next typegen && tsc --noEmit`.** `next typegen` is a real Next 16 subcommand that emits those types without a full build. Putting it in the script rather than adding a workflow step is the same call as the `.npmrc` one entry below: a clean clone running the command CLAUDE.md documents has to work, and a workflow-only step leaves that broken while hiding the reason.

@@ -123,18 +123,18 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("custom duration input is visible in custom mode", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
-    const customInput = page.locator('input[id="custom-duration"]');
+    const customInput = page.locator('input[id="focus-length"]');
     await expect(customInput).toBeVisible();
   });
 
   test("custom duration input accepts valid values", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
-    const customInput = page.locator('input[id="custom-duration"]');
+    const customInput = page.locator('input[id="focus-length"]');
     await customInput.fill("50");
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
@@ -142,10 +142,10 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("custom duration input shows error for invalid values", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
-    const customInput = page.locator('input[id="custom-duration"]');
+    const customInput = page.locator('input[id="focus-length"]');
     await customInput.fill("abc");
 
     const errorMessage = page.locator("text=/Enter a whole number/");
@@ -153,18 +153,18 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("custom duration input is disabled while running", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
     const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
-    const customInput = page.locator('input[id="custom-duration"]');
+    const customInput = page.locator('input[id="focus-length"]');
     await expect(customInput).toBeDisabled();
   });
 
   test("custom duration input is disabled while paused", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
     const startButton = page.getByRole("button", { name: "Start", exact: true });
@@ -173,7 +173,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
     const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
     await pauseButton.click();
 
-    const customInput = page.locator('input[id="custom-duration"]');
+    const customInput = page.locator('input[id="focus-length"]');
     await expect(customInput).toBeDisabled();
   });
 
@@ -210,23 +210,22 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await expect(timerDisplay).toContainText("23:0");
   });
 
-  test("reload after end time passed shows 00:00 and complete state", async ({ page }) => {
+  test("reload 1 minute past the end of a Focus run lands running on the break, with the overrun taken off it (013 criterion 15, 19)", async ({ page }) => {
     const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
 
     // Use page.clock to advance past the end
     await page.clock.install();
-    await page.clock.fastForward(26 * 60 * 1000); // 26 minutes (past 25)
+    await page.clock.fastForward(26 * 60 * 1000); // 26 minutes (1 minute past the 25-minute run)
 
     // Reload the page
     await page.reload();
 
+    // The Focus run completed and the 5-minute break started at its stored end, so 1 minute is gone.
+    await expect(page.getByRole("radio", { name: "Short break" })).toBeChecked();
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
-    await expect(timerDisplay).toContainText("00:00");
-
-    // Start button should be visible (timer is in complete state)
-    const startButtonAfterReload = page.getByRole("button", { name: "Start", exact: true });
-    await expect(startButtonAfterReload).toBeVisible();
+    await expect(timerDisplay).toContainText(/0[34]:\d\d/);
+    await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   });
 
   test("reload while paused preserves paused state", async ({ page }) => {
@@ -322,10 +321,10 @@ test.describe("Pomotato Focus Timer E2E", () => {
   });
 
   test("persistence: custom duration persists across reload", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
-    const customInput = page.locator('input[id="custom-duration"]');
+    const customInput = page.locator('input[id="focus-length"]');
     await customInput.fill("60");
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
@@ -336,7 +335,7 @@ test.describe("Pomotato Focus Timer E2E", () => {
 
     // Custom duration should still be 60
     await expect(timerDisplay).toContainText("60:00");
-    const customRadio = page.locator('input[type="radio"][value="custom"]');
+    const customRadio = page.locator('input[type="radio"][value="focus"]');
     await expect(customRadio).toBeChecked();
     await expect(customInput).toHaveValue("60");
   });

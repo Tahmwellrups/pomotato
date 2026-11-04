@@ -1,0 +1,324 @@
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { DESKTOP, NARROW, chooseOnSettings, contrastRatio, fmt, makePng, waitActive, type Rect, type Rgb } from "./helpers/background";
+import { groundPixels } from "./helpers/surface-sampler";
+import { seedTimerState } from "./helpers/timer-hold";
+
+// Task 012 round 3 measurement: criteria 4 (two-tone edge on the four bottom-cluster triggers), 14 (theme
+// control focus ring, pulled inside the header; Stats focus ring) and 20 (forced colours edge on the same four
+// triggers). Measurement spec only (qa cost rule 4): a token change re-runs this file and nothing else.
+//
+// Method (qa cost rules 2 and 5): one page load per (image, theme, viewport). Within a load, one screenshot
+// with the theme chip focused (the four triggers at rest, plus the chip ring) and one with the Stats link
+// focused (its focus ring). Every figure is a painted pixel read through groundPixels from that screenshot.
+// Forced colours is one further load per (theme, viewport). Images are the bound the brief names: white,
+// black and a flat 50% grey (128,128,128), which is the one the 2-tone argument is weakest against.
+//
+// Rows are read on the TOP side of each element at its centre column, as in 012 round 2 (outer row only, one
+// side, so no neighbour's paint is in the band). Criterion 4's pass is max(border, halo) >= 3 against the
+// ground three pixels above the border; the outer halo alone is allowed to be low by design.
+
+type Theme = "light" | "dark";
+const IMAGES: Record<string, Rgb> = {
+  white: [255, 255, 255],
+  black: [0, 0, 0],
+  "grey 50%": [128, 128, 128],
+};
+const VIEWPORTS = [
+  { name: "1280x800", ...DESKTOP },
+  { name: "320x720", ...NARROW },
+] as const;
+const NO_TRANSITION = "*, *::before, *::after { transition: none !important; }";
+const TRIGGERS = [
+  { name: "Your tasks (Tasks)", selector: 'button[aria-label="Your tasks"]' },
+  { name: "Ambient sound", selector: 'button[aria-label="Ambient sound"]' },
+  { name: "Focus stats", selector: 'a[aria-label="Focus stats"]' },
+  { name: "Settings", selector: 'a[aria-label="Settings"]' },
+] as const;
+
+/** One whole-pixel read per point, from a single screenshot. A point outside the capture throws, never clamps. */
+async function pixels(page: Page, points: { name: string; x: number; y: number }[]): Promise<Map<string, Rgb>> {
+  const rects: Rect[] = points.map((p) => {
+    if (!Number.isInteger(p.x) || !Number.isInteger(p.y)) throw new Error(`${p.name}: point (${p.x},${p.y}) is not whole-pixel`);
+    return { x: p.x, y: p.y, w: 1, h: 1 };
+  });
+  const maps = await groundPixels(page, rects);
+  const out = new Map<string, Rgb>();
+  points.forEach((p, i) => {
+    const m = maps[i];
+    if (m.size !== 1) throw new Error(`${p.name}: point (${p.x},${p.y}) is outside the capture or not a single colour`);
+    const [k] = [...m.keys()];
+    out.set(p.name, k.split(",").map(Number) as Rgb);
+  });
+  return out;
+}
+
+async function boxOf(locator: Locator): Promise<Rect> {
+  const b = await locator.boundingBox({ timeout: 5000 });
+  if (!b) throw new Error("no bounding box");
+  return { x: b.x, y: b.y, w: b.width, h: b.height };
+}
+
+async function settle(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+  await page.waitForTimeout(60);
+}
+
+/** Same scene seeding as focus-surface-sweep.spec.ts setup(): one stored image, one theme, idle focus at cycle 1. */
+async function load(page: Page, theme: Theme, viewport: { width: number; height: number }, forced: boolean, withImage: boolean) {
+  await page.setViewportSize(viewport);
+  await page.goto("/settings");
+  const storedBackground = await page.evaluate(() => JSON.parse(window.localStorage.getItem("pomotato-preferences") ?? "{}").state?.background ?? null);
+  await page.evaluate(
+    ([p]) => {
+      const key = "pomotato-preferences";
+      const raw = JSON.parse(window.localStorage.getItem(key) ?? '{"state":{},"version":1}');
+      window.localStorage.setItem(key, JSON.stringify({ ...raw, state: { ...raw.state, ...p } }));
+    },
+    [{ theme, gaugeStyle: "vessel", background: withImage ? storedBackground : null }] as const,
+  );
+  await seedTimerState(page, { mode: "focus", status: "idle", focusMinutes: 25, cyclePosition: 1, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
+  await page.emulateMedia({ forcedColors: forced ? "active" : "none" });
+  await page.goto("/");
+  if (withImage && !forced) await waitActive(page);
+  await expect(page.locator('[data-gauge-ready="true"]')).toHaveCount(1);
+  await page.waitForTimeout(800);
+  await page.addStyleTag({ content: NO_TRANSITION });
+  await settle(page);
+}
+
+interface Row {
+  criterion: string;
+  theme: Theme;
+  image: string;
+  viewport: string;
+  state: string;
+  element: string;
+  pixel: string;
+  ground: string;
+  coords: string;
+  ratio: number;
+  note?: string;
+}
+const rows: Row[] = [];
+function record(r: Row) {
+  rows.push(r);
+  console.log(`c${r.criterion} | ${r.theme} | ${r.image} | ${r.viewport} | ${r.state} | ${r.element} | pixel ${r.pixel} @ ${r.coords} | ground ${r.ground} | ${r.ratio.toFixed(3)}:1${r.note ? ` | ${r.note}` : ""}`);
+}
+
+/**
+ * One page load. Phase A reads the theme chip ring and the header fill at the top of the page. Phase B scrolls the
+ * bottom cluster into view (a no-op at 1280 px, where the cluster is fixed; at 320 x 720 it is in flow below the
+ * fold, y 768) and reads the four triggers at rest, then the Stats focus ring. Each phase is its own screenshot.
+ */
+async function measureImageLoad(page: Page, theme: Theme, imageName: string, imageRgb: Rgb, viewport: (typeof VIEWPORTS)[number]) {
+  const base = { theme, image: imageName, viewport: viewport.name };
+  await load(page, theme, viewport, false, true);
+  expect(await page.locator(".control-edge").count(), "four .control-edge triggers").toBe(4);
+
+  // ---- Phase A: theme chip focused, page at the top. ----
+  const header = await boxOf(page.locator('[data-surface="solid"]').first());
+  const chipInput = page.locator('input[name="theme"]:checked');
+  await chipInput.focus();
+  await settle(page);
+  const chipSpan = page.locator('fieldset:has(input[name="theme"]) label:has(input[name="theme"]:checked) span');
+  const chipBox = await boxOf(chipSpan);
+  const chipOutline = await chipSpan.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), offset: parseFloat(cs.outlineOffset), colour: cs.outlineColor };
+  });
+  const chipFocusVisible = await chipInput.evaluate((el) => el.matches(":focus-visible"));
+  expect(chipFocusVisible, `${theme} ${imageName} ${viewport.name}: theme chip is :focus-visible`).toBe(true);
+  expect(chipOutline.style, "theme chip has an outline").toBe("solid");
+
+  // Ring: outer edge inset = -(offset + width) from the chip box. Offset -5, width 2 gives an outer edge 3 px inside.
+  const insetOuter = -(chipOutline.offset + chipOutline.width);
+  const chipCx = Math.floor(chipBox.x + chipBox.w / 2);
+  const chipOuterRow = Math.floor(chipBox.y + insetOuter);
+  const ringBox = { x: chipBox.x + insetOuter, y: chipBox.y + insetOuter, w: chipBox.w - 2 * insetOuter, h: chipBox.h - 2 * insetOuter };
+  const inHeaderBorderBox = ringBox.x >= header.x && ringBox.y >= header.y && ringBox.x + ringBox.w <= header.x + header.w && ringBox.y + ringBox.h <= header.y + header.h;
+  const inHeaderPadding = ringBox.x >= header.x + 1 && ringBox.y >= header.y + 1 && ringBox.x + ringBox.w <= header.x + header.w - 1 && ringBox.y + ringBox.h <= header.y + header.h - 1;
+  expect(inHeaderBorderBox, `${theme} ${imageName} ${viewport.name}: chip focus ring lies inside the header border box`).toBe(true);
+  expect(inHeaderPadding, `${theme} ${imageName} ${viewport.name}: chip focus ring lies inside the header padding box`).toBe(true);
+
+  const chipPx = await pixels(page, [
+    { name: "chip ring outer row", x: chipCx, y: chipOuterRow },
+    { name: "chip ground (inside ring)", x: chipCx, y: chipOuterRow - 1 },
+    { name: "header fill", x: Math.floor(header.x + 4), y: Math.floor(header.y + header.h / 2) },
+  ]);
+  const chipRing = chipPx.get("chip ring outer row")!;
+  const chipGround = chipPx.get("chip ground (inside ring)")!;
+  expect(chipGround, `${theme} ${imageName} ${viewport.name}: chip ring's ground is the header fill`).toEqual(chipPx.get("header fill")!);
+  expect(chipRing, `${theme} ${imageName} ${viewport.name}: painted chip ring is the computed outline colour`).toEqual(
+    (chipOutline.colour.match(/\d+/g) ?? []).slice(0, 3).map(Number),
+  );
+  record({
+    criterion: "14",
+    ...base,
+    state: "theme chip focus (focus-visible), page at top",
+    element: "theme chip focus ring, outer edge",
+    pixel: `${fmt(chipRing)} (computed ${chipOutline.colour})`,
+    ground: fmt(chipGround),
+    coords: `outer row ${chipOuterRow}, centre column; ring box ${Math.round(ringBox.x)},${Math.round(ringBox.y)} ${Math.round(ringBox.w)}x${Math.round(ringBox.h)}; header ${Math.round(header.x)},${Math.round(header.y)} ${Math.round(header.w)}x${Math.round(header.h)}`,
+    ratio: contrastRatio(chipRing, chipGround),
+    note: `outline ${chipOutline.width}px, offset ${chipOutline.offset}px; ring inside header border box: ${inHeaderBorderBox}; inside padding box: ${inHeaderPadding}; chip box bottom ${Math.round(chipBox.y + chipBox.h)} vs header bottom ${Math.round(header.y + header.h)}`,
+  });
+  expect.soft(contrastRatio(chipRing, chipGround), `criterion 14 ${theme} ${imageName} ${viewport.name}: theme chip ring >= 3`).toBeGreaterThanOrEqual(3);
+
+  // ---- Phase B: the bottom cluster in view. ----
+  await page.locator(TRIGGERS[0].selector).evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await settle(page);
+  const triggerBoxes = await Promise.all(TRIGGERS.map((t) => boxOf(page.locator(t.selector))));
+  const triggerPoints = TRIGGERS.flatMap((t, i) => {
+    const b = triggerBoxes[i];
+    const cx = Math.floor(b.x + b.w / 2);
+    const top = Math.floor(b.y);
+    return [
+      { name: `${t.name} border`, x: cx, y: top },
+      { name: `${t.name} halo`, x: cx, y: top - 1 },
+      { name: `${t.name} ground`, x: cx, y: top - 3 },
+    ];
+  });
+  const restPx = await pixels(page, triggerPoints);
+  // Ground under each trigger must be the flat image itself: grain is suppressed while the image shows (tolerance 0).
+  for (const t of TRIGGERS) {
+    expect(restPx.get(`${t.name} ground`), `${theme} ${imageName} ${viewport.name}: ground under ${t.name} is the flat image`).toEqual(imageRgb);
+  }
+  // Criterion 4: border row (top edge), halo row (1 px above), ground (3 px above). Integer-aligned boxes only.
+  TRIGGERS.forEach((t, i) => {
+    const border = restPx.get(`${t.name} border`)!;
+    const halo = restPx.get(`${t.name} halo`)!;
+    const ground = restPx.get(`${t.name} ground`)!;
+    const rBorder = contrastRatio(border, ground);
+    const rHalo = contrastRatio(halo, ground);
+    const max = Math.max(rBorder, rHalo);
+    const aligned = Number.isInteger(triggerBoxes[i].y);
+    record({
+      criterion: "4",
+      ...base,
+      state: "rest (cluster in view)",
+      element: `${t.name} two-tone edge`,
+      pixel: `border ${fmt(border)} / halo ${fmt(halo)}`,
+      ground: fmt(ground),
+      coords: `top row ${Math.floor(triggerBoxes[i].y)}${aligned ? "" : " (box NOT integer-aligned)"}, centre column`,
+      ratio: max,
+      note: `border ${rBorder.toFixed(3)} / halo ${rHalo.toFixed(3)} (larger rules); border vs halo ${contrastRatio(border, halo).toFixed(3)}`,
+    });
+    expect.soft(max, `criterion 4 ${theme} ${imageName} ${viewport.name} ${t.name}: max(border, halo) >= 3`).toBeGreaterThanOrEqual(3);
+  });
+
+  // ---- Criterion 14, Stats focus: 2 px ring at offset 2, the 5 px halo under it. ----
+  const statsLink = page.locator('a[aria-label="Focus stats"]');
+  await statsLink.focus();
+  await settle(page);
+  const statsBox = await boxOf(statsLink);
+  const statsVisible = await statsLink.evaluate((el) => el.matches(":focus-visible"));
+  const statsOutline = await statsLink.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), offset: parseFloat(cs.outlineOffset), colour: cs.outlineColor };
+  });
+  const statsOuter = Math.floor(statsBox.y - (statsOutline.offset + statsOutline.width));
+  const statsCx = Math.floor(statsBox.x + statsBox.w / 2);
+  const statsPx = await pixels(page, [
+    { name: "stats ring outer row", x: statsCx, y: statsOuter },
+    { name: "stats halo (ground)", x: statsCx, y: statsOuter - 1 },
+    { name: "stats beyond halo (photograph)", x: statsCx, y: statsOuter - 6 },
+  ]);
+  const statsRing = statsPx.get("stats ring outer row")!;
+  const statsGround = statsPx.get("stats halo (ground)")!;
+  const beyond = statsPx.get("stats beyond halo (photograph)")!;
+  record({
+    criterion: "14",
+    ...base,
+    state: `Stats focus (${statsVisible ? "focus-visible" : "NOT focus-visible"})`,
+    element: "Stats focus ring, outer edge over the 5 px halo",
+    pixel: `${fmt(statsRing)} (computed ${statsOutline.colour})`,
+    ground: fmt(statsGround),
+    coords: `outer row ${statsOuter}, centre column`,
+    ratio: contrastRatio(statsRing, statsGround),
+    note: `outline ${statsOutline.width}px, offset ${statsOutline.offset}px; photograph beyond halo ${fmt(beyond)}; ring vs photograph ${contrastRatio(statsRing, beyond).toFixed(3)}`,
+  });
+  expect.soft(contrastRatio(statsRing, statsGround), `criterion 14 ${theme} ${imageName} ${viewport.name}: Stats focus ring >= 3`).toBeGreaterThanOrEqual(3);
+}
+
+test.describe("task 012 round 3: criteria 4 and 14 on the photograph (one load per image, theme and viewport)", () => {
+  test.setTimeout(600_000);
+  for (const [imageName, imageRgb] of Object.entries(IMAGES)) {
+    test(`image ${imageName}: triggers' two-tone edges and both focus rings`, async ({ page }) => {
+      const flat = makePng(DESKTOP.width, DESKTOP.height, () => imageRgb);
+      await page.setViewportSize(DESKTOP);
+      await chooseOnSettings(page, flat, `r3-${imageName.replace(/[^a-z0-9]+/gi, "-")}.png`);
+      for (const theme of ["light", "dark"] as Theme[]) {
+        for (const viewport of VIEWPORTS) {
+          await measureImageLoad(page, theme, imageName, imageRgb, viewport);
+        }
+      }
+    });
+  }
+});
+
+test.describe("task 012 round 3: criterion 20 forced colours (one load per theme and viewport)", () => {
+  test.setTimeout(300_000);
+  test("forced colours: each of the four triggers keeps a visible system-colour edge over Canvas", async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await chooseOnSettings(page, makePng(DESKTOP.width, DESKTOP.height, () => [255, 255, 255]), "r3-forced-white.png");
+    for (const theme of ["light", "dark"] as Theme[]) {
+      for (const viewport of VIEWPORTS) {
+        const base = { theme, image: "white (image hidden under forced)", viewport: viewport.name };
+        await load(page, theme, viewport, true, true);
+        const canvasHex = await page.evaluate(() => {
+          const probe = document.createElement("div");
+          probe.style.color = "Canvas";
+          document.body.appendChild(probe);
+          const c = getComputedStyle(probe).color;
+          probe.remove();
+          return c;
+        });
+        await page.locator(TRIGGERS[0].selector).evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await settle(page);
+        const boxes = await Promise.all(TRIGGERS.map((t) => boxOf(page.locator(t.selector))));
+        const points = TRIGGERS.flatMap((t, i) => {
+          const b = boxes[i];
+          const cx = Math.floor(b.x + b.w / 2);
+          const top = Math.floor(b.y);
+          return [
+            { name: `${t.name} border`, x: cx, y: top },
+            { name: `${t.name} ground`, x: cx, y: top - 3 },
+          ];
+        });
+        const px = await pixels(page, points);
+        const borderCss = await Promise.all(
+          TRIGGERS.map((t) => page.locator(t.selector).evaluate((el) => getComputedStyle(el).borderTopColor + " / " + getComputedStyle(el).borderTopWidth + " " + getComputedStyle(el).borderTopStyle)),
+        );
+        TRIGGERS.forEach((t, i) => {
+          const border = px.get(`${t.name} border`)!;
+          const ground = px.get(`${t.name} ground`)!;
+          const ratio = contrastRatio(border, ground);
+          record({
+            criterion: "20",
+            ...base,
+            state: "forced colours active",
+            element: `${t.name} edge`,
+            pixel: fmt(border),
+            ground: fmt(ground),
+            coords: `top row ${Math.floor(boxes[i].y)}, centre column`,
+            ratio,
+            note: `computed border ${borderCss[i]}; Canvas probe ${canvasHex}`,
+          });
+          expect.soft(ratio, `criterion 20 ${theme} ${viewport.name} ${t.name} edge under forced colours >= 3`).toBeGreaterThanOrEqual(3);
+        });
+      }
+    }
+  });
+});
+
+test.afterAll(() => {
+  const worst = rows.reduce((m, r) => Math.min(m, r.ratio), Infinity);
+  console.log(`control-edge-measure: ${rows.length} rows, lowest ${worst.toFixed(3)}:1`);
+});

@@ -117,7 +117,7 @@ describe("criterion 12: every token has a dark value that differs from its light
 });
 
 describe("criterion 27: the focus ring flows through --ring", () => {
-  const focusRule = blockBody(css, /:focus-visible\s*\{/);
+  const focusRule = blockBody(css, /^:focus-visible\s*\{/m);
 
   it("the :focus-visible rule uses var(--ring) and carries no raw hex", () => {
     expect(focusRule).toMatch(/outline:\s*2px solid var\(--ring\);/);

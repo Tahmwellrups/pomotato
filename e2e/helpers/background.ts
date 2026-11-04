@@ -1,5 +1,6 @@
 import { crc32, deflateSync } from "node:zlib";
 import { expect, type Locator, type Page } from "@playwright/test";
+import { groundPixels } from "./surface-sampler";
 
 // Task 010 QA helpers. Every image is generated here, in the test, from pixel
 // functions: nothing is committed (criterion 13, 30). Measurement reads real
@@ -141,38 +142,14 @@ export async function backgroundRowCount(page: Page): Promise<number> {
   );
 }
 
-/** Painted colours inside each rect, read from a real screenshot. Each entry maps "r,g,b" to its pixel count. */
+/**
+ * Painted colours inside each rect, read from a real screenshot. Each entry maps "r,g,b" to its pixel count.
+ * Delegates to groundPixels (task 012 round 2 ruling): this helper used to pass animations: "disabled",
+ * which cancels infinite animations to their initial keyframe and read a pulsing dot's base colour.
+ * There is one sampler now, so that trap cannot be re-entered from here.
+ */
 export async function paintedColours(page: Page, rects: Rect[]): Promise<Map<string, number>[]> {
-  const png = await page.screenshot({ type: "png", animations: "disabled", caret: "hide" });
-  const raw = await page.evaluate(
-    async ([b64, list]) => {
-      const img = new Image();
-      img.src = `data:image/png;base64,${b64}`;
-      await img.decode();
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) throw new Error("no 2d context");
-      ctx.drawImage(img, 0, 0);
-      return list.map((r) => {
-        const x0 = Math.max(0, Math.floor(r.x));
-        const y0 = Math.max(0, Math.floor(r.y));
-        const w = Math.min(img.width - x0, Math.ceil(r.w));
-        const h = Math.min(img.height - y0, Math.ceil(r.h));
-        if (w <= 0 || h <= 0) return [] as [string, number][];
-        const data = ctx.getImageData(x0, y0, w, h).data;
-        const counts = new Map<string, number>();
-        for (let i = 0; i < data.length; i += 4) {
-          const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
-          counts.set(key, (counts.get(key) ?? 0) + 1);
-        }
-        return [...counts.entries()];
-      });
-    },
-    [png.toString("base64"), rects] as const,
-  );
-  return raw.map((entries) => new Map(entries));
+  return groundPixels(page, rects);
 }
 
 export function toRgb(key: string): Rgb {
@@ -246,5 +223,5 @@ export async function waitActive(page: Page) {
   await expect
     .poll(() => page.locator('[data-background="active"]').evaluate((el) => getComputedStyle(el).opacity))
     .toBe("1");
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
 }

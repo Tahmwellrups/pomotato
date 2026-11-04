@@ -143,7 +143,7 @@ test.describe("criterion 13, 17, 18, 19, 20: token pairs, painted on their real 
       for (const level of [100, 75, 50, 25, 0]) {
         await seedTimerState(page, {
           status: "paused",
-          customMinutes: 25,
+          focusMinutes: 25,
           pausedRemainingMs: Math.round((DURATION_MS * level) / 100),
           endTimestamp: null,
           // A paused entry must carry a run id and no start time, or the store rejects it as malformed.
@@ -315,11 +315,11 @@ test.describe("criterion 26, 43: the disabled task submit and its fields are mea
 
     test(`[${theme}] the disabled custom-duration field while running is visible, not invisible (criterion 43)`, async ({ page }, testInfo) => {
       await themed(page, stored);
-      await seedTimerState(page, { status: "running", mode: "custom", customMinutes: 5, endTimestamp: Date.now() + 600_000, startedAt: Date.now(), runId: "qa", pausedRemainingMs: null });
+      await seedTimerState(page, { status: "running", mode: "focus", focusMinutes: 5, endTimestamp: Date.now() + 600_000, startedAt: Date.now(), runId: "qa", pausedRemainingMs: null });
       await page.reload();
       await page.waitForLoadState("networkidle");
       await settle(page);
-      const field = page.locator("input#custom-duration");
+      const field = page.locator("input#focus-length");
       await expect(field).toHaveCount(1);
       const reading = await readPainted(page, field);
       const borderRatio = reading.borderColor ? contrast(reading.borderColor, reading.ground) : 0;
@@ -374,14 +374,14 @@ test.describe("criterion 27, 28, 29: the focus ring and the pinned hover", () =>
 
     test(`[${theme}] focus is visible on the non-primary controls: outline 2px at 2px, at least 3:1 against the ground (criterion 28)`, async ({ page }, testInfo) => {
       await openThemed(page, { stored, osDark: false, viewport: DESKTOP });
-      await seedTimerState(page, { status: "idle", mode: "custom", customMinutes: 5, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
+      await seedTimerState(page, { status: "idle", mode: "focus", focusMinutes: 5, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
       await page.reload();
       await page.waitForLoadState("networkidle");
       await settle(page);
       // [name, element to focus, element that paints the ring]. Radios are sr-only; the chip span paints the ring.
       const targets: [string, Locator, Locator][] = [
         ["Reset", resetControl(page), resetControl(page)],
-        ["Custom duration input", page.locator("input#custom-duration"), page.locator("input#custom-duration")],
+        ["Custom duration input", page.locator("input#focus-length"), page.locator("input#focus-length")],
         ["Focus mode chip", page.locator('input[name="timer-mode"][value="focus"]'), page.locator('label:has(input[name="timer-mode"][value="focus"]) span')],
         ["Theme chip Dark", page.locator('input[name="theme"][value="dark"]'), page.locator('label:has(input[name="theme"][value="dark"]) span')],
       ];
@@ -398,7 +398,8 @@ test.describe("criterion 27, 28, 29: the focus ring and the pinned hover", () =>
         record(testInfo, tag(theme, `${name} focus: outline vs its own fill (informational, not the criterion 28 rule)`), reading.vsFill, 0);
         expect(reading.offset, `${name} indicator must be drawn at a non-zero offset (2 px); its own-fill figure is informational, not the criterion 28 rule -- see DECISIONS.md 2026-10-26`).not.toBe("0px");
         expect(reading.width, name).toBe("2px");
-        expect(reading.offset, name).toBe("2px");
+        // 012 round 3, criterion 14: the theme chip's ring is pulled inside the chip (-5px, by value); all others stay at 2px.
+        expect(reading.offset, name).toBe(name.startsWith("Theme chip") ? "-5px" : "2px");
         expect(reading.vsGround, name).toBeGreaterThanOrEqual(3);
       }
     });

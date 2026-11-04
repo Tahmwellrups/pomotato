@@ -69,8 +69,20 @@ export interface ValidationIssue {
   message: string;
 }
 
-/** Timer mode as stored on a session. Same union as the timer store's `TimerMode`. */
-export type SessionMode = TimerMode;
+/**
+ * A mode that old session rows can carry but the timer no longer produces.
+ * Task 013 removed Custom as a selectable mode; rows written before that
+ * still say `"custom"` and must keep validating and counting as focus time.
+ */
+export type LegacySessionMode = "custom";
+
+/**
+ * Timer mode as stored on a session: every selectable timer mode plus the
+ * legacy value. Built as a union ON TOP of `TimerMode`, never an alias of it,
+ * so a new selectable mode is automatically loggable, and shrinking
+ * `TimerMode` cannot remove `"custom"` from what is stored.
+ */
+export type SessionMode = TimerMode | LegacySessionMode;
 
 /** One timer run that reached its end timestamp, as stored in the `sessions` table. */
 export interface SessionRecord {

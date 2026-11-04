@@ -55,8 +55,8 @@ test.describe("Accessibility - axe-core checks", () => {
     expect(seriousViolations).toHaveLength(0);
   });
 
-  test("no axe violations in custom mode", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="custom"])');
+  test("no axe violations with the Focus length field shown", async ({ page }) => {
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
     const results = await new AxeBuilder({ page }).analyze();
@@ -106,7 +106,7 @@ test.describe("Accessibility - axe-core checks", () => {
     // Mode selector should have labels
     const modeRadios = page.locator('input[type="radio"][name="timer-mode"]');
     const modeCount = await modeRadios.count();
-    expect(modeCount).toBe(4);
+    expect(modeCount).toBe(3);
 
     // Each radio should have an associated label (label is ancestor wrapping the input)
     for (let i = 0; i < modeCount; i++) {
@@ -116,14 +116,14 @@ test.describe("Accessibility - axe-core checks", () => {
     }
 
     // Custom input should have a label
-    const customLabel = page.locator('label:has(input[value="custom"])');
+    const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
-    const customLabelText = page.locator("label:has-text('Custom duration')");
+    const customLabelText = page.locator("label:has-text('Focus length')");
     await expect(customLabelText).toBeVisible();
 
-    const customInput = page.locator('input[id="custom-duration"]');
-    await expect(customInput).toHaveAttribute("id", "custom-duration");
+    const customInput = page.locator('input[id="focus-length"]');
+    await expect(customInput).toHaveAttribute("id", "focus-length");
   });
 
   test("live region for announcements is present and properly marked", async ({ page }) => {
@@ -188,7 +188,7 @@ test.describe("Accessibility - axe-core checks", () => {
     const persistedState = {
       state: {
         mode: "focus",
-        customMinutes: 25,
+        focusMinutes: 25,
         status: "complete",
         endTimestamp: null,
         pausedRemainingMs: null,

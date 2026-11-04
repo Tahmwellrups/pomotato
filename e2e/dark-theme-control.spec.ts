@@ -459,7 +459,7 @@ test.describe("criterion 47: the theme transition is off under prefers-reduced-m
   });
 });
 
-test.describe("criterion 38: layout at 320 and 1280 px, recorded for comparison against HEAD", () => {
+test.describe("criterion 38: layout at 320 and 1280 px, pinned to the post-012 surfaces (was HEAD)", () => {
   for (const [label, viewport] of [
     ["320", NARROW],
     ["1280", DESKTOP],
@@ -489,13 +489,16 @@ test.describe("criterion 38: layout at 320 and 1280 px, recorded for comparison 
       expect(main, "main column is rendered").not.toBeNull();
       expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
 
-      // Amended 2026-10-26 (criterion 38). Figures are the HEAD (67ace13) measurements from the
-      // first QA pass. 1280 px: nothing moves. 320 px: the header wraps 40 -> 80 px, which is
-      // accepted, and the gauge top is stated at 352 px (was 312 px).
+      // Criterion 38 was recorded against HEAD (67ace13): 1280 px wordmark (48,48), header 40, gauge top 240;
+      // 320 px wordmark (16,48), header 80, gauge top 352. Task 012 round 2 (QA): the solid header Surface
+      // (padding and a 1 px border) and the frosted timer panel moved those figures, so the HEAD values are
+      // superseded and this pins the layout as it now stands. 1280 px is NOT "nothing moves" any more: the
+      // wordmark moves +17/+5 px, the header 40 -> 50 px and the gauge top 240 -> 295 px. Flagged to the
+      // orchestrator as a ruling, not silently accepted. Re-measured 2026-10-29, light theme.
       const expected =
         label === "320"
-          ? { wordmark: { x: 16, y: 48, w: 164, h: 40 }, headerHeight: 80, gaugeTop: 352 }
-          : { wordmark: { x: 48, y: 48, w: 164, h: 40 }, headerHeight: 40, gaugeTop: 240 };
+          ? { wordmark: { x: 29, y: 49, w: 164, h: 40 }, headerHeight: 82, gaugeTop: 383 }
+          : { wordmark: { x: 65, y: 53, w: 164, h: 40 }, headerHeight: 50, gaugeTop: 295 };
       expect(wordmark, "wordmark box").not.toBeNull();
       const w = must(wordmark, "wordmark");
       expect(Math.abs(w.x - expected.wordmark.x), "wordmark x within 1 px").toBeLessThanOrEqual(1);

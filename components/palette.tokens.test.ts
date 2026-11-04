@@ -82,7 +82,7 @@ const TASK_007_FILES = [
   "components/TaskListDialog.tsx",
   "components/TaskColorDot.tsx",
   "components/StatsButton.tsx",
-  "components/CustomDurationInput.tsx",
+  "components/FocusLengthInput.tsx",
   "components/ModeSelector.tsx",
   "components/ui/mode-chip.tsx",
   "components/ui/dialog.tsx",

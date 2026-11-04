@@ -37,7 +37,7 @@ const TIMER_SOURCE = /\b(?:setInterval|setTimeout|requestAnimationFrame|performa
 const FILES: Record<string, string[]> = {
   "./ModeSelector.tsx": [],
   "./TimerControls.tsx": [],
-  "./CustomDurationInput.tsx": [],
+  "./FocusLengthInput.tsx": [],
   "./ui/mode-chip.tsx": [],
 };
 
@@ -91,7 +91,7 @@ describe("task 006 guard pattern sees the forms the task 005 pattern missed", ()
 });
 
 describe("task 006 introduces no time source", () => {
-  for (const file of ["./ModeSelector.tsx", "./CustomDurationInput.tsx", "./TimerControls.tsx", "./ui/mode-chip.tsx"]) {
+  for (const file of ["./ModeSelector.tsx", "./FocusLengthInput.tsx", "./TimerControls.tsx", "./ui/mode-chip.tsx"]) {
     it(`${file} has no setInterval, setTimeout, requestAnimationFrame or performance.now`, () => {
       expect(read(file)).not.toMatch(TIMER_SOURCE);
     });

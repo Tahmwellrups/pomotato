@@ -4,7 +4,8 @@ export const TIMER_STORAGE_KEY = "pomotato-timer";
 
 export interface StoredTimerState {
   mode: string;
-  customMinutes: number;
+  focusMinutes: number;
+  cyclePosition: number;
   status: "idle" | "running" | "paused" | "complete";
   endTimestamp: number | null;
   pausedRemainingMs: number | null;
@@ -33,13 +34,14 @@ export async function readTimerState(page: Page): Promise<StoredTimerState | nul
 export async function seedTimerState(page: Page, overrides: Partial<StoredTimerState>) {
   await page.evaluate(
     ([key, state]) => {
-      window.localStorage.setItem(key, JSON.stringify({ state, version: 2 }));
+      window.localStorage.setItem(key, JSON.stringify({ state, version: 3 }));
     },
     [
       TIMER_STORAGE_KEY,
       {
         mode: "focus",
-        customMinutes: 25,
+        focusMinutes: 25,
+        cyclePosition: 0,
         status: "idle",
         endTimestamp: null,
         pausedRemainingMs: null,

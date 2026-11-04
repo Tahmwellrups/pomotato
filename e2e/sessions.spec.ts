@@ -51,7 +51,10 @@ async function readSessions(page: Page): Promise<SeenSession[]> {
  * on break runs still passed the whole file.
  */
 async function waitForRunComplete(page: Page) {
-  await expect(page.locator("text=/00:00/").first()).toBeVisible({ timeout: 10000 });
+  // Auto-advance (013) hands a finished run straight to the next one, so the readout is no longer
+  // 00:00 at completion. The positive signal is the advance announcement in the timer's own
+  // sr-only live region ("Focus complete. Short break started."), which holds for 10 s.
+  await expect(page.locator('p.sr-only[role="status"]')).toHaveText(/ complete\. .+ (started|ready)\.$/, { timeout: 10000 });
 }
 
 test.describe("Session logging and completion", () => {
@@ -621,7 +624,9 @@ test.describe("Session logging and completion", () => {
       await holdPointer(page, resetButton, 1200);
       await page.waitForTimeout(100);
 
-      // Second run
+      // Second run. Auto-advance (013) left the timer on the Short break after the first focus
+      // run, and reset returns to that break, so re-select Focus: only a Focus run logs and counts.
+      await page.getByRole("radio", { name: "Focus", exact: true }).check({ force: true });
       startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
 
@@ -690,9 +695,9 @@ test.describe("Session logging and completion", () => {
       await page.clock.fastForward(26 * 60 * 1000);
       await page.waitForTimeout(200);
 
-      // Timer should still show complete state
-      const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
-      await expect(timerDisplay).toContainText("00:00");
+      // The run completed and auto-advanced to the Short break, even though the write failed.
+      await waitForRunComplete(page);
+      await expect(page.getByRole("radio", { name: "Short break" })).toBeChecked();
     });
   });
 
@@ -707,7 +712,8 @@ test.describe("Session logging and completion", () => {
           JSON.stringify({
             state: {
               mode: "focus",
-              customMinutes: 1,
+              customMinutes: 25,
+              focusMinutes: 1,
               status: "idle",
               endTimestamp: null,
               pausedRemainingMs: null,
@@ -737,6 +743,7 @@ test.describe("Session logging and completion", () => {
             state: {
               mode: "focus",
               customMinutes: 25,
+              focusMinutes: 25,
               status: "running",
               endTimestamp: endTimestampMs,
               pausedRemainingMs: null,
@@ -780,6 +787,7 @@ test.describe("Session logging and completion", () => {
             state: {
               mode: "focus",
               customMinutes: 25,
+              focusMinutes: 25,
               status: "paused",
               endTimestamp: null,
               pausedRemainingMs: Number(pausedMs),
@@ -809,6 +817,7 @@ test.describe("Session logging and completion", () => {
             state: {
               mode: "focus",
               customMinutes: 25,
+              focusMinutes: 25,
               status: "complete",
               endTimestamp: null,
               pausedRemainingMs: null,

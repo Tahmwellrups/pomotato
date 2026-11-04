@@ -14,7 +14,7 @@ export async function openTaskList(page: Page) {
   // Let the open fade/zoom finish. Axe and colour sampling taken mid-fade read
   // the faded text colours and report false contrast failures.
   await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))),
+    Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((animation) => animation.finished.catch(() => undefined))),
   );
   return dialog;
 }

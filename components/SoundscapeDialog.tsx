@@ -99,7 +99,7 @@ export function SoundscapeDialog() {
           aria-label="Ambient sound"
           data-soundscape={JSON.stringify(snapshot)}
           data-soundscape-context={snapshot.context}
-          className={`size-11 rounded-xl border-control-border text-base cursor-pointer motion-reduce:transition-none ${focusClass}`}
+          className={`control-edge size-11 rounded-xl border-control-border text-base cursor-pointer motion-reduce:transition-none ${focusClass}`}
         >
           <FaVolumeUp className="size-4.5" />
         </Button>

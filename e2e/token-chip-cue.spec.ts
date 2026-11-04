@@ -4,7 +4,7 @@ import { readPainted, contrast, tokenRgb, type Rgb } from "./helpers/painted";
 // Task 007 QA, Part 1 (criteria 1-8): the mode chip's selection cue.
 // The cue must be a computed, non-colour property. The chips stay flat text.
 
-const MODES = ["focus", "shortBreak", "longBreak", "custom"] as const;
+const MODES = ["focus", "shortBreak", "longBreak"] as const;
 type Mode = (typeof MODES)[number];
 
 const viewports = [
@@ -90,7 +90,6 @@ test.describe("task 007 criteria 1-4: the chip cue is non-colour and the flat te
       const cues = await chipCues(page);
       expect(cues.focus.weight - cues.shortBreak.weight, `${condition}: checked focus vs unchecked shortBreak`).toBeGreaterThanOrEqual(300);
       expect(cues.focus.weight - cues.longBreak.weight, `${condition}: checked focus vs unchecked longBreak`).toBeGreaterThanOrEqual(300);
-      expect(cues.focus.weight - cues.custom.weight, `${condition}: checked focus vs unchecked custom`).toBeGreaterThanOrEqual(300);
 
       if (condition === "greyscale") {
         // Recorded control: in greyscale the two label colours collapse to nearly the same grey, so weight is the carrier.
@@ -128,7 +127,7 @@ test.describe("task 007 criteria 1-4: the chip cue is non-colour and the flat te
   });
 
   test("criterion 4: the checked and unchecked labels each reach 4.5:1 against the painted page", async ({ page }) => {
-    for (const selected of ["focus", "custom"] as const) {
+    for (const selected of ["focus", "shortBreak"] as const) {
       await select(page, selected);
       for (const mode of MODES) {
         const reading = await readPainted(page, chip(page, mode));
@@ -217,7 +216,8 @@ test.describe("task 007 criterion 7 and 8: native radio semantics and chip keybo
         fieldsetAria: fieldset ? Array.from(fieldset.attributes).filter((a) => a.name.startsWith("aria-") || a.name === "role").map((a) => a.name) : null,
       };
     });
-    expect(markup.count).toBe(4);
+    // Task 013 criterion 2: three selectable modes, Custom removed. The count is 3, not 4.
+    expect(markup.count).toBe(3);
     expect(markup.types.every((t) => t === "radio")).toBe(true);
     expect(markup.classes.every((c) => c.includes("peer") && c.includes("sr-only"))).toBe(true);
     expect(markup.roles.every((r) => r === null)).toBe(true);

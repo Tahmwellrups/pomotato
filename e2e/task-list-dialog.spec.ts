@@ -101,7 +101,7 @@ async function openApp(page: Page) {
  */
 async function settle(page: Page) {
   await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))),
+    Promise.all(document.getAnimations().filter((x) => x.playState === "running" && x.effect?.getComputedTiming().iterations !== Infinity).map((animation) => animation.finished.catch(() => undefined))),
   );
 }
 
@@ -305,6 +305,8 @@ test.describe("Task list dialog: shell", () => {
     await trigger(page).click();
     await expect(dialogOf(page)).toBeVisible();
 
+    // Let the dialog's entry transition finish: a click during it can land before the overlay is settled.
+    await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
     // The top-left corner is outside the centred dialog, so it lands on the overlay.
     await page.mouse.click(5, 5);
 

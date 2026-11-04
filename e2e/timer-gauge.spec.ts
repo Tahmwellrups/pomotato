@@ -68,7 +68,7 @@ test.describe("Gauge level comes from derived time", () => {
   const modes = [
     { name: "Focus", select: null, custom: null, fullSec: 25 * 60 },
     { name: "Short break", select: "shortBreak", custom: null, fullSec: 5 * 60 },
-    { name: "Custom 10 minutes", select: "custom", custom: "10", fullSec: 10 * 60 },
+    { name: "Focus 10 minutes", select: "focus", custom: "10", fullSec: 10 * 60 },
   ] as const;
 
   for (const mode of modes) {
@@ -77,7 +77,7 @@ test.describe("Gauge level comes from derived time", () => {
         await page.locator(`label:has(input[value="${mode.select}"])`).click();
       }
       if (mode.custom) {
-        await page.locator('input[id="custom-duration"]').fill(mode.custom);
+        await page.locator('input[id="focus-length"]').fill(mode.custom);
       }
       await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
@@ -95,9 +95,10 @@ test.describe("Gauge level comes from derived time", () => {
       await expectLevelMatchesReadout(page, mode.fullSec);
 
       await fastForward(page, (mode.fullSec / 2 + 2) * 1000);
-      await expect(readout(page)).toHaveText("00:00");
+      // 013 criterion 13: a finished run advances and starts the next one, so the gauge refills instead of reading 0.
+      await expect(page.locator('input[name="timer-mode"]:checked')).not.toHaveValue(mode.select ?? "focus");
       const atEnd = await levelOf(page);
-      expect(atEnd, "level at completion").toBeLessThanOrEqual(1);
+      expect(atEnd, "level after the auto-advance is a fresh run").toBeGreaterThanOrEqual(90);
     });
   }
 
@@ -153,12 +154,12 @@ test.describe("Gauge level comes from derived time", () => {
     await expect(readout(page)).toHaveText("05:00");
     await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
-    await page.locator('label:has(input[value="custom"])').click();
-    await page.locator('input[id="custom-duration"]').fill("3");
+    await page.locator('label:has(input[value="focus"])').click();
+    await page.locator('input[id="focus-length"]').fill("3");
     await expect(readout(page)).toHaveText("03:00");
     await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
-    await page.locator('input[id="custom-duration"]').fill("4");
+    await page.locator('input[id="focus-length"]').fill("4");
     await expect(readout(page)).toHaveText("04:00");
     await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
   });
@@ -210,15 +211,18 @@ test.describe("Gauge level comes from derived time", () => {
     });
 
     await page.clock.install();
-    await fastForward(page, 26 * 60 * 1000);
+    // 013 criterion 36: a stale run advances exactly one step and lands idle at the break's full length.
+    await fastForward(page, 2 * 60 * 60 * 1000);
     await page.reload();
-    await expect(readout(page)).toHaveText("00:00");
-    await expect(gauge(page)).toHaveAttribute("data-gauge-level", "0");
+    await expect(readout(page)).toHaveText("05:00");
+    await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
+    // Auto-advance (013): a stale focus run never draws a complete level 0. It lands on the break at
+    // full length, so the only level the wrapper shows after the reload is 100.
     const sequence = await page.evaluate(() => (window as unknown as { __gaugeSeq: string[] }).__gaugeSeq);
-    expect(sequence, "the observer recorded the wrapper").toContain("0");
+    expect(sequence, "the observer recorded the wrapper").toContain("100");
     const shown = sequence.filter((value) => value !== "absent" && value !== "no-wrapper");
-    expect(shown, `levels shown after reload: ${sequence.join(",")}`).toEqual(["0"]);
+    expect(shown, `levels shown after reload: ${sequence.join(",")}`).toEqual(["100"]);
   });
 });
 
@@ -371,9 +375,9 @@ test.describe("Gauge accessibility and layout", () => {
     await startButton(page).click();
     await page.clock.install();
     await fastForward(page, 26 * 60 * 1000);
-    await expect(readout(page)).toHaveText("00:00");
+    await expect(readout(page)).toHaveText(/^0[34]:\d\d$/);
     await expect.poll(() => page.evaluate(() => (window as unknown as { __announce: string[] }).__announce)).toEqual([
-      "Focus complete",
+      "Focus complete. Short break started.",
     ]);
     const seen = await page.evaluate(() => (window as unknown as { __statusSeen: number }).__statusSeen);
     expect(seen, "the completion region was observed").toBeGreaterThan(0);
@@ -383,7 +387,8 @@ test.describe("Gauge accessibility and layout", () => {
       (window as unknown as { __announce: string[] }).__announce = [];
     });
     await page.reload();
-    await expect(gauge(page)).toHaveAttribute("data-gauge-level", "0");
+    // The advanced break is still running after the reload (its level is its remaining share, not 0).
+    await expect(gauge(page)).toHaveAttribute("data-gauge-level", /^\d+$/);
     await page.waitForTimeout(500);
     expect(await page.evaluate(() => (window as unknown as { __announce: string[] }).__announce)).toEqual([]);
   });
@@ -451,7 +456,6 @@ test.describe("Gauge accessibility and layout", () => {
       for (const [label, advanceMs, targetSec] of [
         ["full", 0, 1500],
         ["half", 12.5 * 60 * 1000, 750],
-        ["empty", 13 * 60 * 1000, 0],
       ] as const) {
         if (advanceMs > 0) await fastForward(page, advanceMs);
         // 0 means the readout must reach 00:00 (readoutSeconds reads it as 0).
@@ -647,11 +651,12 @@ test.describe("Console and hydration", () => {
       await expect(pauseButton(page)).toBeVisible();
       await page.clock.install();
       await fastForward(page, 26 * 60 * 1000);
-      await expect(readout(page)).toHaveText("00:00");
+      await expect(readout(page)).toHaveText(/^0[34]:\d\d$/);
       await page.locator('label:has(input[value="shortBreak"])').click();
-      await expect(readout(page)).toHaveText("05:00");
+      // Auto-advance: the Short break is under way (about 04:00 or 03:55), not reset to 05:00.
+      await expect(readout(page)).toHaveText(/^0[345]:\d\d$/);
       await page.reload();
-      await expect(startButton(page)).toBeVisible();
+      await expect(pauseButton(page)).toBeVisible();
 
       expect(messages, messages.join("\n")).toEqual([]);
     });

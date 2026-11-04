@@ -71,7 +71,7 @@ test.describe.configure({ timeout: 180_000 });
 
 async function measureTheme(page: Page, theme: Theme) {
   await setPrefs(page, { theme });
-  await seedTimerState(page, { mode: "custom", customMinutes: 25, status: "idle" });
+  await seedTimerState(page, { mode: "focus", focusMinutes: 25, status: "idle" });
   const lines: string[] = [];
   const results: Record<string, Awaited<ReturnType<typeof measureDialog>>> = {};
   for (const name of IMAGES) {
