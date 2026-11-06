@@ -83,7 +83,7 @@ export function PomotatoTimer() {
   }, [lastAdvance, hasHydrated]);
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-8">
+    <div className="flex w-full max-w-md flex-col items-center gap-3 sm:gap-8">
       <div className="flex w-full flex-col gap-1">
         <ModeSelector />
         <CycleDots />

@@ -1,5 +1,4 @@
 import React from 'react'
-import { Surface } from '@/components/Surface'
 import { ThemeControl } from '@/components/ThemeControl'
 
 export function HeaderNav() {

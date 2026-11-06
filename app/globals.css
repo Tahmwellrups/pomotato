@@ -532,3 +532,10 @@ body::before {
     background-color: Canvas;
   }
 }
+
+/* Before React rehydrates, a stored "panel hidden" preference is only known to
+   the boot script, which marks <html>. This keeps the panel from painting for
+   the frames before TaskPanel unmounts it. Nothing here moves a token. */
+html[data-task-panel="hidden"] [data-task-panel-root] {
+  display: none;
+}

@@ -43,8 +43,8 @@ export function FocusLengthInput() {
   };
 
   return (
-    <div className="flex w-full max-w-xs flex-col gap-1">
-      <label htmlFor="focus-length" className="text-sm font-medium text-muted-foreground">
+    <div className="flex w-full max-w-xs flex-col gap-1 max-sm:flex-row max-sm:flex-wrap max-sm:items-center max-sm:justify-between">
+      <label htmlFor="focus-length" className="text-sm font-medium text-muted-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center">
         Focus length (minutes)
       </label>
       <input
@@ -64,10 +64,10 @@ export function FocusLengthInput() {
           isFocusedRef.current = false;
         }}
         onChange={handleChange}
-        className="min-h-11 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
+        className="min-h-11 rounded-lg max-sm:w-24 border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
       />
       {error !== null ? (
-        <p id="focus-length-error" role="alert" className="text-sm text-destructive">
+        <p id="focus-length-error" role="alert" className="text-sm text-destructive max-sm:basis-full">
           {error}
         </p>
       ) : null}

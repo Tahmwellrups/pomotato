@@ -1,7 +1,6 @@
 "use client";
 
 import { useCurrentTask } from "@/hooks/use-current-task";
-import { TaskColorDot } from "./TaskColorDot";
 
 const cardClass = "flex w-full max-w-md flex-col items-center gap-2 px-2";
 
@@ -11,7 +10,7 @@ export function CurrentTaskCard() {
   if (query.status === "loading") {
     return (
       <div className={cardClass}>
-        <p role="status" className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Loading…
         </p>
       </div>
@@ -43,10 +42,10 @@ export function CurrentTaskCard() {
     <div className={cardClass}>
       {task ? (
         <div className="flex max-w-full items-center gap-2">
-          <span className="font-comfortaa min-w-0 wrap-break-word font-bold uppercase text-foreground">{task.title}</span>
+          <span className="font-comfortaa min-w-0 wrap-break-word font-bold uppercase text-foreground max-sm:line-clamp-2">{task.title}</span>
         </div>
       ) : (
-        <p className="text-center text-sm text-muted-foreground">Pin a task from Your tasks whenever you&apos;re ready.</p>
+        <p className="text-center text-sm text-muted-foreground">No unfinished tasks. Add one, or untick one in your list.</p>
       )}
     </div>
   );
