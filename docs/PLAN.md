@@ -28,7 +28,12 @@ bottom before reading the git log.
     the palette: light `--control-border` `#88837e` → `#7a756f` (its floor was already spent at 3.000:1
     before any image), then dark `#80705d` → `#8a7968`, which is what put dark's worst painted pair (3.546)
     back above light's (3.363).
-- [ ] **5. Ambient soundscape mixer** — layered loops, per-layer volume. CC0/properly licensed audio only.
+- [x] **5. Ambient soundscape mixer** — layered loops, per-layer volume. CC0/properly licensed audio only.
+    Delivered by [docs/tasks/011-ambient-soundscape-mixer.md](tasks/011-ambient-soundscape-mixer.md). No
+    audio file ships: the layers are synthesised in `lib/audio/noise.ts`, so the CC0 requirement is met by
+    having nothing to license. QA took three passes (FAIL on criteria 2, 16 and 23, then PASS, then a
+    narrow PASS on the two review fixes); reviewer APPROVE with nine non-blocking findings, two fixed on
+    the spot and the rest routed to Maintenance below. Committed as `fc61396`.
 - [ ] **6. Music embeds** — official embeds from pasted playlist URLs. No scraping, no unofficial APIs.
 - [ ] **7. PWA + export/import** — installable PWA, JSON export/import. Sync is a later, separate milestone.
 
@@ -40,15 +45,26 @@ not the stated priority order** — see DECISIONS.md 2026-10-28 for why (the scr
 ground 013's and 014's figures would otherwise be measured against, so priority order would mean
 measuring both twice).
 
-- [ ] **012. Full-opacity background and the surface system.** ([docs/tasks/012-full-opacity-background-frosted-surfaces.md](tasks/012-full-opacity-background-frosted-surfaces.md))
+- [x] **012. Full-opacity background and the surface system.** ([docs/tasks/012-full-opacity-background-frosted-surfaces.md](tasks/012-full-opacity-background-frosted-surfaces.md))
       Owner's third priority, built first. Image at 100%, the 97% page scrim gone, one frosted surface
       (the timer) and one solid (the header), both painting only while an image is active so the no-image
-      default is unchanged from HEAD. Implemented and gate-verified; **not yet through `qa` or `reviewer`.**
-- [ ] **013. Focus cycle.** ([docs/tasks/013-focus-cycle.md](tasks/013-focus-cycle.md)) Owner's first
+      default is unchanged from HEAD. **Done.** QA PASS at round 3 (three rounds: FAIL, FAIL, PASS on
+      criteria 4, 14 and 20); criteria 17 and 25 owner-deferred. Reviewer **CHANGES REQUESTED** on one
+      blocker — the solid header Surface had zero appliers — which the owner then ruled was **deliberate**
+      (DECISIONS.md 2026-11-06), replacing the panel with a two-tone glyph halo. So the header never got a
+      surface and the frosted timer panel is the only one that ships. Committed as `bc5f4d2`; the review's
+      other eight findings and the ruling's fallout are in Maintenance below.
+- [x] **013. Focus cycle.** ([docs/tasks/013-focus-cycle.md](tasks/013-focus-cycle.md)) Owner's first
       priority. Auto-advance with auto-start, a four-dot cycle indicator, long break after the fourth
       focus, and Custom folded into a customizable Focus. 59 criteria. **Backend goes first and alone**:
       `lib/db/types.ts` aliases `SessionMode` to `TimerMode`, so shrinking the selectable union would
       silently shrink the stored one and drop existing `custom` sessions out of stats.
+      **Done.** QA PASS at round 2 (all eight round-1 failures cleared); reviewer APPROVE with eight
+      non-blocking findings. Build, typecheck, lint (0 errors), 1073 unit tests and the e2e suite all
+      green. Committed as `bc5f4d2`. Finding 1 — `lib/db/database.ts:56` still pinned to
+      `CURRENT_SCHEMA_VERSION` — **must be fixed by 014's 3 → 4 bump**, which its scope already covers.
+      Findings 2 and 3 are open: keyboard focus is dropped, and `isFocusedRef` can stick, when an
+      auto-advance disables the Focus length field mid-edit (`components/FocusLengthInput.tsx`).
 - [ ] **014. Visible task checklist.** ([docs/tasks/014-visible-task-checklist.md](tasks/014-visible-task-checklist.md))
       Owner's second priority. An always-visible panel, a `done` checkbox (Dexie 3 to 4), the pin retired
       in favour of "current = first not-done task", reordering kept. 60 criteria. Largest risk is that the
@@ -285,6 +301,156 @@ owner data that may not be remapped. `components/token-dark.test.ts` pins the he
 caught, but it would break criterion 19. Relevant to 008 and to any future elevation work.
 
 - [x] **Task list behind a dialog** ([docs/tasks/004-task-list-popup.md](tasks/004-task-list-popup.md)) — reworked milestone 2's list into a modal, keeping the inline current-task card. Committed as `dce7bec`.
+### Deferred from tasks 014 and 015: the measurement pass (owner ruling, 2026-11-06)
+
+Two QA rounds both overran by mixing mechanical e2e re-pointing with painted measurement. The owner ruled
+the last fix loop goes to **re-pointing only**, and these measurements become their own pass. They are
+**not passed** — they are unrun. Everything here reads against the **solid** surface with **no background
+image** (015 ruling 5: with nothing stored `surface-solid` paints nothing, so a row's ground is `--card`),
+so none of it needs a photograph sweep.
+
+- [ ] **Group G painted figures (015 criteria 37-39).** Criterion 39 must assert **both halves** of the
+      two-part rule — one ring clears 3:1 against the ground **and** the two clear 3:1 against each other.
+      Only the first half is asserted anywhere today, which is 012 review R-3's open gap; closing it here
+      closes it for the glyph halo too.
+- [ ] **Forced colours (015 criterion 40) and axe (041).** Neither was run in either round.
+- [ ] **Criteria 25, 36, 42, 44, and 47's red-proofs** (the v5 strip, the v1 preferences payload, hidden
+      persistence). Criterion 44's legibility probe still measures the **deleted colour swatch** and must be
+      re-pointed or retired.
+- [ ] **Criterion 32's shown-half flash check.** 8 reloads with the panel stored **hidden** gave 0 paints;
+      the stored-**shown** half was never run.
+- [ ] **Dark theme figures. Dark was not measured for any figure in either round.** Every criterion naming
+      both themes currently has a light-only number.
+- [ ] **014's deferred items:** touch drag (pointer and keyboard both pass), and a real mid-session write
+      failure for 014 criterion 28 (frontend checked the code path only; QA's injection harness in
+      `e2e/task-panel-behaviour.spec.ts` is the tool for this and already exists).
+- [ ] **The `aria-expanded` pre-hydration window.** The toggle reports `true` before rehydration even when
+      the stored state is hidden; the panel itself is already correctly hidden by then. Round 2 worked
+      around it in a helper rather than measuring the real exposure. Measure it, then decide.
+- [ ] **Re-point `control-edge-measure`'s retired "header fill" probe to the two-tone glyph halo** once that
+      ships. Parked, not abandoned — see the header ruling above and the retirement comment in the spec.
+
+**When this pass runs, apply the element rule:** every figure names its viewport, theme, scroll position,
+ground **and element selector**. Criterion 34 cost a whole round to discover that "the panel" was two boxes
+64 px apart.
+
+### Found by task 012's review (reviewer CHANGES REQUESTED; the blocker became an owner ruling)
+
+Finding 1 — the solid header Surface having zero appliers — was **not** a defect: the owner ruled on
+2026-11-06 that dropping the header panel was deliberate, and chose a two-tone glyph halo as the
+replacement defence. See DECISIONS.md for both halves. What remains from that ruling:
+
+- [ ] **Implement the two-tone glyph halo on the header** (owner ruling 2026-11-06). A halo of the opposite
+      luminance tight around the `pomotato` wordmark (`--primary`) and the three theme chips, painting only
+      while an image is active. Pass condition inherits the two-tone edge's rule: one of the two clears 3:1
+      against the ground, **and** the two clear 3:1 against each other. Small/self-contained, but it is a
+      measured painted change, so it wants a figure per theme, not an eyeball.
+      **Promoted to a real defect, 2026-11-06: this is no longer polish.** QA loop 3 measured the theme
+      chip's focus ring at **~1.27:1 against a 3:1 floor** over grey and white images, in **both** themes
+      (`e2e/control-edge-measure.spec.ts`, 2 failures — a genuine figure failure, not a selector fault).
+      That is task 012 criterion 14 failing on the shipped page, exactly as 012's review predicted when the
+      header lost its panel: `peer-focus-visible:-outline-offset-5` on `components/ThemeControl.tsx` was
+      chosen to pull the ring onto the header's own fill, and with no fill its ground is the photograph. The
+      review estimated the old 2.058:1 would return; the measured figure is worse. **This is an interactive
+      control with no visible focus indicator over a photograph** — the halo (or an equivalent defence) is
+      the fix, and the negative outline offset should be reconsidered at the same time since it now buys
+      nothing. Until it lands, `/` with an uploaded image has no keyboard-focus floor on the theme toggle.
+- [ ] **Correct task 012's criteria 4, 9, 14 and 15, which were measured against a surface that is not
+      shipping.** Their recorded figures read a `--popover` header fill that no longer paints: do not quote
+      criterion 15's wordmark 4.835:1 or criterion 9's "delta 0 per channel" anywhere. Criterion 14's
+      `peer-focus-visible:-outline-offset-5` on the theme chip (`components/ThemeControl.tsx`) was chosen
+      *specifically* to pull the focus ring onto the header's fill; with no fill it buys nothing and costs
+      clarity, so the negative offset should be reconsidered, not just re-measured.
+- [ ] **Re-point the two e2e specs that resolve a surface that never renders** (`qa`'s, since `qa` owns test
+      files). `e2e/control-edge-measure.spec.ts:126` and `e2e/focus-surface-sweep.spec.ts:235` both do
+      `page.locator('[data-surface="solid"]').first()` and cannot pass. **The reusable lesson is how this
+      survived two days:** the commit landed *after* QA's round-3 sweep, so nothing re-ran the specs that
+      would have caught it. The 2026-10-26 "Measurement ordering" rule has a mirror image — a change to a
+      measured surface taken after its sweep needs the sweep again.
+
+The reviewer's other eight findings, none blocking:
+
+- [ ] **The surfaces have no `:has()` fallback, and it is a different hole from criterion 18's.** (012
+      review R-2, MEDIUM.) Every surface fill, border, shadow and blur, plus the whole two-tone control
+      edge, is gated on `body:has([data-background="active"])` (`app/globals.css:355`, `372`, `425`), with no
+      `@supports selector(:has(*))` anywhere. In a browser without `:has()` — Firefox before 121, which
+      includes the 115 ESR line, and Safari before 15.4 — the image still paints at 100% and **no surface
+      paints at all**, which is precisely criterion 18's named trap ("a fallback that leaves text on a
+      transparent ground, which is strictly worse than today"). The notes state the `:has()` cost for the
+      grain and for `.control-edge` but not for the surface fill, which is criterion 8's legibility carrier.
+      Wants the same treatment `backdrop-filter` got: a stated, measured fallback, or a recorded deferral.
+- [ ] **The two-tone edge's pass condition is only half in a test.** (012 review R-3, MEDIUM.)
+      `e2e/control-edge-measure.spec.ts:213` asserts `max(border, halo) >= 3`. The other half — "and the two
+      clear 3:1 against each other" — lives only in a `note:` string at line 211 and in prose. A later
+      re-point of `--popover` or `--foreground` that collapses border-vs-halo (15.299 light / 15.117 dark
+      today) while one ring still clears the ground leaves the suite **green and the edge invisible**. One
+      `expect(contrastRatio(border, halo)).toBeGreaterThanOrEqual(3)` beside line 213 closes it. The glyph
+      halo above inherits this same gap, so fix it once for both.
+- [ ] **`.control-edge` has no applier guard and no single owner.** (012 review R-4, MEDIUM.) The class
+      string is hand-copied into `components/TaskListDialog.tsx:44`, `components/SoundscapeDialog.tsx:102`,
+      `components/StatsButton.tsx:12` and `components/SettingsButton.tsx:11`. The surfaces got confined to
+      one applier and pinned by a source scan (`components/focus-cycle.guards.test.ts:159-163`);
+      `.control-edge`'s only pin is `expect(count).toBe(4)` in an e2e spec, which a later task satisfies by
+      **moving** the class rather than adding one — e.g. onto a control inside the frosted panel, where a
+      `--popover` halo is the wrong colour.
+- [ ] **The frosted cap is not enforceable at the API and its guard is evadable.** (012 review R-5, MEDIUM.)
+      `components/Surface.tsx:19-21` exposes `kind` as a plain required union prop, so ruling 2's
+      one-frosted-surface cap rests entirely on `components/focus-cycle.guards.test.ts:146-149`. That guard
+      matches `/<Surface\s+kind="frosted"/` and asserts the **file list** equals `["app/page.tsx"]` — so two
+      frosted surfaces inside `app/page.tsx` still pass, and `<Surface className="…" kind="frosted">`
+      evades it anywhere, because the regex requires `kind` to be the first attribute. Criterion 5's wording
+      is "the count is 1"; counting occurrences across `APP_SOURCE` order-independently closes both.
+- [ ] **The unlayered `.control-edge` rule silently kills declarations.** (012 review R-6, LOW.)
+      `app/globals.css:425-428` sets `border` (overriding `border-control-border` and the two
+      `focus-visible:border-*` utilities in all four className strings) and `box-shadow`, which replaces the
+      whole property including Tailwind's `--tw-ring-shadow`. Harmless **only** because all four triggers
+      carry `focus-visible:ring-0` and paint focus with `outline`. The dead utilities are still in the four
+      strings with no note at either end, and the next variant reaching for `shadow-*` or `ring-*` on one of
+      these controls gets no effect and no error. One line at the rule would say so.
+- [ ] **An untokenised shadow colour, written twice, that no guard reaches.** (012 review R-7, LOW.)
+      `box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08)` at `app/globals.css:362` and `:383`. The palette guard
+      scans `.ts`/`.tsx` only, so criterion 28's "a new surface treatment means new tokens, not new raw
+      colours" never sees it. It is also unthemed: 8% black over the dark panel's `#1e1610` is invisible, so
+      in dark the surfaces' stated elevation marker is carried by nothing — which matters because the CSS
+      comment's own reason ("a 1.4:1 `--border` hairline alone does not hold an edge") then does not hold.
+- [ ] **A rewritten comment that describes the superseded design.** (012 review R-8, LOW.)
+      `components/BackgroundLayer.tsx:18-20` still says "the surfaces are markup and are already there".
+      Post-ruling the surfaces are markup but **unpainted** until `data-background` flips, on the same
+      render as `opacity-100`. QA filed the same thing as criterion 23 finding 6. No frame is actually
+      wrong, but this is the one file criterion 11 rewrote to stop a comment carrying a ground that no
+      longer exists, and it now carries a sequence that no longer ships.
+- [ ] **Recorded so nobody re-derives it** (012 review R-9, NIT): routing `modeChipVariants` through `cn()`
+      at `components/ThemeControl.tsx:57` makes tailwind-merge fold `peer-focus-visible:outline` into
+      `peer-focus-visible:outline-2`, so the rendered chip carries no `outline` utility. Tailwind v4
+      registers `@property --tw-outline-style` with `initial-value: solid`, so `outline-2` alone still
+      paints a solid ring, and the e2e spec asserts `outlineStyle === "solid"`. Not a defect.
+
+### Found by task 013's review (reviewer APPROVE, none blocking)
+
+- [ ] **Keyboard focus is dropped when an auto-advance disables the Focus length field mid-edit.**
+      (013 review R-2, LOW, covered by no criterion.) `components/FocusLengthInput.tsx:21` plus
+      `components/PomotatoTimer.tsx:97`. Criterion 7 deliberately invites editing the Focus length during a
+      break; when that break auto-completes, `disabled` flips on a possibly-focused input and the browser
+      moves focus to `<body>` (WCAG 2.4.3). Either move focus to Start/Pause, or keep the field enabled and
+      let the store's existing no-op (`lib/timer/store.ts:227-232`) swallow the write.
+- [ ] **`isFocusedRef` can stick `true` when the field is disabled out from under the cursor.**
+      (013 review R-3, LOW.) `components/FocusLengthInput.tsx:15,25-30,63-65`. The component used to unmount
+      on leaving Custom mode, which reset the ref; it is now always mounted. If a browser does not fire
+      `blur` when a focused input becomes `disabled`, the store-to-field sync effect never runs again for
+      the life of the page: the field can show a stale raw value with a stale error `<p>` and
+      `aria-invalid="true"` on a disabled input. Repro: type `999` during a break, let the break end.
+      One `useEffect` clearing the ref when `disabled` turns true closes both this and R-2's residue.
+- [ ] **Three nits worth one cleanup pass, none behavioural.** R-5: the legacy
+      `${MODE_LABELS[mode]} complete` announcement in `components/PomotatoTimer.tsx:52-63` is never cleared,
+      so that sentence persists in the accessibility tree (only reachable from pre-013 persisted state).
+      R-6: `components/ModeSelector.tsx:16` takes chip display order from `Object.keys(TIMER_MODE_SET)` now
+      that `MODE_ORDER` is gone — deterministic, but a user-facing row's order is a side effect of a
+      type-exhaustiveness map; a comment saying "key order is the chip order" would stop someone
+      alphabetising it. R-7: `lib/stats/types.ts:44` hand-duplicates the `SessionMode` union, the one place
+      that will not follow it now that `SessionMode` is layered; `mode: SessionMode` removes it. R-8:
+      `app/globals.css:68` still says "custom-duration input" in the `--control-border` comment; the control
+      is `#focus-length`.
+
 - [x] **Liquid timer gauge + hold-to-confirm Reset** ([docs/tasks/005-timer-gauge-hold-reset.md](tasks/005-timer-gauge-hold-reset.md)) — two vendored ReactBits components (MIT + Commons Clause, see [DECISIONS.md](DECISIONS.md)). QA PASS at 53/54 criteria, reviewed. Committed as `3b2914c`.
 
 ## Numbering

@@ -1,7 +1,7 @@
 ---
 id: 013
 slug: focus-cycle
-status: in-progress # draft | in-progress | qa | review | done | blocked
+status: done # draft | in-progress | qa | review | done | blocked
 ---
 
 # Automatic focus cycle, a four-dot counter, and a customizable Focus length
@@ -884,3 +884,25 @@ Bold is the one failing cell: the theme control's focus outline over the photogr
 
 ### Verdict basis
 Every 013 criterion that was failing in round 1 now passes: 4 and 11 and 49 by new tests, 52 and 53 by measured non-colour distinctions, 55 and 58 by the green suite. Criterion 59 and the build re-run are the orchestrator's. Known gaps that remain are 012's (criterion 4 owner-deferred, the theme control focus outline, and the Tasks trigger under forced colours); none of them touches the cycle, the dots' treatments or their figures.
+
+## Orchestrator closeout (2026-11-06)
+Status moved to **done**. The two items QA left to the orchestrator are both settled:
+
+- **Criterion 58, the build gate.** `npm run build` re-run on this tree: compiled in 2.0 s, TypeScript
+  clean, 6/6 static pages generated, four routes (`/`, `/_not-found`, `/settings`, `/stats`), exit 0.
+  Taken *after* 012's round-3 fixes, so it covers both tasks' change sets. Criterion 58 now passes in full.
+- **Criterion 59, the DECISIONS entry.** Five of the seven named rules were already recorded across the
+  2026-10-28 entries: Reset scoping to the current run, the long break as the only cycle reset, and the
+  one-step expired-reload rule in "The focus cycle: what `cyclePosition` means"; symmetric auto-start as
+  owner decision 1 in "One round of owner feedback"; the four dot treatments with the pulse scoped to a
+  running timer, plus the R-19 reasoning, in "Two antislop collisions resolved inside the rules".
+  The two that were **missing** — the chip row surviving with the dots beneath it, and the dots being
+  non-interactive — were added to the `cyclePosition` entry rather than opened as a new dated section,
+  since they were settled on 2026-10-28 with the rest. Criterion 59 passes.
+
+Review finding 1 (`lib/db/database.ts:56`, the Dexie version block still pinned to the moving constant)
+is **not** fixed here. It is carried into task 014, whose scope already names ".version(3) literalized,
+the highest-literal guard" as part of the 3 → 4 bump — which is the task that would otherwise trip over
+it. Findings 2 and 3 (focus dropped and `isFocusedRef` sticking when the Focus length field is disabled
+mid-edit by an auto-advance) are open and unrouted; they are the only findings with a user-visible
+symptom, and both live in `components/FocusLengthInput.tsx`, which 014 does not touch.
