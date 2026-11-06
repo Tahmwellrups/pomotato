@@ -4,16 +4,15 @@ import {
   updateTask,
   deleteTask,
   reorderTask,
-  pinTask,
-  unpinTask,
+  setTaskDone,
   incrementCompleted,
   decrementCompleted,
   listTasks,
   getCurrentTask,
 } from "./task-repository";
-import { TaskValidationError, TaskNotFoundError, InvalidReorderIndexError } from "./errors";
+import { TaskValidationError, TaskNotFoundError, InvalidReorderIndexError, InvalidDoneValueError } from "./errors";
 import { resetDatabaseForTests } from "./test-utils";
-import { PALETTE, DEFAULT_PALETTE_COLOR_ID } from "./palette";
+import { openDatabase } from "./database";
 
 describe("Task Repository", () => {
   beforeEach(async () => {
@@ -76,107 +75,33 @@ describe("Task Repository", () => {
       });
     });
 
-    describe("emoji validation", () => {
-      it("rejects empty emoji", async () => {
-        try {
-          await createTask({ title: "test", emoji: "" });
-          expect.fail("should have thrown");
-        } catch (err) {
-          expect(err).toBeInstanceOf(TaskValidationError);
-        }
+    describe("v5: the write path never stores emoji or colorId (task 015 criterion 10)", () => {
+      const rawRows = async () => (await openDatabase()).table("tasks").toArray() as Promise<Array<Record<string, unknown>>>;
+
+      it("createTask({ title, eta }) stores a row with neither key", async () => {
+        await createTask({ title: "clean", eta: 3 });
+        const rows = await rawRows();
+        expect(rows).toHaveLength(1);
+        expect("emoji" in rows[0]).toBe(false);
+        expect("colorId" in rows[0]).toBe(false);
       });
 
-      it("rejects plain text emoji", async () => {
-        try {
-          await createTask({ title: "test", emoji: "a" });
-          expect.fail("should have thrown");
-        } catch (err) {
-          expect(err).toBeInstanceOf(TaskValidationError);
-        }
+      it("a createTask call that passes emoji and colorId at runtime stores neither and does not throw", async () => {
+        const runtime = { title: "smuggled", eta: 2, emoji: "🥔", colorId: "tomato" } as unknown as Parameters<typeof createTask>[0];
+        await expect(createTask(runtime)).resolves.toBeDefined();
+        const rows = await rawRows();
+        expect("emoji" in rows[0]).toBe(false);
+        expect("colorId" in rows[0]).toBe(false);
       });
 
-      it("rejects plain digit emoji", async () => {
-        try {
-          await createTask({ title: "test", emoji: "7" });
-          expect.fail("should have thrown");
-        } catch (err) {
-          expect(err).toBeInstanceOf(TaskValidationError);
-        }
-      });
-
-      it("rejects multiple emoji", async () => {
-        try {
-          await createTask({ title: "test", emoji: "🥔🍅" });
-          expect.fail("should have thrown");
-        } catch (err) {
-          expect(err).toBeInstanceOf(TaskValidationError);
-        }
-      });
-
-      it("rejects emoji plus text", async () => {
-        try {
-          await createTask({ title: "test", emoji: "🥔a" });
-          expect.fail("should have thrown");
-        } catch (err) {
-          expect(err).toBeInstanceOf(TaskValidationError);
-        }
-      });
-
-      it("accepts single emoji", async () => {
-        const task = await createTask({ title: "test", emoji: "🥔" });
-        expect(task.emoji).toBe("🥔");
-      });
-
-      it("accepts ZWJ sequence (👩‍💻)", async () => {
-        const zwjEmoji = "👩‍💻";
-        const task = await createTask({ title: "test", emoji: zwjEmoji });
-        expect(task.emoji).toBe(zwjEmoji);
-      });
-
-      it("accepts skin-tone modifier (👍🏽)", async () => {
-        const skinToneEmoji = "👍🏽";
-        const task = await createTask({ title: "test", emoji: skinToneEmoji });
-        expect(task.emoji).toBe(skinToneEmoji);
-      });
-
-      it("accepts flag (🇵🇭)", async () => {
-        const flagEmoji = "🇵🇭";
-        const task = await createTask({ title: "test", emoji: flagEmoji });
-        expect(task.emoji).toBe(flagEmoji);
-      });
-
-      it("accepts keycap (1️⃣)", async () => {
-        const keycapEmoji = "1️⃣";
-        const task = await createTask({ title: "test", emoji: keycapEmoji });
-        expect(task.emoji).toBe(keycapEmoji);
-      });
-
-      it("uses default emoji 🥔 when not provided", async () => {
-        const task = await createTask({ title: "test" });
-        expect(task.emoji).toBe("🥔");
-      });
-    });
-
-    describe("colorId validation", () => {
-      it("rejects unknown color", async () => {
-        try {
-          await createTask({ title: "test", colorId: "unknown" });
-          expect.fail("should have thrown");
-        } catch (err) {
-          expect(err).toBeInstanceOf(TaskValidationError);
-        }
-      });
-
-      it("accepts all palette colors", async () => {
-        for (const paletteColor of PALETTE) {
-          const task = await createTask({ title: `test-${paletteColor.id}`, colorId: paletteColor.id });
-          expect(task.colorId).toBe(paletteColor.id);
-        }
-      });
-
-      it("uses default color (first palette entry) when not provided", async () => {
-        const task = await createTask({ title: "test" });
-        expect(task.colorId).toBe(DEFAULT_PALETTE_COLOR_ID);
+      it("updateTask with emoji or colorId at runtime stores neither on the raw row", async () => {
+        const task = await createTask({ title: "to update", eta: 1 });
+        const runtime = { emoji: "🥔", colorId: "tomato", title: "renamed" } as unknown as Parameters<typeof updateTask>[1];
+        await updateTask(task.id, runtime);
+        const rows = await rawRows();
+        expect(rows[0].title).toBe("renamed");
+        expect("emoji" in rows[0]).toBe(false);
+        expect("colorId" in rows[0]).toBe(false);
       });
     });
 
@@ -237,8 +162,6 @@ describe("Task Repository", () => {
       try {
         await createTask({
           title: "",
-          emoji: "not-emoji",
-          colorId: "unknown",
           eta: 0,
         });
         expect.fail("should have thrown");
@@ -247,8 +170,8 @@ describe("Task Repository", () => {
         if (err instanceof TaskValidationError) {
           const failedFields = err.issues.map((issue) => issue.field);
           expect(failedFields).toContain("title");
-          expect(failedFields).toContain("emoji");
-          expect(failedFields).toContain("colorId");
+          expect(failedFields).not.toContain("emoji");
+          expect(failedFields).not.toContain("colorId");
           expect(failedFields).toContain("eta");
         }
       }
@@ -304,24 +227,6 @@ describe("Task Repository", () => {
       }
     });
 
-    it("rejects invalid emoji", async () => {
-      try {
-        await updateTask(taskId, { emoji: "invalid" });
-        expect.fail("should have thrown");
-      } catch (err) {
-        expect(err).toBeInstanceOf(TaskValidationError);
-      }
-    });
-
-    it("rejects invalid colorId", async () => {
-      try {
-        await updateTask(taskId, { colorId: "unknown" });
-        expect.fail("should have thrown");
-      } catch (err) {
-        expect(err).toBeInstanceOf(TaskValidationError);
-      }
-    });
-
     it("rejects invalid eta", async () => {
       try {
         await updateTask(taskId, { eta: 0 });
@@ -344,7 +249,7 @@ describe("Task Repository", () => {
       await updateTask(taskId, { title: "updated title" });
       const tasks = await listTasks();
       expect(tasks[0].title).toBe("updated title");
-      expect(tasks[0].emoji).toBe("🥔");
+      expect("emoji" in tasks[0]).toBe(false);
       expect(tasks[0].eta).toBe(1);
     });
 
@@ -408,32 +313,23 @@ describe("Task Repository", () => {
       }
     });
 
-    it("clears pin if deleting the pinned task", async () => {
-      const { getDatabase } = await import("./database");
+    it("deleting the current task makes the next not-done task current", async () => {
+      const first = await createTask({ title: "first" });
+      const second = await createTask({ title: "second" });
+      expect((await getCurrentTask())?.id).toBe(first.id);
 
-      const task = await createTask({ title: "test" });
-      await pinTask(task.id);
-      expect(await getCurrentTask()).not.toBeNull();
+      await deleteTask(first.id);
 
-      await deleteTask(task.id);
-
-      expect(await getCurrentTask()).toBeNull();
-
-      // Verify the appMeta record directly shows pin cleared
-      const db = getDatabase();
-      const appMetaRecord = await db.appMeta.get("pinnedTaskId");
-      expect(appMetaRecord?.value).toBeNull();
+      expect((await getCurrentTask())?.id).toBe(second.id);
     });
 
-    it("leaves other pins unchanged when deleting non-pinned task", async () => {
-      const task1 = await createTask({ title: "first" });
-      const task2 = await createTask({ title: "second" });
-      await pinTask(task1.id);
+    it("deleting a task after the current one leaves the current task unchanged", async () => {
+      const first = await createTask({ title: "first" });
+      const second = await createTask({ title: "second" });
 
-      await deleteTask(task2.id);
+      await deleteTask(second.id);
 
-      const currentTask = await getCurrentTask();
-      expect(currentTask?.id).toBe(task1.id);
+      expect((await getCurrentTask())?.id).toBe(first.id);
     });
   });
 
@@ -574,77 +470,57 @@ describe("Task Repository", () => {
     });
   });
 
-  describe("pinTask", () => {
-    it("pins a task as current", async () => {
-      const task = await createTask({ title: "test" });
-      await pinTask(task.id);
-      const current = await getCurrentTask();
-      expect(current?.id).toBe(task.id);
+  describe("current task by ordering", () => {
+    it("the first task in display order is current", async () => {
+      const first = await createTask({ title: "first" });
+      await createTask({ title: "second" });
+      expect((await getCurrentTask())?.id).toBe(first.id);
     });
 
-    it("unpins previous task when pinning new task", async () => {
-      const task1 = await createTask({ title: "first" });
-      const task2 = await createTask({ title: "second" });
+    it("reordering a task to the top makes it current (the job the retired pin did)", async () => {
+      const first = await createTask({ title: "first" });
+      const second = await createTask({ title: "second" });
 
-      await pinTask(task1.id);
-      expect(await getCurrentTask()).toEqual(expect.objectContaining({ id: task1.id }));
+      await reorderTask(second.id, 0);
 
-      await pinTask(task2.id);
-      const current = await getCurrentTask();
-      expect(current?.id).toBe(task2.id);
-
-      // Verify only one task is pinned (task2)
-      const tasks = await listTasks();
-      const pinnedTasks = tasks.filter((t) => t.id === task1.id || t.id === task2.id);
-      expect(pinnedTasks.length).toBe(2);
-    });
-
-    it("throws TaskNotFoundError for non-existent id", async () => {
-      try {
-        await pinTask("non-existent-id");
-        expect.fail("should have thrown");
-      } catch (err) {
-        expect(err).toBeInstanceOf(TaskNotFoundError);
-      }
-    });
-
-    it("persists across reloads", async () => {
-      const task = await createTask({ title: "test" });
-      await pinTask(task.id);
-
-      const current = await getCurrentTask();
-      expect(current?.id).toBe(task.id);
+      expect((await getCurrentTask())?.id).toBe(second.id);
+      expect((await listTasks()).map((t) => t.id)).toEqual([second.id, first.id]);
     });
   });
 
-  describe("unpinTask", () => {
-    it("unpins the pinned task", async () => {
-      const task = await createTask({ title: "test" });
-      await pinTask(task.id);
-      expect(await getCurrentTask()).not.toBeNull();
+  describe("setTaskDone", () => {
+    it("marking the current task done moves current to the next not-done task", async () => {
+      const first = await createTask({ title: "first" });
+      const second = await createTask({ title: "second" });
 
-      await unpinTask(task.id);
-      expect(await getCurrentTask()).toBeNull();
+      const updated = await setTaskDone(first.id, true);
+
+      expect(updated.done).toBe(true);
+      expect((await getCurrentTask())?.id).toBe(second.id);
     });
 
-    it("is idempotent - unpinning non-pinned task is a no-op", async () => {
-      const task1 = await createTask({ title: "first" });
-      const task2 = await createTask({ title: "second" });
-      await pinTask(task1.id);
+    it("unmarking a done task makes it current again when it is first", async () => {
+      const first = await createTask({ title: "first" });
+      await setTaskDone(first.id, true);
+      await setTaskDone(first.id, false);
+      expect((await getCurrentTask())?.id).toBe(first.id);
+    });
 
-      await unpinTask(task2.id);
+    it("never changes the pomodoro count", async () => {
+      const task = await createTask({ title: "test" });
+      await incrementCompleted(task.id);
+      await setTaskDone(task.id, true);
+      expect((await listTasks())[0].completed).toBe(1);
+    });
 
-      const current = await getCurrentTask();
-      expect(current?.id).toBe(task1.id);
+    it("throws InvalidDoneValueError for a non-boolean and writes nothing", async () => {
+      const task = await createTask({ title: "test" });
+      await expect(setTaskDone(task.id, "yes" as unknown as boolean)).rejects.toBeInstanceOf(InvalidDoneValueError);
+      expect((await listTasks())[0].done).toBe(false);
     });
 
     it("throws TaskNotFoundError for non-existent id", async () => {
-      try {
-        await unpinTask("non-existent-id");
-        expect.fail("should have thrown");
-      } catch (err) {
-        expect(err).toBeInstanceOf(TaskNotFoundError);
-      }
+      await expect(setTaskDone("non-existent-id", true)).rejects.toBeInstanceOf(TaskNotFoundError);
     });
   });
 
@@ -744,13 +620,13 @@ describe("Task Repository", () => {
     });
 
     it("returns tasks with all fields populated", async () => {
-      await createTask({ title: "test", emoji: "🎯", colorId: "tomato", eta: 5 });
+      await createTask({ title: "test", eta: 5 });
       const tasks = await listTasks();
 
       expect(tasks[0]).toHaveProperty("id");
       expect(tasks[0]).toHaveProperty("title");
-      expect(tasks[0]).toHaveProperty("emoji");
-      expect(tasks[0]).toHaveProperty("colorId");
+      expect(tasks[0]).not.toHaveProperty("emoji");
+      expect(tasks[0]).not.toHaveProperty("colorId");
       expect(tasks[0]).toHaveProperty("eta");
       expect(tasks[0]).toHaveProperty("completed");
       expect(tasks[0]).toHaveProperty("position");
@@ -758,87 +634,58 @@ describe("Task Repository", () => {
   });
 
   describe("getCurrentTask", () => {
-    it("returns null when nothing is pinned", async () => {
-      const current = await getCurrentTask();
-      expect(current).toBeNull();
-    });
-
-    it("returns the pinned task", async () => {
-      const task = await createTask({ title: "test" });
-      await pinTask(task.id);
-
-      const current = await getCurrentTask();
-      expect(current?.id).toBe(task.id);
-    });
-
     it("returns null when empty database", async () => {
-      const current = await getCurrentTask();
-      expect(current).toBeNull();
+      expect(await getCurrentTask()).toBeNull();
     });
 
-    it("returns null when pin references a nonexistent task id (dangling pin)", async () => {
-      // Import getDatabase to directly manipulate appMeta
+    it("returns null when every task is done", async () => {
+      const a = await createTask({ title: "a" });
+      const b = await createTask({ title: "b" });
+      await setTaskDone(a.id, true);
+      await setTaskDone(b.id, true);
+      expect(await getCurrentTask()).toBeNull();
+    });
+
+    it("skips done tasks and returns the first not-done task by position", async () => {
+      const a = await createTask({ title: "a" });
+      const b = await createTask({ title: "b" });
+      const c = await createTask({ title: "c" });
+      await setTaskDone(a.id, true);
+      expect((await getCurrentTask())?.id).toBe(b.id);
+      await reorderTask(c.id, 0);
+      expect((await getCurrentTask())?.id).toBe(c.id);
+    });
+
+    it("ignores a stored appMeta pin row, which version 4 retired", async () => {
       const { getDatabase } = await import("./database");
+      const first = await createTask({ title: "first" });
+      const second = await createTask({ title: "second" });
 
-      // Create a task to verify the DB works
-      const task = await createTask({ title: "test" });
+      await getDatabase().appMeta.put({ key: "pinnedTaskId", value: second.id });
 
-      // Manually set a dangling pin reference
-      const db = getDatabase();
-      await db.appMeta.put({
-        key: "pinnedTaskId",
-        value: "nonexistent-id-12345",
-      });
-
-      // getCurrentTask should return null, not throw
-      const current = await getCurrentTask();
-      expect(current).toBeNull();
+      expect((await getCurrentTask())?.id).toBe(first.id);
     });
   });
 
   describe("Database transactions - atomicity", () => {
-    it("delete task transaction clears pin atomically", async () => {
-      const { getDatabase } = await import("./database");
-
+    it("deleting the only task leaves an empty list and no current task", async () => {
       const task = await createTask({ title: "test" });
-      await pinTask(task.id);
 
       await deleteTask(task.id);
 
-      // After deletion, both task is gone AND pin is cleared
-      const tasks = await listTasks();
-      const current = await getCurrentTask();
-
-      expect(tasks).toHaveLength(0);
-      expect(current).toBeNull();
-
-      // Verify the appMeta record directly shows pin cleared
-      const db = getDatabase();
-      const appMetaRecord = await db.appMeta.get("pinnedTaskId");
-      expect(appMetaRecord?.value).toBeNull();
+      expect(await listTasks()).toHaveLength(0);
+      expect(await getCurrentTask()).toBeNull();
     });
 
-    it("pin transaction ensures only one task is pinned", async () => {
+    it("exactly one task is current at a time, following the top of the order", async () => {
       const task1 = await createTask({ title: "first" });
       const task2 = await createTask({ title: "second" });
 
-      await pinTask(task1.id);
-      await pinTask(task2.id);
+      await reorderTask(task2.id, 0);
 
       const current = await getCurrentTask();
       expect(current?.id).toBe(task2.id);
-
-      // Verify the storage state directly
-      const tasks = await listTasks();
-      let pinnedCount = 0;
-      for (const t of tasks) {
-        const c = await getCurrentTask();
-        if (c?.id === t.id) {
-          pinnedCount += 1;
-        }
-      }
-
-      expect(pinnedCount).toBeLessThanOrEqual(1);
+      expect(current?.id).not.toBe(task1.id);
     });
 
     it("reorder transaction maintains position uniqueness", async () => {

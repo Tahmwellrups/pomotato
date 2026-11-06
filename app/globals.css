@@ -438,6 +438,36 @@ body::before {
   }
 }
 
+/* Two-tone glyph halo for the header wordmark and the three theme chips. The
+   header carries no panel (owner ruling, 2026-11-06), so these glyphs sit on the
+   photograph, and no single text colour holds 3:1 against an arbitrary one. The
+   same two-tone logic as .control-edge, applied to letterforms: the glyph keeps
+   its own token and a --popover halo (cream in light, umber in dark) hugs it.
+   One of the two always clears the ground and the two clear each other, so the
+   glyph-vs-halo figure does not depend on the image: wordmark --primary on
+   --popover is 4.84:1 light and 8.67:1 dark.
+   Drawn as a text stroke painted behind the fill (paint-order), 4 px wide so 2 px
+   shows outside the glyph: tight, uniform on every side, and no box, fill or
+   panel. A directional text-shadow was rejected because it defends one side.
+   Painted only while an image shows, so the no-image header is unchanged.
+   Forced colours: stroke colours are not guaranteed to follow system colours, so
+   the halo is switched off and the system Canvas/CanvasText pair carries it.
+   Focus: the 2 px --ring outline sits on the photograph with no fill behind it
+   (1.27:1 measured). The chip gets the control-edge answer, a 5 px --popover
+   flank, so the outline sits between two --popover bands: --ring on --popover is
+   4.84:1 light and 8.67:1 dark whatever the photograph does. The flank draws
+   under the outline (outline paints over box-shadow) and only on keyboard focus. */
+@media not (forced-colors: active) {
+  body:has([data-background="active"]) .glyph-halo {
+    -webkit-text-stroke: 4px var(--popover);
+    paint-order: stroke fill;
+    stroke-linejoin: round;
+  }
+  body:has([data-background="active"]) input:focus-visible + .glyph-halo {
+    box-shadow: 0 0 0 5px var(--popover);
+  }
+}
+
 /* Low-specificity defaults shadcn/ui components assume are in place (e.g. a
    bare `border` utility resolving to --border instead of currentColor).
    Every border/outline in the current UI already sets its own explicit
@@ -531,4 +561,11 @@ body::before {
     animation: none;
     background-color: Canvas;
   }
+}
+
+/* Before React rehydrates, a stored "panel hidden" preference is only known to
+   the boot script, which marks <html>. This keeps the panel from painting for
+   the frames before TaskPanel unmounts it. Nothing here moves a token. */
+html[data-task-panel="hidden"] [data-task-panel-root] {
+  display: none;
 }

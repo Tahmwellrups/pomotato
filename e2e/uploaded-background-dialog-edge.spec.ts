@@ -11,7 +11,7 @@ import {
   type Rect,
 } from "./helpers/background";
 import { compositeOver, tokenRgb } from "./helpers/painted";
-import { openTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
 import { seedTimerState } from "./helpers/timer-hold";
 
 // Task 010, QA pass 2 (job 2). The task dialog's edge (--dialog-edge) against the
@@ -35,7 +35,7 @@ const IMAGES = ["none", "white", "black"] as const;
 const FLAT_TOKENS = ["--card", "--popover", "--muted", "--secondary"] as const;
 
 async function measureDialog(page: Page) {
-  const dialog = page.getByRole("dialog", { name: "Your tasks", exact: true });
+  const dialog = taskPanel(page);
   await expect(dialog).toBeVisible();
   const box = await dialog.boundingBox();
   if (!box) throw new Error("task dialog has no bounding box");
@@ -93,7 +93,7 @@ async function measureTheme(page: Page, theme: Theme) {
       lines.push(`[${theme}] flat surfaces vs --control-border: ${JSON.stringify(await flatRatiosAgainstControlBorder(page))}`);
     }
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Your tasks", exact: true })).toHaveCount(0);
+    await expect(taskPanel(page)).toHaveCount(0);
   }
   return { results, lines };
 }

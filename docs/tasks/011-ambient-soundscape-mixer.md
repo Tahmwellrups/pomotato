@@ -1,7 +1,7 @@
 ---
 id: 011
 slug: ambient-soundscape-mixer
-status: qa # draft | in-progress | qa | review | done | blocked
+status: done # draft | in-progress | qa | review | done | blocked
 ---
 
 # Ambient soundscape mixer — four synthesized layers, per-layer level, no audio file anywhere

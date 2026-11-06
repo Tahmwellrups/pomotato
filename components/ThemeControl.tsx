@@ -5,20 +5,6 @@ import { usePreferencesStore } from "@/lib/preferences/store";
 import { cn } from "@/lib/utils";
 import { modeChipVariants } from "./ui/mode-chip";
 
-// The chip is 44 px tall inside a header whose content box is 40 px (the
-// fieldset's -my-0.5 buys that), so the shared chip ring, drawn 2 px outside
-// the chip, ended 1 px beyond the header's top or bottom edge, where its
-// ground is the photograph and not the header. Measured 2.058:1 (dark, white
-// image, 1280 px). Pulling the ring inside the chip box puts all of it on the
-// header's own fill: its outer edge lands 3 px inside the chip edge, which is
-// 1 px inside the header at 320 px, where the chip overhangs the header by 2 px
-// (py-0 there) and 5 px inside it from sm up. The ring stays 2 px wide in
-// --ring, so it is no smaller as an indicator, only moved. A header with more
-// padding would have fixed 1280 and cost 8 px of the 320 x 568 vertical budget.
-// The override is here and not in modeChipVariants because ModeSelector shares
-// that chip and its ring sits on the frosted panel with room to spare.
-const CHIP_RING_INSET = "peer-focus-visible:-outline-offset-5";
-
 const THEME_LABELS: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
@@ -54,7 +40,7 @@ export function ThemeControl() {
                 onChange={() => setTheme(value)}
                 className="peer sr-only"
               />
-              <span className={cn(modeChipVariants({ checked }), CHIP_RING_INSET)}>{THEME_LABELS[value]}</span>
+              <span className={cn(modeChipVariants({ checked }), "glyph-halo")}>{THEME_LABELS[value]}</span>
             </label>
           );
         })}

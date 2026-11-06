@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { openTaskList } from "./helpers/task-list-dialog";
 import { holdPointer } from "./helpers/timer-hold";
 
 type SeenSession = {
@@ -44,6 +44,21 @@ async function readSessions(page: Page): Promise<SeenSession[]> {
 }
 
 /**
+ * Task 015 re-point. The pin is retired (014): the current task is the first row whose `done` is false, and
+ * reordering is how it changes. Pinning a row therefore becomes "move it to the top". A row already at the top
+ * is left alone, so single-task flows call this too and it does nothing.
+ */
+async function makeCurrent(page: Page, title: string) {
+  const row = page.locator("ul li").filter({ hasText: title }).first();
+  const up = page.getByRole("button", { name: `Move ${title} up`, exact: true });
+  for (let i = 0; i < 10 && (await up.isEnabled()); i++) {
+    await up.click();
+    await expect.poll(async () => (await page.locator("ul li").first().textContent()) ?? "").toContain(title);
+  }
+  await expect(row).toBeVisible();
+}
+
+/**
  * Waits for a *positive* signal that the run finished, so assertions about
  * what did or did not get logged run after the async write has had its chance.
  * Asserting "count is still 0" without this passes on the first evaluation,
@@ -63,8 +78,8 @@ test.describe("Session logging and completion", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test.describe("happy path: focus run with task pinned", () => {
-    test("focus run with task pinned creates exactly 1 session and increments count", async ({ page }) => {
+  test.describe("happy path: focus run with the current task", () => {
+    test("focus run with the current task creates exactly 1 session and increments count", async ({ page }) => {
       await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
@@ -73,13 +88,10 @@ test.describe("Session logging and completion", () => {
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
 
-      // Pin it
+      // Pin retired: the lone open row is already the current task.
       const taskRow = page.locator("ul li").filter({ hasText: "TestTask" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "TestTask");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       const startButton = page.getByRole("button", { name: "Start", exact: true });
       await startButton.click();
 
@@ -108,12 +120,14 @@ test.describe("Session logging and completion", () => {
     });
   });
 
-  test.describe("focus run with no task pinned", () => {
+  test.describe("focus run with no current task", () => {
     test("creates session with no task attached, no task count changes", async ({ page }) => {
+      // Task 015 re-point. "No pin" is now "no current task": the current task is the first row whose
+      // `done` is false, so with two open rows a run would credit Task1. Both rows are ticked done first.
       await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
-      // Add two tasks (neither pinned)
+      // Add two tasks, then tick both done (neither is current)
       await titleInput.fill("Task1");
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
@@ -121,9 +135,9 @@ test.describe("Session logging and completion", () => {
       await titleInput.fill("Task2");
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
-
-      await closeTaskList(page);
-      // Start timer with no pin
+      await page.locator("ul li").filter({ hasText: "Task1" }).first().getByRole("checkbox").check();
+      await page.locator("ul li").filter({ hasText: "Task2" }).first().getByRole("checkbox").check();
+      // Start timer with no current task
       const startButton = page.getByRole("button", { name: "Start", exact: true });
       await startButton.click();
 
@@ -155,11 +169,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "TaskBreak" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "TaskBreak");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // Switch to short break
       const shortBreakRadio = page.getByRole("radio", { name: /short break/i });
       await shortBreakRadio.click({ force: true });
@@ -197,11 +208,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "ToReset" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "ToReset");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // Start timer
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -232,11 +240,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "ToPause" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "ToPause");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // Start and pause
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -269,11 +274,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "ModeTask" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "ModeTask");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // Start in focus mode
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -307,10 +309,8 @@ test.describe("Session logging and completion", () => {
       // The task has to be pinned, or completion logs an untagged session and
       // no count can ever increment — which is why this test could not pass.
       const taskRow = page.locator("ul li").filter({ hasText: "Zephyrine" }).first();
-      await taskRow.getByRole("button", { name: /^Pin\b/ }).click();
+      await makeCurrent(page, "Zephyrine");
       await page.waitForTimeout(100);
-
-      await closeTaskList(page);
       const startButton = page.getByRole("button", { name: "Start", exact: true });
       await startButton.click();
 
@@ -343,8 +343,7 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "ExpiredTask" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "ExpiredTask");
       await page.waitForTimeout(200);
 
       // Simulate a run that ended while the tab was closed: write a running
@@ -399,11 +398,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "ReloadTask" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "ReloadTask");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // Start timer and expire it
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -452,11 +448,8 @@ test.describe("Session logging and completion", () => {
         await page1.waitForTimeout(100);
 
         const taskRow1 = page1.locator("ul li").filter({ hasText: "TwoTabTask" }).first();
-        const pinButton1 = taskRow1.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-        await pinButton1.click();
+        await makeCurrent(page1, "TwoTabTask");
         await page1.waitForTimeout(200);
-
-        await closeTaskList(page1);
         // Tab 1: Start timer (clock will be installed only on page1)
         const startButton1 = page1.getByRole("button", { name: "Start" });
         await startButton1.click();
@@ -510,11 +503,8 @@ test.describe("Session logging and completion", () => {
 
         // Pin TaskA on page1
         const taskRowA1 = page1.locator("ul li").filter({ hasText: "TaskA" }).first();
-        const pinButtonA1 = taskRowA1.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-        await pinButtonA1.click();
+        await makeCurrent(page1, "TaskA");
         await page1.waitForTimeout(200);
-
-        await closeTaskList(page1);
         // Start timer on page1
         const startButton = page1.getByRole("button", { name: "Start" });
         await startButton.click();
@@ -523,8 +513,7 @@ test.describe("Session logging and completion", () => {
         await page2.waitForTimeout(500);
         await openTaskList(page2);
         const taskRowB2 = page2.locator("ul li").filter({ hasText: "TaskB" }).first();
-        const pinButtonB2 = taskRowB2.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-        await pinButtonB2.click();
+        await makeCurrent(page2, "TaskB");
         await page2.waitForTimeout(200);
 
         // Complete timer on page1
@@ -558,11 +547,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "DeleteMe" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "DeleteMe");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // Start timer
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -599,11 +585,8 @@ test.describe("Session logging and completion", () => {
       await page.waitForTimeout(100);
 
       const taskRow = page.locator("ul li").filter({ hasText: "SecondRunTask" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
+      await makeCurrent(page, "SecondRunTask");
       await page.waitForTimeout(200);
-
-      await closeTaskList(page);
       // First run
       let startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
@@ -616,8 +599,6 @@ test.describe("Session logging and completion", () => {
       // Count should be 1
       let countDisplay = taskRow.locator("text=/1 \\//");
       await expect(countDisplay).toBeVisible();
-
-      await closeTaskList(page);
       // Click somewhere to reset to idle, then start again
       const resetButton = page.getByRole("button", { name: "Reset", exact: true });
       // Hold-to-confirm (task 005): the reset needs a held press, not a click.
@@ -684,8 +665,6 @@ test.describe("Session logging and completion", () => {
       await titleInput.fill("FailedDBTask");
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
-
-      await closeTaskList(page);
       // Timer should still work
       const startButton = page.getByRole("button", { name: "Start" });
       await expect(startButton).toBeVisible();

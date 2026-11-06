@@ -59,28 +59,17 @@ const ALLOWED_RAW_UTILITIES: Record<string, string[]> = {};
 
 // Colour literals (hex and colour functions) that are data or probes, not theme.
 // Each entry carries the reason it is exempt.
-const ALLOWED_LITERALS: Record<string, string> = {
-  "components/task-palette-colors.ts":
-    "TASK_COLOR_HEX: the eight task swatch values, owner palette decisions measured at 3:1 as data. milestone 4 remaps them per theme.",
-};
-
-// Task 007 criterion 13: the one inline style colour in the swept files. The
-// swatch value comes from TASK_COLOR_HEX, contrast-checked data rather than
-// theme, so it is exempted here by name and by exact expression, not left to
-// pass by accident. The exemption is for the inline style, not for the file:
-// every other check in this file still runs on TaskColorDot.tsx.
-const INLINE_STYLE_EXEMPTION = {
-  file: "components/TaskColorDot.tsx",
-  expression: "style={{ backgroundColor: TASK_COLOR_HEX[colorId] }}",
-  reason: "swatch colour is contrast-checked data from TASK_COLOR_HEX, not theme",
-};
+// Task 015 criterion 45: empty on purpose. The only entry was components/task-palette-colors.ts,
+// the task swatch data, and that file is deleted with the colour dot. Any later exemption is added
+// here in the same diff with a reason, where review can see it.
+const ALLOWED_LITERALS: Record<string, string> = {};
 
 const TASK_007_FILES = [
+  "components/TaskChecklistRow.tsx",
+  "components/TaskChecklist.tsx",
+  "components/TaskPanelToggle.tsx",
+  "widgets/TaskPanel.tsx",
   "components/TaskForm.tsx",
-  "components/TaskRow.tsx",
-  "components/TaskList.tsx",
-  "components/TaskListDialog.tsx",
-  "components/TaskColorDot.tsx",
   "components/StatsButton.tsx",
   "components/FocusLengthInput.tsx",
   "components/ModeSelector.tsx",
@@ -141,7 +130,7 @@ describe("task 007 file discovery is live", () => {
       "app/page.tsx",
       "app/layout.tsx",
       "app/stats/page.tsx",
-      "components/TaskRow.tsx",
+      "components/TaskChecklistRow.tsx",
       "components/ui/mode-chip.tsx",
       "hooks/use-tasks.ts",
       "widgets/HeaderNav.tsx",
@@ -173,9 +162,8 @@ describe("task 007 no raw palette utility anywhere in app code", () => {
 });
 
 describe("task 007 no colour literal in app code outside the pinned data and probe files", () => {
-  it("the exempt files are exactly the pinned two, each with a reason", () => {
-    expect(Object.keys(ALLOWED_LITERALS).sort()).toEqual(["components/task-palette-colors.ts"]);
-    for (const reason of Object.values(ALLOWED_LITERALS)) expect(reason.length).toBeGreaterThan(20);
+  it("task 015 criterion 45: no file is exempt from the literal check", () => {
+    expect(ALLOWED_LITERALS).toEqual({});
   });
 
   for (const file of FILES) {
@@ -188,20 +176,10 @@ describe("task 007 no colour literal in app code outside the pinned data and pro
   }
 });
 
-describe("task 007 inline style colour is exempt only for the swatch", () => {
-  it("the exemption names its file, exact expression and reason", () => {
-    expect(INLINE_STYLE_EXEMPTION.reason).toMatch(/TASK_COLOR_HEX/);
-    expect(read(INLINE_STYLE_EXEMPTION.file)).toContain(INLINE_STYLE_EXEMPTION.expression);
-  });
-
-  it("TaskColorDot.tsx has no inline colour style beyond the exempt expression", () => {
-    const rest = read(INLINE_STYLE_EXEMPTION.file).replace(INLINE_STYLE_EXEMPTION.expression, "");
-    expect(rest).not.toMatch(INLINE_STYLE_COLOR);
-  });
-
-  // Task 009 R-8: iterates every discovered file (FILES), not the hand-kept TASK_007_FILES list.
+describe("task 007 inline style colour: no exemption survives task 015 (criterion 45)", () => {
+  // Task 007 criterion 13 exempted one inline style (the swatch backgroundColor) by name. That file
+  // is deleted, so the exemption has no file and is removed; the check now runs on every file.
   for (const file of FILES) {
-    if (file === INLINE_STYLE_EXEMPTION.file) continue;
     it(`${file} has no inline colour style`, () => {
       expect(read(file)).not.toMatch(INLINE_STYLE_COLOR);
     });
@@ -303,12 +281,7 @@ describe("task 010 criterion 31: the new files are covered and the allowlists di
     expect(ALLOWED_RAW_UTILITIES).toEqual({});
   });
 
-  it("ALLOWED_LITERALS still has its single entry", () => {
-    expect(Object.keys(ALLOWED_LITERALS)).toEqual(["components/task-palette-colors.ts"]);
-  });
-
-  it("the one inline style exemption is unchanged (no second exemption added for the image)", () => {
-    expect(INLINE_STYLE_EXEMPTION.file).toBe("components/TaskColorDot.tsx");
-    expect(INLINE_STYLE_EXEMPTION.expression).toBe("style={{ backgroundColor: TASK_COLOR_HEX[colorId] }}");
+  it("ALLOWED_LITERALS is empty (task 015 criterion 45)", () => {
+    expect(ALLOWED_LITERALS).toEqual({});
   });
 });

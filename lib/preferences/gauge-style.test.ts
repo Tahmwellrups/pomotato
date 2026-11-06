@@ -55,13 +55,13 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
       expect(() => {
         result = sanitizePreferences({ theme: "dark", gaugeStyle: value });
       }).not.toThrow();
-      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix() });
+      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true });
       expect(isPreferences({ theme: "dark", gaugeStyle: value })).toBe(false);
     });
   }
 
   it("a missing gaugeStyle key falls back to the vessel and keeps the theme", () => {
-    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel", background: null, mix: defaultMix() });
+    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true });
   });
 
   it("a valid gaugeStyle survives sanitising next to a bad theme", () => {
@@ -70,6 +70,7 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
       gaugeStyle: "glyph",
       background: null,
     mix: defaultMix(),
+    taskPanelVisible: true,
     });
   });
 
@@ -144,7 +145,7 @@ describe("criterion 7 against the storage entry: the store rehydrates bad data a
       expect(state.theme).toBe(expected.theme);
       expect(state.gaugeStyle).toBe(expected.gaugeStyle);
       expect(storedEntry()).toEqual({
-        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle, background: null, mix: defaultMix() },
+        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle, background: null, mix: defaultMix(), taskPanelVisible: true },
         version: PREFERENCES_VERSION,
       });
     });
@@ -178,8 +179,8 @@ describe("the upgrade path: every existing user's payload rehydrates to theme pl
     expect(state.hasHydrated).toBe(true);
     // Persist widens the envelope on write-back; the theme is preserved in it.
     expect(storedEntry()).toEqual({
-      state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix() },
-      version: 1,
+      state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true },
+      version: 2,
     });
   });
 });

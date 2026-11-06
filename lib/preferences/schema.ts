@@ -8,9 +8,13 @@
  * `PREFERENCE_VALUES`, and one `pick` line to `sanitizePreferences`. Nothing
  * else changes. A key whose value is not a closed set (task 010's background
  * reference) gets a validator instead of a value-set entry, plus the same one
- * `pick` line and one line in `isPreferences`. Bump `PREFERENCES_VERSION` only
- * when an existing key's meaning changes, and handle the old version in
- * `migratePreferences`.
+ * `pick` line and one line in `isPreferences`. A key whose value is a plain
+ * boolean (`taskPanelVisible`) is validated inline in `sanitizePreferences`
+ * and `isPreferences` with `typeof`. A bump of `PREFERENCES_VERSION` is only
+ * mechanically needed when an existing key's meaning changes, and the old
+ * version is then handled in `migratePreferences`. Version 2 was taken for a
+ * new key anyway, by owner ruling (task 015), purely so the stored `version`
+ * records when `taskPanelVisible` appeared.
  */
 
 import { defaultMix, isMix, sanitizeMix, type Mix } from "../audio/mix";
@@ -62,11 +66,13 @@ export interface Preferences {
    * right now is deliberately not stored, autoplay policy forbids resuming it.
    */
   mix: Mix;
+  /** Task 015: whether the task panel on `/` is shown. Default true; stored so a hidden panel stays hidden across reloads. */
+  taskPanelVisible: boolean;
 }
 
 /** localStorage key. Not "pomotato-timer". The boot script reads this same constant. */
 export const PREFERENCES_STORAGE_KEY = "pomotato-preferences";
-export const PREFERENCES_VERSION = 1;
+export const PREFERENCES_VERSION = 2;
 
 export const DEFAULT_THEME: ThemePreference = "system";
 
@@ -78,11 +84,12 @@ export const PREFERENCE_DEFAULTS: Preferences = {
   gaugeStyle: DEFAULT_GAUGE_STYLE,
   background: null,
   mix: defaultMix(),
+  taskPanelVisible: true,
 };
 
-/** The accepted value set per closed-set key. `background` and `mix` have validators instead. */
+/** The accepted value set per closed-set key. `background`, `mix` and `taskPanelVisible` have validators instead. */
 export const PREFERENCE_VALUES: {
-  readonly [K in Exclude<keyof Preferences, "background" | "mix">]: readonly Preferences[K][];
+  readonly [K in Exclude<keyof Preferences, "background" | "mix" | "taskPanelVisible">]: readonly Preferences[K][];
 } = {
   theme: THEME_VALUES,
   gaugeStyle: GAUGE_STYLE_VALUES,
@@ -106,6 +113,8 @@ export function sanitizePreferences(raw: unknown): Preferences {
     gaugeStyle: pick("gaugeStyle", record.gaugeStyle),
     background: isBackgroundId(record.background) ? record.background : PREFERENCE_DEFAULTS.background,
     mix: sanitizeMix(record.mix),
+    taskPanelVisible:
+      typeof record.taskPanelVisible === "boolean" ? record.taskPanelVisible : PREFERENCE_DEFAULTS.taskPanelVisible,
   };
 }
 
@@ -119,15 +128,17 @@ export function isPreferences(raw: unknown): raw is Preferences {
   return (
     enumsValid &&
     (record.background === null || isBackgroundId(record.background)) &&
-    isMix(record.mix)
+    isMix(record.mix) &&
+    typeof record.taskPanelVisible === "boolean"
   );
 }
 
 /**
- * Version 1 is current. Unknown or older shapes are sanitised, never trusted.
- * A v1 payload written before `gaugeStyle` existed keeps its theme and gains the
- * default, because `sanitizePreferences` falls back per key. That is why adding
- * `gaugeStyle` and then `background` needed no version bump.
+ * Version 2 is current. Unknown or older shapes are sanitised, never trusted.
+ * A version-1 payload (no `taskPanelVisible`) keeps theme, gaugeStyle,
+ * background and mix and gains the default (panel shown), because
+ * `sanitizePreferences` falls back per key. That per-key fallback is also why
+ * `gaugeStyle`, `background` and `mix` each needed no version bump.
  */
 export function migratePreferences(persisted: unknown): Preferences {
   return sanitizePreferences(persisted);
@@ -143,6 +154,15 @@ export function resolveTheme(preference: ThemePreference, osPrefersDark: boolean
 }
 
 export const DARK_CLASS = "dark";
+
+/**
+ * Pre-hydration contract for the task panel (task 015): the boot script sets
+ * this attribute on <html> to `TASK_PANEL_HIDDEN_VALUE` when the stored
+ * `taskPanelVisible` is `false`, and removes it in every other case, so absent
+ * means visible and matches the default.
+ */
+export const TASK_PANEL_ATTRIBUTE = "data-task-panel";
+export const TASK_PANEL_HIDDEN_VALUE = "hidden";
 
 /**
  * Idempotent: `toggle` with an explicit force can never leave a duplicated or

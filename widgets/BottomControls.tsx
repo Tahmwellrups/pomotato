@@ -1,5 +1,5 @@
 import React from 'react'
-import { TaskListDialog } from '@/components/TaskListDialog'
+import { TaskPanelToggle } from '@/components/TaskPanelToggle'
 import { SoundscapeDialog } from '@/components/SoundscapeDialog'
 import { StatsButton } from '@/components/StatsButton'
 import { SettingsButton } from '@/components/SettingsButton'
@@ -15,7 +15,7 @@ import { SettingsButton } from '@/components/SettingsButton'
 export function BottomControls() {
   return (
     <div className="flex items-center justify-center gap-2 lg:fixed lg:right-0 lg:bottom-0 lg:z-10 lg:p-4 lg:pr-12 lg:pb-12">
-      <TaskListDialog />
+      <TaskPanelToggle />
       <SoundscapeDialog />
       <StatsButton />
       <SettingsButton />

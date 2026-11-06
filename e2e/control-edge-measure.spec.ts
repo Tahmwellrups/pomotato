@@ -29,7 +29,8 @@ const VIEWPORTS = [
 ] as const;
 const NO_TRANSITION = "*, *::before, *::after { transition: none !important; }";
 const TRIGGERS = [
-  { name: "Your tasks (Tasks)", selector: 'button[aria-label="Your tasks"]' },
+  // Task 015 re-point: the "Your tasks" dialog trigger is deleted; the panel toggle is the Tasks control.
+  { name: "Task list (panel toggle)", selector: 'button[aria-label="Task list"]' },
   { name: "Ambient sound", selector: 'button[aria-label="Ambient sound"]' },
   { name: "Focus stats", selector: 'a[aria-label="Focus stats"]' },
   { name: "Settings", selector: 'a[aria-label="Settings"]' },
@@ -123,7 +124,9 @@ async function measureImageLoad(page: Page, theme: Theme, imageName: string, ima
   expect(await page.locator(".control-edge").count(), "four .control-edge triggers").toBe(4);
 
   // ---- Phase A: theme chip focused, page at the top. ----
-  const header = await boxOf(page.locator('[data-surface="solid"]').first());
+  // Task 015 re-point: the header is the HeaderNav root, two parents above the wordmark <h1> (it has no landmark).
+  // `[data-surface="solid"]` no longer stands in for it: that now resolves to the task panel.
+  const header = await boxOf(page.locator("xpath=//h1/../..").first());
   const chipInput = page.locator('input[name="theme"]:checked');
   await chipInput.focus();
   await settle(page);
@@ -150,11 +153,13 @@ async function measureImageLoad(page: Page, theme: Theme, imageName: string, ima
   const chipPx = await pixels(page, [
     { name: "chip ring outer row", x: chipCx, y: chipOuterRow },
     { name: "chip ground (inside ring)", x: chipCx, y: chipOuterRow - 1 },
-    { name: "header fill", x: Math.floor(header.x + 4), y: Math.floor(header.y + header.h / 2) },
   ]);
   const chipRing = chipPx.get("chip ring outer row")!;
   const chipGround = chipPx.get("chip ground (inside ring)")!;
-  expect(chipGround, `${theme} ${imageName} ${viewport.name}: chip ring's ground is the header fill`).toEqual(chipPx.get("header fill")!);
+  // Retired (task 015, owner ruling 2026-11-06): the "header fill" probe and its assertion that the chip ring sits on
+  // it. The header carries no panel, so there is no header fill to read. The ratio below uses the pixel painted
+  // directly inside the ring, which is the ground that matters. Parked, not abandoned: re-point to the two-tone glyph
+  // halo when that ships.
   expect(chipRing, `${theme} ${imageName} ${viewport.name}: painted chip ring is the computed outline colour`).toEqual(
     (chipOutline.colour.match(/\d+/g) ?? []).slice(0, 3).map(Number),
   );

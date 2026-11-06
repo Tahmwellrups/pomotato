@@ -76,7 +76,7 @@ export async function listAllSessionsForTests(): Promise<SessionRecord[]> {
  * pin, then closes it and drops the singleton. The next repository call opens
  * it under version 2 and runs the upgrade, which is the migration scenario.
  */
-export async function seedVersion1DatabaseForTests(data: { tasks: Task[]; pinnedTaskId: string | null }): Promise<void> {
+export async function seedVersion1DatabaseForTests(data: { tasks: LegacyTask[]; pinnedTaskId: string | null }): Promise<void> {
   const existing = getDatabase();
   await existing.delete();
   __resetDatabaseInstanceForTests();
@@ -87,5 +87,76 @@ export async function seedVersion1DatabaseForTests(data: { tasks: Task[]; pinned
   await legacy.open();
   await legacy.table("tasks").bulkAdd(data.tasks);
   await legacy.table("appMeta").put({ key: "pinnedTaskId", value: data.pinnedTaskId });
+  legacy.close();
+}
+
+/** A task row as versions 1-3 stored it: no `done` field, and still carrying `emoji` and `colorId`. */
+export type LegacyTask = Omit<Task, "done"> & { emoji: string; colorId: string };
+
+/**
+ * Test-only. Replaces the database with one that exists ONLY at schema version
+ * 3 (`tasks`, `appMeta`, `sessions`, `backgrounds`), with the given raw rows
+ * and pin, then closes it and drops the singleton. The next repository call
+ * opens it at the current version and runs every upgrade from 4 on (so rows come back without `emoji`/`colorId`). Rows are written as given (no
+ * `done`, any `position`, whatever shape), and `pinnedTaskId: undefined`
+ * stores no `appMeta` row at all. Returns nothing; read the result back
+ * through `openDatabase()`.
+ */
+export async function seedVersion3DatabaseForTests(data: {
+  tasks: Array<Record<string, unknown> & { id: string }>;
+  pinnedTaskId?: string | null;
+  sessions?: SessionRecord[];
+  backgrounds?: Array<Record<string, unknown> & { id: string }>;
+}): Promise<void> {
+  const existing = getDatabase();
+  await existing.delete();
+  __resetDatabaseInstanceForTests();
+
+  const legacy = new Dexie(DATABASE_NAME);
+  // Same strings as the frozen version 1-3 blocks in ./database.
+  legacy.version(1).stores({ tasks: "id, position", appMeta: "key" });
+  legacy.version(2).stores({ sessions: "id, &runId, endedAt" });
+  legacy.version(3).stores({ backgrounds: "id" });
+  await legacy.open();
+  await legacy.table("tasks").bulkAdd(data.tasks);
+  if (data.pinnedTaskId !== undefined) {
+    await legacy.table("appMeta").put({ key: "pinnedTaskId", value: data.pinnedTaskId });
+  }
+  if (data.sessions) await legacy.table("sessions").bulkAdd(data.sessions);
+  if (data.backgrounds) await legacy.table("backgrounds").bulkAdd(data.backgrounds);
+  legacy.close();
+}
+
+/**
+ * Test-only. Replaces the database with one that exists ONLY at schema version
+ * 4 (the same four tables as version 3, rows now carrying `done`), with the
+ * given raw rows, then closes it and drops the singleton. The next repository
+ * call opens it at version 5 and runs `upgradeToVersion5`, which is the only
+ * way a test can observe the strip: a fresh database never runs the callback.
+ * Rows are written as given, so a test can seed `emoji`/`colorId` (or junk
+ * values, or neither). The retired pin row is not seedable here; version 4
+ * deleted it. Read the result back with `db.table("tasks").toArray()` for raw rows.
+ */
+export async function seedVersion4DatabaseForTests(data: {
+  tasks: Array<Record<string, unknown> & { id: string }>;
+  sessions?: SessionRecord[];
+  backgrounds?: Array<Record<string, unknown> & { id: string }>;
+}): Promise<void> {
+  const existing = getDatabase();
+  await existing.delete();
+  __resetDatabaseInstanceForTests();
+
+  const legacy = new Dexie(DATABASE_NAME);
+  // Same strings as the frozen version 1-4 blocks in ./database. Version 4 has no
+  // `.upgrade()` here on purpose: the database is created fresh at 4, so there is
+  // nothing to upgrade and the rows land exactly as seeded.
+  legacy.version(1).stores({ tasks: "id, position", appMeta: "key" });
+  legacy.version(2).stores({ sessions: "id, &runId, endedAt" });
+  legacy.version(3).stores({ backgrounds: "id" });
+  legacy.version(4).stores({});
+  await legacy.open();
+  await legacy.table("tasks").bulkAdd(data.tasks);
+  if (data.sessions) await legacy.table("sessions").bulkAdd(data.sessions);
+  if (data.backgrounds) await legacy.table("backgrounds").bulkAdd(data.backgrounds);
   legacy.close();
 }

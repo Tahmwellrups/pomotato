@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import Dexie from "dexie";
-import { DATABASE_NAME, __resetDatabaseInstanceForTests, openDatabase } from "./database";
-import { createTask, listTasks, pinTask } from "./task-repository";
+import { CURRENT_SCHEMA_VERSION, DATABASE_NAME, __resetDatabaseInstanceForTests, openDatabase } from "./database";
+import { createTask, listTasks } from "./task-repository";
 import { listAllSessionsForTests, resetDatabaseForTests, seedSessionsForTests } from "./test-utils";
 import { loadBackground, storeBackground } from "./background-repository";
 
-// Task 010 criterion 6. Every existing user is on schema version 2 (tasks, appMeta,
-// sessions). The rows are seeded on a genuine version-2 database, opened by the
-// shipped code, and re-read unchanged.
+// Task 010 criterion 6, re-pointed for schema version 4. Every existing user is on schema
+// version 2 (tasks, appMeta, sessions). The rows are seeded on a genuine version-2 database,
+// opened by the shipped code (which runs the v3 and v4 upgrades), and re-read.
 
 // Same store strings as the frozen .version(1) and .version(2) blocks in ./database.
 async function openLegacyAtVersion2(): Promise<Dexie> {
@@ -19,12 +19,13 @@ async function openLegacyAtVersion2(): Promise<Dexie> {
 }
 
 describe("task 010 criterion 6: the schema bump is additive", () => {
-  it("version 2 rows survive the upgrade to version 3 and the new table is empty", async () => {
+  it("version 2 rows survive the upgrade to the current version: tasks and sessions kept, backgrounds empty, retired pin row removed", async () => {
     await resetDatabaseForTests();
-    const first = await createTask({ title: "keep the first" });
-    await createTask({ title: "keep the second" });
-    await pinTask(first.id);
+    await createTask({ title: "keep the first" });
+    const second = await createTask({ title: "keep the second" });
     const before = await openDatabase();
+    // The pin was retired in v4; a v2 database still carries the row, so seed it directly.
+    await before.table("appMeta").put({ key: "pinnedTaskId", value: second.id });
     const tasks = await before.table("tasks").toArray();
     const meta = await before.table("appMeta").toArray();
     const sessions = await before.table("sessions").toArray();
@@ -40,12 +41,16 @@ describe("task 010 criterion 6: the schema bump is additive", () => {
     legacy.close();
 
     const upgraded = await openDatabase();
-    expect(upgraded.verno).toBe(3);
-    expect(await upgraded.table("tasks").toArray()).toEqual(tasks);
-    expect(await upgraded.table("appMeta").toArray()).toEqual(meta);
+    expect(upgraded.verno).toBe(CURRENT_SCHEMA_VERSION);
+    expect(CURRENT_SCHEMA_VERSION).toBe(5);
+    const upgradedTasks = await upgraded.table("tasks").toArray();
+    expect(upgradedTasks.map((t) => t.id).sort()).toEqual(tasks.map((t) => t.id).sort());
+    expect(upgradedTasks.every((t) => t.done === false)).toBe(true);
+    // v4 moves the last-chosen task to position 0 (ordering replaces the pin) and deletes the pin row.
+    expect((await listTasks()).map((t) => t.title)).toEqual(["keep the second", "keep the first"]);
+    expect(await upgraded.table("appMeta").get("pinnedTaskId")).toBeUndefined();
     expect(await upgraded.table("sessions").toArray()).toEqual(sessions);
     expect(await upgraded.backgrounds.count()).toBe(0);
-    expect((await listTasks()).map((t) => t.title).sort()).toEqual(["keep the first", "keep the second"]);
   });
 
   it("the new table accepts an image on the upgraded database and leaves the other tables alone", async () => {

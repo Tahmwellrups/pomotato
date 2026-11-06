@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { openTaskList } from "./helpers/task-list-dialog";
 import { DESKTOP, must, openThemed, pixelsAt, record, settle, type Preference } from "./helpers/dark";
 import { contrast, readPainted, type Rgb } from "./helpers/painted";
 
@@ -36,7 +36,6 @@ test.describe("criterion 22: no number spinners exist; scrollbars and selection 
       expect(numberInputs, "number inputs on /").toBe(0);
       await openTaskList(page);
       expect(await page.locator('input[type="number"]').count(), "number inputs in dialog").toBe(0);
-      await closeTaskList(page);
       await page.goto("/stats");
       await settle(page);
       expect(await page.locator('input[type="number"]').count(), "number inputs on /stats").toBe(0);

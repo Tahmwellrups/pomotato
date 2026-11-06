@@ -19,7 +19,7 @@ import {
 } from "./helpers/background";
 import { compositeOver } from "./helpers/painted";
 import { clipToSurface } from "./helpers/surface-sampler";
-import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { openTaskList } from "./helpers/task-list-dialog";
 import { seedTimerState } from "./helpers/timer-hold";
 
 // Task 010 criteria 13-20: the measured floors, the gauge matrix, interior identity,
@@ -404,7 +404,6 @@ test.describe("criterion 14: painted interiors of a task swatch, a filled contro
     const sBox = (await boxOf(swatchEl)) as Rect;
     const sFill = await colourOf(page, swatchEl, "backgroundColor");
     const swatchPx = await grab(page, inset(sBox, 2));
-    await closeTaskList(page);
     return { primaryPx, readoutPx, swatchPx, pFill, sFill, inks };
   }
 
@@ -521,7 +520,6 @@ test.describe("criterion 20: no serious or critical axe violation on four surfac
         const dialog = await openTaskList(page);
         await expect(dialog).toBeVisible();
         await scan("task dialog over /");
-        await closeTaskList(page);
         test.info().annotations.push({ type: "measure", description: `criterion 20 ${theme} ${label}: ${problems.length ? problems.join("; ") : "no serious or critical violations"}` });
         expect(problems).toEqual([]);
       });

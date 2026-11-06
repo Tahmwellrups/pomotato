@@ -1,6 +1,6 @@
 import { expect, test, type ConsoleMessage, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
 import { holdResetWithPointer, readTimerState, seedTimerState } from "./helpers/timer-hold";
 import { DESKTOP, NARROW, openThemed, settle, type Preference } from "./helpers/dark";
 
@@ -71,12 +71,11 @@ test.describe("criterion 39: axe-core, zero serious or critical violations", () 
       expect(await seriousOrCritical(page), "dialog open").toEqual([]);
 
       // Error state: submit the add form with an empty title.
-      const dialog = page.getByRole("dialog", { name: "Your tasks", exact: true });
+      const dialog = taskPanel(page);
       await dialog.getByRole("button", { name: "Add task", exact: true }).click();
       await expect(dialog.getByRole("alert").first()).toBeVisible();
       await settle(page);
       expect(await seriousOrCritical(page), "form error").toEqual([]);
-      await closeTaskList(page);
 
       await page.goto("/stats");
       await page.waitForLoadState("networkidle");
@@ -134,7 +133,7 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
 
       // Task dialog: open, add, pin, edit, delete, close.
       await openTaskList(page);
-      const dialog = page.getByRole("dialog", { name: "Your tasks", exact: true });
+      const dialog = taskPanel(page);
       const title = page.locator('input[id*="-title"]').first();
       await title.fill("Alpha");
       await title.press("Enter");
@@ -149,7 +148,6 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
       await expect(dialog.getByText("Alpha two", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Delete Alpha two", exact: true }).click();
       await dialog.getByRole("group").getByRole("button", { name: "Delete", exact: true }).click();
-      await closeTaskList(page);
 
       // /stats and back, then reload.
       await page.getByRole("link", { name: "Focus stats", exact: true }).click();

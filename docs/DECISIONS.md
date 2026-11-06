@@ -4,6 +4,223 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-11-06 — Two agents measured the task panel and disagreed by 64 px, and both were right
+Task 015 criterion 34 caps the empty panel at 240 px tall. Frontend recorded **352 x 234** and QA measured
+**298** tall and **416 x 544** for three tasks. That looked like the 2026-10-29 sampler disagreement, so it
+was re-measured rather than resolved by picking a side.
+
+**Both figures are correct. They are different elements.** Measured at 1280x800, DPR 1, default theme, no
+background stored:
+
+| element | empty | three tasks | share of viewport |
+|---|---|---|---|
+| outer `<section>` (carries `xl:p-4 xl:pb-12 xl:pl-12`) | 416 x **298** | 416 x 544 | 22.1 % |
+| inner `<Surface kind="solid">` | 352 x **234** | 352 x 480 | 16.5 % |
+
+The delta is exactly **64 px in both dimensions**: 16 top + 48 bottom, and 48 left + 16 right. Frontend read
+the Surface, QA read the section. Nothing was flaky and no sampler was at fault.
+
+**Ruling: criterion 34 means the `Surface`, so it PASSES at 234 px (6 px of slack).** The outer padding is
+the gap that holds the panel off the viewport edge, not panel. Counting it as panel height would make the
+criterion penalise the very spacing that stops the panel touching the screen edge, which is backwards. The
+criterion's stated purpose is to stop the add form shipping as a permanently-expanded multi-field block —
+that is about visual bulk, and padding is not bulk. The 25 % area cap passes on either reading (16.5 % and
+22.1 %), so only the height cap ever turned on this.
+
+**The reusable rule, which the 2026-10-26 entry did not go far enough on.** That entry says a criterion
+naming a figure must say *where the figure came from* — viewport, theme, ground. This adds the obvious
+missing one: **it must name the element**, by selector, when a component has an outer layout box and an
+inner painted box. "The panel" is not a selector. Every nested-box criterion is a disagreement waiting to
+happen, and this one cost a measurement round to discover rather than a failure to fix. The 2026-11-06
+"recorded figure said the timer fit on a phone" entry adds scroll position to the same list.
+
+**Criterion 24 resolved from the same run, not re-measured later.** QA reported the "entire timer Surface
+above the fold" clause unverified, having only checked the Start button. The figure already existed from the
+phone-layout verification: at 320x568, `scrollTo(0,0)`, the timer Surface is **y 108-542** with an empty list
+and **y 108-550** with three tasks, both inside 568; at 375x667 it is y 108-490 and y 108-498. **Criterion 24
+passes in full.** QA's note that frontend's 152-710 figure "predates the layout pass" is right, which is
+exactly why that figure now carries an in-place correction rather than having been deleted.
+
+### 2026-11-06 — A recorded figure said the timer fit on a phone, and it never did
+Task 015's frontend reported that criterion 24 (timer above the fold at 320x568) could not be met, and that
+its reading disagreed with a figure task 014 had recorded. It could not find what moved. Nothing had: **014's
+figure was wrong**, and the disagreement was the only reason anyone looked.
+
+**What is true.** At 320x568, DPR 1, empty task list, `scrollTo(0,0)`: the timer `Surface` spans **y 152-710**
+and the Start/Pause/Reset row is **top 657, bottom 701**. The 484 px inner stack is current-task card 40,
+chips plus cycle dots 116, gauge wrapper (`min-h-40`) 160, focus-length field 68, controls 44, and three
+`gap-8` gaps at 96. `main`'s `pt-12` and `gap-6` put the surface top at 152.
+
+**What was recorded.** 014's Implementation Notes say "320x568 Start's bottom edge is y 341 before any
+scroll". That is impossible given the stack above — Start is the last row of a 558 px surface starting at
+152. The likely cause is a measurement taken after a scroll, which is exactly why **a figure must record its
+scroll position along with its viewport, theme and ground.** The 2026-10-26 rule already said a criterion
+naming a figure must say where the figure came from; this adds scroll position to that list for any
+above-the-fold claim. The figure is annotated wrong in place rather than deleted, so the next reader sees
+the correction instead of re-deriving it.
+
+**Whose fault it is not.** This is a **task 013 consequence, not 014's or 015's.** `CycleDots` and the
+always-mounted focus-length field are both 013 additions — before 013 the field only rendered in Custom
+mode, so the stack was shorter. 014 added the panel *after* the timer in flow, where nothing it does can
+move the timer, and 015 touched none of these components. It is false at 375x667 as well, so it affects
+ordinary phones and not merely the smallest one.
+
+**Not a blocker, and worth being precise about why.** Nothing *covers* Start: `BottomControls` is in page
+flow below `lg` (the 2026-10-28 ruling), so Start is reachable by scrolling and is not trapped under
+floating chrome. That earlier ruling was about chrome covering Start, which is a different and worse
+failure. This is "you must scroll", not "you cannot press it".
+
+**Owner ruling: shrink the stack on phones** rather than accept the scroll or defer it, because a focus
+timer is glanced at and scrolling to reach Start defeats that. Scoped to phone widths only — `sm` and up
+keeps its measured geometry byte-identical, since 012, 013 and 015 figures all read against it. Removing the
+focus-length field on small screens was explicitly ruled out: 013 made the Focus length editable on purpose
+and it is the only editable duration, so it may be shrunk or re-arranged but not dropped from the DOM.
+Landing it **before** 015's sweep is deliberate — a layout change after a sweep means sweeping twice.
+
+### 2026-11-06 — A `liveQuery` that races any repository call silently subscribes to nothing
+Found while verifying task 014's frontend pass, fixed in `lib/db/database.ts`. **Pre-existing, and it
+predates 014** — on HEAD it showed as pinning a task leaving `CurrentTaskCard` on its old copy.
+
+**Symptom.** On `/` with a background image stored, adding or ticking a task did not update the card or the
+task panel until a reload. With no image stored, everything updated live. A subscription mounted *later* —
+the dialog's own list — worked fine, which is the clue that this was about mount timing, not the querier.
+
+**The symptom's description was wrong, and that matters more than the fix.** It is not about background
+images and not about any particular table. Measured, control 1 re-fire against 0:
+a background row merely existing is harmless; a concurrent `loadBackground` breaks it; **a concurrent
+`listTasks()` — the same table the query reads — breaks it identically.** The background image is only the
+thing that reliably causes a concurrent repository call at mount on `/`. So the task list could go stale in
+other situations too, and anything that adds a read at mount can resurrect this.
+
+**Mechanism, confirmed with a probe reading `Dexie.Promise.PSD.subscr` either side of the await.** Inside a
+liveQuery querier, Dexie makes the global `Promise` its own zone-aware one, so a promise *constructed there*
+carries the zone. `openDatabase()` shared one attempt across callers (`if (pendingOpen) return pendingOpen`).
+Dexie defers a querier's first run, so a concurrent repository call gets there first, **outside** any Dexie
+zone, where `Promise` is native — and it is that native promise the querier then awaits. The zone does not
+survive the await, Dexie's echo does not cover it, the reads afterwards are attributed to no subscription,
+and the observability set comes out empty. The query then never re-fires. **Which zone resolved the promise
+is not the cause**; the cause is a shared *native* promise created outside the awaiter's zone.
+
+**Two hypotheses were disproved on the way, recorded so nobody pays for them twice.**
+1. *"Awaiting a native promise before the Dexie read loses the zone."* False as stated. A querier awaiting
+   `Promise.resolve(db)`, a `setTimeout(0)` macrotask, and a `new Promise` wrapper around `db.open()` all
+   re-fire normally. The native promise only matters when it was **created in another zone and shared**.
+2. *"The orchestrator confirmed the mechanism by reading the source."* It had not. Reading `openDatabase()`
+   confirmed only that every path returns a native promise, which turns out to be irrelevant on its own.
+   The shape was visible in the source; the cause was not, and only a probe settled it.
+
+**Fix.** The old body is a private `openShared()`, unchanged — it keeps the single `pendingOpen`, the
+blocked timer, `DatabaseBlockedError`, `DatabaseUnavailableError` and retry-after-reject. `openDatabase()`
+now hands every caller `new Promise((resolve, reject) => shared.then(resolve, reject))`, **constructed in
+the caller's own zone**, so inside a liveQuery it is a zone-aware promise and the awaiter resumes in its own
+zone. Every repository read already awaits `openDatabase()`, so one wrapper covers every current and future
+repository, and no repository or hook has to know zones exist. Call-order sharing is preserved: each wrapper
+subscribes to `shared` in call order and every caller takes the same extra hop.
+
+**For whoever writes the permanent test:** `liveQuery` silently does nothing if no `PomotatoDatabase` has
+ever been constructed, because Dexie checks `domDeps` at query time. Call `getDatabase()` first or the test
+passes for the wrong reason. A red-proof is cheap here and was taken at unit level — no browser needed,
+which is why this was worth chasing before shipping rather than after.
+
+### 2026-11-06 — The task dialog is deleted, the panel absorbs everything, and two of task 014's rulings are overridden
+Owner ruling, given while task 014's frontend pass was still running. Three changes, each of which
+**supersedes a ruling task 014 had settled**. Recorded in full because 014's task file argues the opposite
+case at length, and a later reader finding that file alone would conclude this was a mistake.
+
+**1. `components/TaskListDialog.tsx` is deleted. The panel is the only task surface.** This overrides 014
+ruling 4 ("The panel and the dialog split the work; the dialog survives, scoped down"). What ruling 4
+argued, so the cost is on the record rather than rediscovered: the dialog carries Escape ownership across
+its inner layers and an `onOpenAutoFocus` that lands on Close, both of which took task 004 a full round to
+get right, plus 37 e2e tests in `e2e/task-list-dialog.spec.ts`. All of that goes. The second half of ruling
+4's argument — that an always-visible panel holding an add form, an inline edit form *and* a delete
+confirmation becomes the dominant element on `/`, against DESIGN.md's "no clutter of widgets competing for
+attention" and antislop's one-focal-point rule — is **not** answered by this ruling; it is accepted as a
+cost. The timer is still meant to be the focal point, so the panel's visual weight is now a thing to watch
+rather than a thing that was designed out.
+
+**Add, edit, delete and `+1`/`-1` all move inline into the panel row**, owner's choice between three
+options. This reverses ruling 4's structural answer to sharp edge 8 (row density): the panel row was
+specified to carry **four** controls precisely so it would not carry the eight `TaskRow.tsx` renders today,
+and it now carries roughly eight again. **Tap-target and reflow checking is therefore mandatory, not
+optional**, and it is the one thing most likely to fail on a phone — see the 2026-10-28 ruling about Start
+not being pressable, which is the same mistake in a different corner.
+
+**2. The panel gets a hide/show control, and the state persists.** This overrides 014 ruling 7 ("Nothing new
+is persisted outside Dexie… no panel collapse state"), which had kept `PREFERENCES_VERSION` at **1**. It
+now needs one new `lib/preferences/` key and a bump to **2**, with the sanitising path that every
+preferences rehydration already runs (`store.ts:62-65` forces any payload failing `isPreferences` through
+`sanitizePreferences`, which is why 011 could leave the version alone and this cannot). Session-only state
+was offered and rejected: a panel that reappears on every reload reads as a bug rather than a choice.
+
+**3. `emoji` and `colorId` leave the `Task` model.** The owner considers both unnecessary. Checked before
+ruling, so it is not re-checked later: **`/stats` uses neither** — its per-task breakdown keys on `taskId`
+and `taskTitle` only — and neither field is indexed (`tasks: "id, position"`), so no index changes. The
+fields are **stripped from stored rows by a `.version(5)` upgrade** rather than left in place, for the same
+reason v4 deleted the retired pin row instead of leaving it dormant: data nothing reads is data the next
+reader has to investigate. `components/TaskColorDot.tsx`, `components/task-palette-colors.ts` and
+`lib/db/palette.ts` lose their only consumers.
+
+**Why this is a new task and not an amendment to 014.** It is a schema change, a newly persisted
+preference, and the deletion of a surface, across many files — "major" by CLAUDE.md's own test, so it takes
+a `pm` task file and the full pipeline. Folding it into 014 would also leave 014's Implementation Notes and
+QA Report describing a dialog that no longer exists.
+
+### 2026-11-06 — The header keeps no panel, which means the wordmark needs a different defence
+Owner ruling, taken after task 012's review found that `surface-solid` has **zero appliers**: dropping the
+solid header panel in `bc5f4d2` was **deliberate**. The owner does not want a panel behind the header. The
+review read it as residue — the commit left a dead `Surface` import and the Surface-shaped padding behind,
+which is what residue looks like — and was wrong about the intent. Recorded here because four criteria were
+measured against a surface that is not shipping, and a later task would otherwise "fix" this back.
+
+**What the ruling costs, stated plainly.** Task 012 criteria 4, 9, 14 and 15 are now wrong **as recorded**,
+not failing: their figures were read against a `--popover` header fill that no longer paints.
+- Criterion 15's wordmark 4.835:1 and criterion 9's "solid header centre, delta 0 per channel" measured a
+  ground that does not exist. Do not quote either figure.
+- Criterion 14's round-3 fix is nullified. `peer-focus-visible:-outline-offset-5` on the theme chip
+  (`components/ThemeControl.tsx`) was chosen *specifically* to pull the focus ring inside the header's own
+  fill; with no fill, the ring's ground is the photograph again and the 2.058:1 (dark, white image, 1280)
+  reading returns. The negative offset now buys nothing and costs clarity.
+- Criterion 4 / ruling 3 is violated by construction: the wordmark (`--primary`) and the three theme chips
+  (flat text, no fill, no border by design, `components/ui/mode-chip.tsx`) sit directly on a full-opacity
+  photograph.
+
+**The ruling is about the panel, not about the floor.** A rejected panel is not a rejected contrast
+requirement, and the project has already solved this exact problem once without a panel: the four
+bottom-cluster triggers carry a **two-tone edge** (1 px `--foreground` border plus a 1 px `--popover` halo)
+precisely because, per this log's 2026-10-29 entry, one colour cannot win against a photograph. The header's
+text wants the same two-tone logic applied to glyphs rather than to borders — a halo of the opposite
+luminance behind the letterforms — not a return of the panel.
+
+**Settled the same day: the two-tone glyph halo.** The owner chose it over a bare header and over a
+directional drop shadow. A drop shadow was rejected for the reason the two-tone edge exists at all: it
+defends one side only, so light text on a light photo still reads poorly, which is the exact case the
+treatment is for. The halo is tight to the letterforms — **no box, no fill, no panel** — and, like every
+other surface in 012, paints **only while an image is active**, so the no-image default is unchanged from
+HEAD and needs no re-measurement. It covers the wordmark (`--primary`) **and the three theme chips**, which
+are flat text with no fill or border of their own (`components/ui/mode-chip.tsx`) and are therefore exposed
+by the same ruling; the chips also carry an interactive control, so their floor matters more, not less.
+
+The measurement inherits the two-tone edge's bound and does not need an adversarial image sweep: where the
+halo fully surrounds the glyph, the pass condition is the edge's own two-part rule — **one of the two
+clears 3:1 against the ground, and the two clear 3:1 against each other** — and the glyph-vs-halo figure is
+image-independent by construction. Note that 012 review finding 3 records that the *second* half of that
+rule is asserted nowhere in the suite, only in prose; whatever test covers the halo should assert both
+halves, or it inherits the same gap.
+
+**`surface-solid` stays.** The utility is not withdrawn: task 014's always-visible checklist panel is still
+specified to use `<Surface kind="solid">`. The consequence is that the `solid` path has **never rendered**,
+so criteria 5 and 7 pass vacuously for it and 014 is the first task to exercise it. 014's measurement pass
+is therefore the `solid` kind's first real measurement, not a re-measurement.
+
+**Fallout routed, not absorbed.** The dead `Surface` import in `widgets/HeaderNav.tsx` is removed as
+mechanical cleanup (it was the 21st lint warning, against QA round 3's baseline of 20).
+`e2e/control-edge-measure.spec.ts:126` and `e2e/focus-surface-sweep.spec.ts:235` both resolve
+`[data-surface="solid"]` and cannot pass on this tree; re-pointing them is `qa`'s, since `qa` owns test
+files. **That no one noticed for two days is the reusable lesson**: the commit landed after the round-3
+sweep, so nothing re-ran the specs that would have caught it. A change to a measured surface taken after
+its sweep needs the sweep again, which is the 2026-10-26 "Measurement ordering" rule pointing the other way
+down the pipeline.
+
 ### 2026-10-29 — Two rings of opposite luminance, because one colour cannot win against a photograph
 Task 012 let an uploaded photo paint at full opacity, which left the bottom-cluster controls
 (Settings, Stats, Soundscape, Tasks) sitting on an unknown ground. A single border colour cannot hold
@@ -222,6 +439,18 @@ shrinking `TimerMode` cannot remove `"custom"` because it is named explicitly. B
 exhaustive `Record` types (`lib/db/session-modes.ts`, `lib/timer/modes.ts`), so dropping a value or adding
 an unlisted one fails **typecheck** rather than failing quietly. `custom` stays focus-type in
 `isFocusTypeMode` forever; no new row ever gets it.
+
+**The chip row stays, and the dots are a read-out rather than a control.** Two shape decisions that a
+later task would otherwise re-ask. The mode chip row was **not** replaced by a single active-mode label:
+it is the only manual escape hatch out of a cycle that now advances and starts on its own, so being able
+to say "give me the long break now" matters more than it did when every run was started by hand, and the
+chips are native radios with a legend, keyboard operation and a measured non-colour selected cue that a
+label plus some other control would re-open. The dot group is a **sibling row immediately below** the whole
+chip row, not hung under the Focus chip, because the cycle outlives any one mode and the dots stay
+meaningful during a break. **Nothing in the dot group is focusable, clickable or keyboard-reachable**; the
+group is `aria-hidden` and the position reaches assistive tech through one visually hidden sentence naming
+the mode and the position. **No live region was added** — `PomotatoTimer.tsx` and `TimerControls.tsx`
+already hold one polite announcer each, and a third firing on every cycle step is noise.
 
 **Renames**, for anything reading older task files: `customMinutes` to `focusMinutes`, `setCustomMinutes` to
 `setFocusMinutes`, `parseCustomMinutes` to `parseFocusMinutes`, `CUSTOM_MINUTES_*` to `FOCUS_MINUTES_*`, and

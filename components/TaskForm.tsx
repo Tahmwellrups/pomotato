@@ -1,23 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_PALETTE_COLOR_ID, PALETTE, TaskValidationError, type PaletteColorId } from "@/lib/db";
-import { isEmojiGraphemeCluster } from "@/lib/db/validation";
-import { TaskColorDot } from "./TaskColorDot";
+import { TaskValidationError } from "@/lib/db";
 
 export interface TaskFormValues {
   title: string;
-  emoji: string;
-  colorId: PaletteColorId;
   eta: number;
 }
 
-const DEFAULT_EMOJI = "\u{1F954}"; // matches lib/db/task-repository.ts's own create default
-
 const DEFAULT_VALUES: TaskFormValues = {
   title: "",
-  emoji: DEFAULT_EMOJI,
-  colorId: DEFAULT_PALETTE_COLOR_ID,
   eta: 1,
 };
 
@@ -52,8 +44,6 @@ interface TaskFormProps {
 export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCancel, titleInputRef }: TaskFormProps) {
   const isAddForm = initialValues === undefined;
   const [title, setTitle] = useState(initialValues?.title ?? DEFAULT_VALUES.title);
-  const [emoji, setEmoji] = useState(initialValues?.emoji ?? DEFAULT_VALUES.emoji);
-  const [colorId, setColorId] = useState<PaletteColorId>(initialValues?.colorId ?? DEFAULT_VALUES.colorId);
   const [etaRaw, setEtaRaw] = useState(String(initialValues?.eta ?? DEFAULT_VALUES.eta));
   const [errors, setErrors] = useState<FieldErrors>({});
   // Guards against a second submit firing mid-request and disables the
@@ -64,12 +54,10 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
   const localTitleInputRef = useRef<HTMLInputElement | null>(null);
 
   const titleFieldId = `${idPrefix}-title`;
-  const emojiFieldId = `${idPrefix}-emoji`;
-  const colorFieldId = `${idPrefix}-color`;
   const etaFieldId = `${idPrefix}-eta`;
 
   // An edit form mounts fresh every time a row switches into edit mode (see
-  // TaskRow), replacing its Edit button in the DOM, so focus would
+  // TaskChecklistRow), replacing its Edit button in the DOM, so focus would
   // otherwise fall back to <body>. Moving it onto the title field keeps
   // focus inside the form and lets a plain Escape keypress reach this
   // form's own onKeyDown below. The add form stays mounted for the page's
@@ -98,9 +86,6 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
     if (titleLength < 1 || titleLength > 100) {
       nextErrors.title = "Title must be 1-100 characters after trimming.";
     }
-    if (!isEmojiGraphemeCluster(emoji)) {
-      nextErrors.emoji = "Emoji must be exactly one emoji.";
-    }
     const etaValue = parseEta(etaRaw);
     if (etaValue === null) {
       nextErrors.eta = "Estimate must be a whole number from 1 to 20.";
@@ -119,11 +104,9 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
     setErrors({});
     setSubmitting(true);
     try {
-      await onSubmit({ title: trimmedTitle, emoji, colorId, eta: etaValue });
+      await onSubmit({ title: trimmedTitle, eta: etaValue });
       if (isAddForm) {
         setTitle("");
-        setEmoji(DEFAULT_VALUES.emoji);
-        setColorId(DEFAULT_VALUES.colorId);
         setEtaRaw(String(DEFAULT_VALUES.eta));
         localTitleInputRef.current?.focus();
       }
@@ -134,9 +117,9 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
           mapped[issue.field] = issue.message;
         }
         setErrors(mapped);
-      } else {
-        setErrors({ title: "Couldn't save this task. Try again." });
       }
+      // Any other failure is a write failure, not a field problem. The owning
+      // panel reports it in its single alert line; the form stays as typed.
     } finally {
       setSubmitting(false);
     }
@@ -150,7 +133,7 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
   }
 
   return (
-    <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex w-full flex-col gap-4" noValidate>
+    <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex w-full flex-col gap-2" noValidate>
       <div className="flex flex-col gap-1">
         <label htmlFor={titleFieldId} className="text-sm font-medium text-muted-foreground">
           Title
@@ -175,106 +158,50 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={emojiFieldId} className="text-sm font-medium text-muted-foreground">
-          Emoji
-        </label>
-        <input
-          id={emojiFieldId}
-          type="text"
-          value={emoji}
-          aria-invalid={errors.emoji !== undefined}
-          aria-describedby={errors.emoji !== undefined ? `${emojiFieldId}-error` : undefined}
-          onChange={(event) => setEmoji(event.target.value)}
-          className="min-h-11 w-20 rounded-lg border border-control-border bg-popover px-3 py-2 text-center text-xl outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
-        />
-        {errors.emoji !== undefined ? (
-          <p id={`${emojiFieldId}-error`} role="alert" className="text-sm text-destructive">
-            {errors.emoji}
-          </p>
-        ) : null}
-      </div>
-
-      <fieldset
-        className="flex flex-col gap-1"
-        aria-describedby={errors.colorId !== undefined ? `${colorFieldId}-error` : undefined}
-      >
-        <legend className="text-sm font-medium text-muted-foreground">Color</legend>
-        <div className="flex flex-wrap gap-2">
-          {PALETTE.map((entry) => {
-            const checked = colorId === entry.id;
-            return (
-              <label key={entry.id} className="cursor-pointer rounded-full">
-                <input
-                  type="radio"
-                  name={colorFieldId}
-                  value={entry.id}
-                  checked={checked}
-                  onChange={() => setColorId(entry.id)}
-                  className="peer sr-only"
-                />
-                <span className="sr-only">{entry.name}</span>
-                <span
-                  className={[
-                    "flex h-9 w-9 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-shadow motion-reduce:transition-none motion-reduce:duration-0",
-                    "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring",
-                    checked ? "ring-2 ring-foreground" : "ring-1 ring-border",
-                  ].join(" ")}
-                >
-                  <TaskColorDot colorId={entry.id} className="h-6 w-6" />
-                </span>
-              </label>
-            );
-          })}
+      {/* The count field and the buttons share a line, so the add form is two rows tall and not four. */}
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor={etaFieldId} className="text-sm font-medium text-muted-foreground">
+            Estimated pomodoros
+          </label>
+          <input
+            id={etaFieldId}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="off"
+            value={etaRaw}
+            aria-invalid={errors.eta !== undefined}
+            aria-describedby={errors.eta !== undefined ? `${etaFieldId}-error` : undefined}
+            onChange={(event) => setEtaRaw(event.target.value)}
+            className="min-h-11 w-24 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
+          />
+          {errors.eta !== undefined ? (
+            <p id={`${etaFieldId}-error`} role="alert" className="text-sm text-destructive">
+              {errors.eta}
+            </p>
+          ) : null}
         </div>
-        {errors.colorId !== undefined ? (
-          <p id={`${colorFieldId}-error`} role="alert" className="text-sm text-destructive">
-            {errors.colorId}
-          </p>
-        ) : null}
-      </fieldset>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={etaFieldId} className="text-sm font-medium text-muted-foreground">
-          Estimated pomodoros
-        </label>
-        <input
-          id={etaFieldId}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          autoComplete="off"
-          value={etaRaw}
-          aria-invalid={errors.eta !== undefined}
-          aria-describedby={errors.eta !== undefined ? `${etaFieldId}-error` : undefined}
-          onChange={(event) => setEtaRaw(event.target.value)}
-          className="min-h-11 w-24 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
-        />
-        {errors.eta !== undefined ? (
-          <p id={`${etaFieldId}-error`} role="alert" className="text-sm text-destructive">
-            {errors.eta}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="min-h-11 rounded-lg bg-primary px-5 py-2 font-medium text-primary-foreground outline-none hover:bg-[color-mix(in_srgb,var(--primary),var(--foreground)_20%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-disabled-surface"
-        >
-          {submitLabel}
-        </button>
-        {onCancel ? (
+        <div className="flex gap-2">
           <button
-            type="button"
-            onClick={handleCancel}
+            type="submit"
             disabled={submitting}
-            className="min-h-11 rounded-lg border border-control-border bg-popover px-5 py-2 font-medium text-secondary-foreground outline-none hover:border-[color-mix(in_srgb,var(--control-border),var(--foreground)_40%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed"
+            className="min-h-11 rounded-lg bg-primary px-5 py-2 font-medium text-primary-foreground outline-none hover:bg-[color-mix(in_srgb,var(--primary),var(--foreground)_20%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-disabled-surface"
           >
-            Cancel
+            {submitLabel}
           </button>
-        ) : null}
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={submitting}
+              className="min-h-11 rounded-lg border border-control-border bg-popover px-5 py-2 font-medium text-secondary-foreground outline-none hover:border-[color-mix(in_srgb,var(--control-border),var(--foreground)_40%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+          ) : null}
+        </div>
       </div>
     </form>
   );
