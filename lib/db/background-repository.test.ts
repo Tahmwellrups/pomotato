@@ -3,7 +3,7 @@ import { openDatabase } from "./database";
 import { BACKGROUND_MAX_BYTES, validateBackgroundBytes } from "./background-validation";
 import { loadBackground, removeBackground, storeBackground } from "./background-repository";
 import { resetDatabaseForTests, seedVersion1DatabaseForTests } from "./test-utils";
-import { createTask, getCurrentTask, listTasks, pinTask } from "./task-repository";
+import { createTask, getCurrentTask, listTasks } from "./task-repository";
 
 function bytesOf(...parts: (number[] | string)[]): Uint8Array {
   const out: number[] = [];
@@ -177,15 +177,15 @@ describe("background-repository", () => {
 });
 
 describe("schema version 3 is additive", () => {
-  it("upgrading a version-1 database keeps tasks and the pin and adds an empty backgrounds table", async () => {
+  it("upgrading a version-1 database keeps tasks and the last-chosen current task and adds an empty backgrounds table", async () => {
     await resetDatabaseForTests();
-    const task = await createTask({ title: "keep me" });
-    await pinTask(task.id);
-    await seedVersion1DatabaseForTests({ tasks: await listTasks(), pinnedTaskId: task.id });
-    expect((await listTasks()).map((t) => t.title)).toEqual(["keep me"]);
-    expect((await getCurrentTask())?.id).toBe(task.id);
+    await createTask({ title: "keep me" });
+    const second = await createTask({ title: "keep me too" });
+    await seedVersion1DatabaseForTests({ tasks: (await listTasks()).map((t) => ({ ...t, emoji: "🥔", colorId: "tomato" })), pinnedTaskId: second.id });
+    expect((await listTasks()).map((t) => t.title)).toEqual(["keep me too", "keep me"]);
+    expect((await getCurrentTask())?.id).toBe(second.id);
     expect(await rowCount()).toBe(0);
     const db = await openDatabase();
-    expect(db.verno).toBe(3);
+        expect(db.verno).toBe(5);
   });
 });

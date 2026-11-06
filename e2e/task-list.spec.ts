@@ -1,5 +1,10 @@
 import { test, expect, Page } from "@playwright/test";
-import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
+
+/** The Current Task card in `app/page.tsx` shows the derived current title in a bare span (015: pin retired). */
+function currentTaskCard(page: Page) {
+  return page.locator("div.max-w-full.items-center > span.font-comfortaa");
+}
 
 test.describe("Task List Feature", () => {
   test.beforeEach(async ({ page }) => {
@@ -39,7 +44,7 @@ test.describe("Task List Feature", () => {
       await titleInput.press("Enter");
 
       // Wait for task to appear - use exact text match
-      await expect(page.getByText("Zephyr", { exact: true })).toBeVisible();
+      await expect(taskPanel(page).getByText("Zephyr", { exact: true })).toBeVisible();
     });
 
     test("adds a task with submit button", async ({ page }) => {
@@ -49,7 +54,7 @@ test.describe("Task List Feature", () => {
       await titleInput.fill("Quokka");
       await submitButton.click();
 
-      await expect(page.getByText("Quokka", { exact: true })).toBeVisible();
+      await expect(taskPanel(page).getByText("Quokka", { exact: true })).toBeVisible();
     });
 
     test("clears and refocuses title field after successful add", async ({ page }) => {
@@ -62,21 +67,15 @@ test.describe("Task List Feature", () => {
       await expect(titleInput).toBeFocused();
     });
 
-    test("resets emoji and ETA to defaults after submit", async ({ page }) => {
+    // Task 015 re-point: the emoji field is deleted with the Task.emoji model, so only ETA is reset here.
+    test("resets ETA to defaults after submit", async ({ page }) => {
       const titleInput = page.locator('input[id*="-title"]').first();
-      const emojiInput = page.locator('input[id*="-emoji"]').first();
       const etaInput = page.locator('input[id*="-eta"]').first();
 
-      // Change values
       await titleInput.fill("Indigo");
-      await emojiInput.fill("🎯");
       await etaInput.fill("5");
-
-      // Submit
       await titleInput.press("Enter");
 
-      // Wait for reset
-      await expect(emojiInput).toHaveValue("🥔");
       await expect(etaInput).toHaveValue("1");
     });
 
@@ -89,7 +88,8 @@ test.describe("Task List Feature", () => {
       await expect(errorMsg).toHaveAttribute("role", "alert");
     });
 
-    test("shows validation error for invalid emoji", async ({ page }) => {
+    // Retired (task 015 criterion 3/5): the emoji field and its "Emoji must be exactly one emoji" validation are deleted.
+  test.skip("shows validation error for invalid emoji", async ({ page }) => {
       const titleInput = page.locator('input[id*="-title"]').first();
       const emojiInput = page.locator('input[id*="-emoji"]').first();
       const submitButton = page.getByRole("button", { name: "Add" }).first();
@@ -104,82 +104,44 @@ test.describe("Task List Feature", () => {
     });
   });
 
-  test.describe("Pin / Current Task", () => {
-    test("pins a task and shows in Current Task area", async ({ page }) => {
-      // Add a task first
+  test.describe("Current Task (pin retired, task 014/015)", () => {
+    test("the top open task is the Current Task", async ({ page }) => {
+      // Task 015 re-point: the pin button is gone. The current task is the first row whose `done` is false,
+      // so a lone added task is shown in the Current Task card with no click.
       const titleInput = page.locator('input[id*="-title"]').first();
       await titleInput.fill("Zenith");
       await titleInput.press("Enter");
 
-      // Wait for task list to appear and render
-      await page.waitForTimeout(250);
-
-      // Find the pin button scoped to this task's row
-      const taskRow = page.locator("ul li").filter({ hasText: "Zenith" }).first();
-      // Use full aria-label to get exact button, avoiding substring collisions
-      const pinButton = taskRow.locator("button[aria-label*='Pin Zenith']");
-      await expect(pinButton).toBeVisible({ timeout: 5000 });
-      await pinButton.click();
-      await page.waitForTimeout(500);
-
-      // Just verify the task is still there and clickable (pin operation succeeded)
-      await expect(taskRow).toBeVisible({ timeout: 5000 });
+      await expect(currentTaskCard(page)).toHaveText("Zenith");
+      await expect(taskPanel(page).getByRole("button", { name: /^(Pin|Unpin)\b/ })).toHaveCount(0);
     });
 
-    test("unpins a task by clicking its pin button again", async ({ page }) => {
+    test("ticking the current task done moves Current Task to the next open row", async ({ page }) => {
+      // Task 015 re-point of the old "unpin" test: "unpinning" is now ticking the task done.
       const titleInput = page.locator('input[id*="-title"]').first();
       await titleInput.fill("Nebula");
       await titleInput.press("Enter");
+      await titleInput.fill("Quasar");
+      await titleInput.press("Enter");
+      await expect(currentTaskCard(page)).toHaveText("Nebula");
+      await expect(taskPanel(page).getByText("Quasar", { exact: true })).toBeVisible();
 
-      await page.waitForTimeout(200);
-
-      // Pin the task. The button's accessible name is "Pin <title> as current
-      // task" or "Unpin <title>" depending on state — anchoring on the leading
-      // verb (not the title) is what makes this collision-proof regardless of
-      // which word the task title itself happens to contain.
-      const taskRow = page.locator("ul li").filter({ hasText: "Nebula" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await expect(pinButton).toBeVisible({ timeout: 5000 });
-      await expect(pinButton).toHaveAccessibleName(/^Pin\b/);
-      await pinButton.click();
-      await page.waitForTimeout(500);
-
-      // Unpin by clicking the same button again — its accessible name has now
-      // flipped to "Unpin Nebula".
-      await expect(pinButton).toHaveAccessibleName(/^Unpin\b/);
-      await pinButton.click();
-      await page.waitForTimeout(500);
-
-      // Verify the task is still visible (confirming unpin worked)
-      await expect(taskRow).toBeVisible({ timeout: 5000 });
+      await taskPanel(page).locator("li").filter({ hasText: "Nebula" }).first().getByRole("checkbox").check();
+      await expect(currentTaskCard(page)).toHaveText("Quasar");
     });
 
-    test("switching pin from one task to another unpins the first", async ({ page }) => {
+    test("moving another task to the top makes it the Current Task", async ({ page }) => {
+      // Task 015 re-point of the old "switching pin" test: reordering is how the current task changes.
       const titleInput = page.locator('input[id*="-title"]').first();
-
-      // Add two tasks
       await titleInput.fill("Onyx");
       await titleInput.press("Enter");
-      await page.waitForTimeout(100);
       await titleInput.fill("Pearl");
       await titleInput.press("Enter");
-      await page.waitForTimeout(100);
+      await expect(taskPanel(page).getByText("Pearl", { exact: true })).toBeVisible();
+      await expect(currentTaskCard(page)).toHaveText("Onyx");
 
-      // Pin first task
-      const firstRow = getTaskRow(page, "Onyx");
-      const firstPin = firstRow.locator("button[aria-label*='Pin Onyx']").first();
-      await firstPin.click();
-      await page.waitForTimeout(200);
-
-      // Pin second task (should unpin first)
-      const secondRow = getTaskRow(page, "Pearl");
-      const secondPin = secondRow.locator("button[aria-label*='Pin Pearl']").first();
-      await secondPin.click();
-      await page.waitForTimeout(200);
-
-      // Verify first task is no longer pinned by checking its button is still visible
-      const firstUnpinButton = firstRow.locator("button[aria-label*='Pin Onyx']");
-      await expect(firstUnpinButton).toBeVisible();
+      await taskPanel(page).getByRole("button", { name: "Move Pearl up", exact: true }).click();
+      await expect(currentTaskCard(page)).toHaveText("Pearl");
     });
   });
 
@@ -225,7 +187,7 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(100);
 
       // Task should be gone using exact text match
-      await expect(page.getByText("Mystic", { exact: true })).not.toBeVisible({ timeout: 5000 });
+      await expect(taskPanel(page).getByText("Mystic", { exact: true })).not.toBeVisible({ timeout: 5000 });
     });
 
     test("cancels deletion with Escape key", async ({ page }) => {
@@ -244,7 +206,7 @@ test.describe("Task List Feature", () => {
       await page.keyboard.press("Escape");
 
       // Task should still be there
-      await expect(page.getByText("Vortex", { exact: true })).toBeVisible();
+      await expect(taskPanel(page).getByText("Vortex", { exact: true })).toBeVisible();
     });
 
     test("returns focus to delete button after cancel", async ({ page }) => {
@@ -459,6 +421,8 @@ test.describe("Task List Feature", () => {
       await expect(liveRegion).toHaveText("Seraph moved to position 2 of 3.");
       await expect(liveRegion).not.toHaveText(/[0-9a-f]{8}-[0-9a-f]{4}-/);
 
+      // Task 015 re-point: a second ArrowDown straight after a move is dropped by dnd-kit; the wait lets it re-arm.
+      await page.waitForTimeout(400);
       await page.keyboard.press("ArrowDown");
       await page.waitForTimeout(150);
       await expect(liveRegion).toHaveText("Seraph moved to position 3 of 3.");
@@ -717,7 +681,7 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(200);
 
       // Wait for the task to reappear using exact match
-      await expect(page.getByText("Memory", { exact: true })).toBeVisible({ timeout: 10000 });
+      await expect(taskPanel(page).getByText("Memory", { exact: true })).toBeVisible({ timeout: 10000 });
 
       // Count should still be 1
       const taskRowAfter = getTaskRow(page, "Memory");
@@ -846,7 +810,7 @@ test.describe("Task List Feature", () => {
       // Should be back to display mode - Save button should disappear
       await expect(page.getByRole("button", { name: "Save" })).not.toBeVisible({ timeout: 5000 });
       // Original task should still be there
-      await expect(page.getByText("Oasis", { exact: true })).toBeVisible({ timeout: 5000 });
+      await expect(taskPanel(page).getByText("Oasis", { exact: true })).toBeVisible({ timeout: 5000 });
     });
 
     test("saves edit changes", async ({ page }) => {
@@ -872,10 +836,10 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(100);
 
       // Should show updated value using exact match
-      await expect(page.getByText("Quantum", { exact: true })).toBeVisible({ timeout: 5000 });
+      await expect(taskPanel(page).getByText("Quantum", { exact: true })).toBeVisible({ timeout: 5000 });
     });
 
-    test("updates Current Task when editing pinned task", async ({ page }) => {
+    test("updates Current Task when editing the current task", async ({ page }) => {
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("Raven");
@@ -883,11 +847,8 @@ test.describe("Task List Feature", () => {
 
       await page.waitForTimeout(100);
 
-      // Pin it
+      // Task 015 re-point: pin retired. A lone open task is already the Current Task.
       const taskRow = getTaskRow(page, "Raven");
-      const pinButton = taskRow.locator("button[aria-label*='Pin Raven']").first();
-      await pinButton.click();
-      await page.waitForTimeout(200);
 
       // Edit it
       const editButton = taskRow.locator("button[aria-label*='Edit Raven']").first();
@@ -944,7 +905,7 @@ test.describe("Task List Feature", () => {
       await openTaskList(page);
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("Tempest", { exact: true })).toBeVisible();
+      await expect(taskPanel(page).getByText("Tempest", { exact: true })).toBeVisible();
     });
 
     test("persists task order after reload", async ({ page }) => {
@@ -981,9 +942,9 @@ test.describe("Task List Feature", () => {
       await umberHandle.press("Space");
       await page.waitForTimeout(150);
       await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(400);
       await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(400);
       await umberHandle.press("Space");
       await page.waitForTimeout(200);
 
@@ -1000,7 +961,7 @@ test.describe("Task List Feature", () => {
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Violet", "Wisteria", "Umber", "Xander", "Yarrow"]);
     });
 
-    test("persists pin after reload", async ({ page }) => {
+    test("persists the Current Task after reload", async ({ page }) => {
       const titleInput = page.locator('input[id*="-title"]').first();
 
       await titleInput.fill("Xenon");
@@ -1008,13 +969,9 @@ test.describe("Task List Feature", () => {
 
       await page.waitForTimeout(100);
 
-      const taskRow = getTaskRow(page, "Xenon");
-      const pinButton = taskRow.locator("button[aria-label*='Pin Xenon']").first();
-      await pinButton.click();
-
-      // Wait for the pin to reach the card before reloading, so the post-reload
-      // assertion tests persistence rather than a reload that raced the write.
-      await expect(page.getByRole("main").getByText("Xenon", { exact: true })).toBeVisible();
+      // Task 015 re-point: pin retired. Xenon is the only open task, so it is the Current Task.
+      // Wait for the card before reloading, so the post-reload assertion tests persistence.
+      await expect(currentTaskCard(page)).toHaveText("Xenon");
 
       await page.reload();
 
@@ -1023,10 +980,8 @@ test.describe("Task List Feature", () => {
       await openTaskList(page);
       await page.waitForLoadState("networkidle");
 
-      // Current Task area should show the pinned task. Scoped to <main>: the
-      // open dialog also lists "Xenon" (exact), so the page-wide locator is
-      // ambiguous. The card sits in <main>; the dialog is portalled outside it.
-      await expect(page.getByRole("main").getByText("Xenon", { exact: true })).toBeVisible();
+      // The Current Task card shows the derived current task after reload.
+      await expect(currentTaskCard(page)).toHaveText("Xenon");
     });
 
     test("no hydration mismatch errors after reload", async ({ page }) => {
@@ -1150,7 +1105,7 @@ test.describe("Task List Feature", () => {
   });
 
   test.describe("Timer Integration (Regression)", () => {
-    test("completing focus timer increments pinned task completed count", async ({ page }) => {
+    test("completing focus timer increments the current task completed count", async ({ page }) => {
       const titleInput = page.locator('input[id*="-title"]').first();
 
       // Add a task with non-colliding name
@@ -1159,12 +1114,8 @@ test.describe("Task List Feature", () => {
 
       await page.waitForTimeout(100);
 
-      // Pin it
+      // Task 015 re-point: pin retired. A lone open task is already the Current Task.
       const taskRow = getTaskRow(page, "Zest");
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
-
-      await page.waitForTimeout(200);
 
       // Verify it's pinned and showing in Current Task area (use list-scoped locator)
       const zestRow = getTaskRow(page, "Zest");
@@ -1176,7 +1127,6 @@ test.describe("Task List Feature", () => {
 
       // Start the timer and fast-forward to completion. The timer sits behind
       // the modal, so the dialog is closed first and re-opened to read the row.
-      await closeTaskList(page);
       const startButton = page.getByRole("button", { name: "Start" });
       await startButton.click();
 
@@ -1225,11 +1175,9 @@ test.describe("Task List Feature", () => {
       const currentTaskError = page.locator("text=/Couldn't load the current task/i");
       await expect(currentTaskError).toBeVisible({ timeout: 5000 });
 
-      // Task list error lives inside the dialog, so open it and check there.
+      // Task 015 re-point: the task list error lives in the panel, which openTaskList shows.
       await openTaskList(page);
-      const taskListError = page
-        .getByRole("dialog", { name: "Your tasks", exact: true })
-        .locator("text=/Couldn't load your tasks/i");
+      const taskListError = taskPanel(page).locator("text=/Couldn't load your tasks/i");
       await expect(taskListError).toBeVisible({ timeout: 5000 });
     });
 
@@ -1283,8 +1231,8 @@ test.describe("Task List Feature", () => {
       await confirmDeleteButton.click();
       await page.waitForTimeout(150);
 
-      // Focus should move to Third's drag handle (next row)
-      const thirdRowHandle = page.locator('button[aria-label="Reorder Third"]');
+      // Task 015 criterion 13: focus lands on Edit for the task that took the position (Third).
+      const thirdRowHandle = page.locator('button[aria-label="Edit Third"]');
       await expect(thirdRowHandle).toBeFocused();
     });
 
@@ -1312,8 +1260,8 @@ test.describe("Task List Feature", () => {
       await confirmDeleteButton.click();
       await page.waitForTimeout(150);
 
-      // Focus should move to the new last task's drag handle (SecondTask)
-      const secondRowHandle = page.locator('button[aria-label="Reorder SecondTask"]');
+      // Task 015 criterion 13: focus lands on Edit for the new last task (SecondTask).
+      const secondRowHandle = page.locator('button[aria-label="Edit SecondTask"]');
       await expect(secondRowHandle).toBeFocused();
     });
 
@@ -1493,7 +1441,7 @@ test.describe("Task List Feature", () => {
       await page.waitForTimeout(500);
 
       // Task should be visible
-      await expect(page.getByText("PersistentTask", { exact: true })).toBeVisible();
+      await expect(taskPanel(page).getByText("PersistentTask", { exact: true })).toBeVisible();
 
       // The observer must have actually attached — otherwise this assertion
       // proves nothing (which is exactly how the previous version of this

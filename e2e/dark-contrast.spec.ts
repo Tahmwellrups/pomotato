@@ -1,6 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { TASK_COLOR_HEX } from "../components/task-palette-colors";
-import { openTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanelToggle } from "./helpers/task-list-dialog";
 import { seedTimerState, resetControl } from "./helpers/timer-hold";
 import {
   DESKTOP,
@@ -8,7 +7,6 @@ import {
   htmlHasDark,
   must,
   openThemed,
-  pixelsAt,
   seedStatsSessions,
   readout,
   record,
@@ -121,14 +119,8 @@ test.describe("criterion 13, 17, 18, 19, 20: token pairs, painted on their real 
       check(testInfo, theme, "--control-border on delete-confirm tint", (await boundaryPair(page, tint, tok("--control-border"))).ratio, 3);
     });
 
-    test(`[${theme}] the eight task swatches reach 3:1 on the dark card and popover with no swatch changed (criterion 19)`, async ({ page }, testInfo) => {
-      await themed(page, stored);
-      for (const [id, hex] of Object.entries(TASK_COLOR_HEX)) {
-        for (const ground of ["--card", "--popover"]) {
-          check(testInfo, theme, `swatch ${id} on ${ground}`, (await textPair(page, tok(ground), hex)).ratio, 3);
-        }
-      }
-    });
+    // Task 015: the eight task swatches (criterion 19 here) are deleted with the colour dot. The
+    // swatch test has no subject left and is retired, not re-pointed.
 
     test(`[${theme}] each chart colour reaches 3:1 against the card it is painted on (criterion 20)`, async ({ page }, testInfo) => {
       await themed(page, stored);
@@ -175,49 +167,10 @@ test.describe("criterion 13, 17, 18, 19, 20: token pairs, painted on their real 
   }
 });
 
-test.describe("criterion 15, 16, 22: the dialog reads as a surface, the scrim dims the page, colour-scheme per theme", () => {
+test.describe("criterion 22: colour-scheme per theme (criteria 15 and 16 retired with the dialog and its scrim, task 015)", () => {
   for (const [theme, stored] of THEMES) {
-    test(`[${theme}] the dialog fill or its edge against the scrimmed page (criterion 15)`, async ({ page }, testInfo) => {
-      await themed(page, stored);
-      await openTaskList(page);
-      await settle(page);
-      const dialog = page.getByRole("dialog", { name: "Your tasks", exact: true });
-      const b = must(await dialog.boundingBox(), "dialog box");
-      const midY = Math.round(b.y + b.height / 2);
-      const fillPoint: [number, number] = [Math.round(b.x + 24), midY];
-      // The scrimmed page: a point clearly outside the dialog, on the left of the viewport.
-      const pagePoint: [number, number] = [20, midY];
-      // The edge: the best of a column sweep across the dialog's left border (painted, not assumed).
-      const edgeColumns: [number, number][] = [-3, -2, -1, 0, 1, 2, 3].map((dx) => [Math.floor(b.x) + dx, midY]);
-      const [fillPixel, scrimPixel] = await pixelsAt(page, [fillPoint, pagePoint]);
-      const edgePixels = await pixelsAt(page, edgeColumns);
-      const fillRatio = contrast(fillPixel, scrimPixel);
-      const edgeBest = edgePixels.reduce((best, p) => (contrast(p, scrimPixel) > contrast(best, scrimPixel) ? p : best), edgePixels[0]);
-      const edgeRatio = contrast(edgeBest, scrimPixel);
-      record(testInfo, tag(theme, `dialog fill vs scrimmed page (fill ${fillPixel.join(",")} page ${scrimPixel.join(",")})`), fillRatio, 3);
-      record(testInfo, tag(theme, `dialog edge vs scrimmed page (edge ${edgeBest.join(",")} page ${scrimPixel.join(",")})`), edgeRatio, 3);
-      // Criterion 15 is scoped to dark. Light is measured for the record and not asserted here.
-      if (theme === "dark") {
-        expect(Math.max(fillRatio, edgeRatio), "one of fill or edge carries the surface in dark").toBeGreaterThanOrEqual(3);
-      }
-    });
-
-    test(`[${theme}] the scrim dims the page and leaves the dialog undimmed (criterion 16)`, async ({ page }, testInfo) => {
-      await themed(page, stored);
-      const probe: [number, number] = [20, 400];
-      const [closedPage] = await pixelsAt(page, [probe]);
-      await openTaskList(page);
-      await settle(page);
-      const [openPage] = await pixelsAt(page, [probe]);
-      const dialog = must(await page.getByRole("dialog", { name: "Your tasks", exact: true }).boundingBox(), "dialog box");
-      const [dialogFill] = await pixelsAt(page, [[Math.round(dialog.x + 24), Math.round(dialog.y + dialog.height / 2)]]);
-      const popover = await tokenRgb(page, "--popover");
-      const luminance = (c: Rgb) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-      record(testInfo, tag(theme, `page pixel closed ${closedPage.join(",")} vs scrimmed ${openPage.join(",")}`), contrast(closedPage, openPage), 1);
-      expect(luminance(openPage), "scrim darkens the page").toBeLessThan(luminance(closedPage));
-      // Undimmed: the dialog fill is the popover token itself, within two levels per channel.
-      dialogFill.forEach((channel, i) => expect(Math.abs(channel - popover[i]), `dialog channel ${i}`).toBeLessThanOrEqual(2));
-    });
+    // Task 015: criterion 15 (dialog fill against the scrimmed page) is retired with the dialog and its
+    // scrim. The panel has no overlay, so there is no scrimmed ground to measure.
 
     test(`[${theme}] color-scheme is set per theme on the root (criterion 22)`, async ({ page }) => {
       await themed(page, stored);
@@ -229,13 +182,10 @@ test.describe("criterion 15, 16, 22: the dialog reads as a surface, the scrim di
 
 test.describe("criterion 24: the four R-1 call sites reach 3:1 against their own ground in both themes", () => {
   for (const [theme, stored] of THEMES) {
-    test(`[${theme}] dialog Close, timer Reset, Reload on the error path, and the unchecked stats chips (criterion 24)`, async ({ page }, testInfo) => {
+    test(`[${theme}] timer Reset, Reload on the error path, and the unchecked stats chips (criterion 24)`, async ({ page }, testInfo) => {
       await themed(page, stored);
       await openTaskList(page);
-      const close = page.getByRole("dialog", { name: "Your tasks", exact: true }).getByRole("button", { name: "Close", exact: true });
-      const closeB = await borderVsGround(page, close);
-      check(testInfo, theme, "dialog Close border vs --popover", closeB.ratio, 3);
-      await page.getByRole("dialog", { name: "Your tasks", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+      // Task 015: the dialog Close button is deleted, so its border check is retired with it.
       await settle(page);
 
       const resetB = await borderVsGround(page, resetControl(page));
@@ -281,9 +231,9 @@ test.describe("criterion 24: the four R-1 call sites reach 3:1 against their own
 
 test.describe("criterion 25: the dark utilities in button.tsx are gone and the Tasks pill paints --primary in dark", () => {
   for (const [theme, stored] of THEMES) {
-    test(`[${theme}] the Tasks trigger fill is --primary, and its icon reaches 3:1 against it (criterion 25)`, async ({ page }, testInfo) => {
+    test(`[${theme}] the panel toggle fill is --primary, and its icon reaches 3:1 against it (criterion 25)`, async ({ page }, testInfo) => {
       await themed(page, stored);
-      const trigger = page.getByRole("button", { name: "Your tasks", exact: true });
+      const trigger = taskPanelToggle(page);
       const reading = await readPainted(page, trigger);
       const primary = await tokenRgb(page, "--primary");
       expect(reading.fill, "fill equals --primary").toEqual(primary);

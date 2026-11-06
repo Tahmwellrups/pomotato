@@ -75,10 +75,10 @@ describe("task 013 criterion 33: the live regions in the / tree are the pinned s
     "components/PomotatoTimer.tsx": 2, // one region: aria-live and role=status on one element
     "components/TimerControls.tsx": 2, // one region, two attributes
     "components/SoundscapeDialog.tsx": 1,
-    "components/TaskList.tsx": 2,
-    "components/TaskForm.tsx": 4,
+    "components/TaskChecklist.tsx": 2, // 014: the panel's list; two role=alert lines (load, write error)
+    "components/TaskForm.tsx": 2, // 015: the emoji and colour fields (and their messages) are gone; title and eta remain
     "components/FocusLengthInput.tsx": 1,
-    "components/CurrentTaskCard.tsx": 2,
+    "components/CurrentTaskCard.tsx": 1, // 014: one role=alert, the write-error line
   };
 
   it("counts the live-region attributes per file and matches the pin exactly", () => {

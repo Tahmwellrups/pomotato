@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { logCompletedSession, listSessionsInRange } from "./session-repository";
 import { resetDatabaseForTests, seedSessionsForTests, clearSessionsForTests, listAllSessionsForTests, seedVersion1DatabaseForTests } from "./test-utils";
-import { createTask, listTasks, getCurrentTask, pinTask } from "./task-repository";
+import { createTask, listTasks, getCurrentTask, reorderTask, setTaskDone } from "./task-repository";
 import { openDatabase } from "./database";
 import { SessionValidationError } from "./errors";
 
@@ -263,9 +263,14 @@ describe("session-repository: logCompletedSession", () => {
   });
 
   describe("task increment rules (the transaction boundary)", () => {
-    async function pinnedTaskWithCompleted(completed: number) {
-      const task = await createTask({ title: "Zephyrine", emoji: "🥔", eta: 4 });
-      await pinTask(task.id);
+    /**
+     * A focus task that is the current one by ordering, not by being created first:
+     * a decoy is created before it and the target is moved to the top.
+     */
+    async function currentTaskWithCompleted(completed: number) {
+      await createTask({ title: "Decoy", eta: 1 });
+      const task = await createTask({ title: "Zephyrine", eta: 4 });
+      await reorderTask(task.id, 0);
       if (completed !== 0) {
         const db = await openDatabase();
         await db.tasks.update(task.id, { completed });
@@ -282,18 +287,19 @@ describe("session-repository: logCompletedSession", () => {
       return tasks.find((t) => t.id === taskId)?.completed;
     }
 
-    it("logs the row and increments the pinned task by exactly 1", async () => {
-      const task = await pinnedTaskWithCompleted(0);
+    it("logs the row and increments the current task by exactly 1, not the decoy", async () => {
+      const task = await currentTaskWithCompleted(0);
 
       const result = await logCompletedSession(focusRun("increment-once"));
 
       expect(result.status).toBe("logged");
       expect(await listAllSessionsForTests()).toHaveLength(1);
       expect(await completedFor(task.id)).toBe(1);
+      expect((await listTasks()).find((t) => t.title === "Decoy")?.completed).toBe(0);
     });
 
     it("leaves exactly 1 row AND increments by exactly 1 when the same runId is logged 5 times", async () => {
-      const task = await pinnedTaskWithCompleted(0);
+      const task = await currentTaskWithCompleted(0);
 
       // The existing dedup test asserts the row count only. The increment is
       // the other half of the exactly-once guarantee, so assert it here too.
@@ -304,7 +310,7 @@ describe("session-repository: logCompletedSession", () => {
     });
 
     it("does not increment any task for a break-type session", async () => {
-      const task = await pinnedTaskWithCompleted(0);
+      const task = await currentTaskWithCompleted(0);
 
       await logCompletedSession({ ...focusRun("break-run"), mode: "shortBreak" });
       await logCompletedSession({ ...focusRun("long-break-run"), mode: "longBreak" });
@@ -314,8 +320,9 @@ describe("session-repository: logCompletedSession", () => {
       expect(await completedFor(task.id)).toBe(0);
     });
 
-    it("changes no task's count when a focus session has no pinned task", async () => {
-      const task = await createTask({ title: "Quokka", emoji: "🥔", eta: 2 });
+    it("changes no task's count when no task is current (every task done)", async () => {
+      const task = await createTask({ title: "Quokka", eta: 2 });
+      await setTaskDone(task.id, true);
 
       await logCompletedSession(focusRun("untagged-run"));
 
@@ -325,7 +332,7 @@ describe("session-repository: logCompletedSession", () => {
     });
 
     it("keeps completed at 999 and still logs the row", async () => {
-      const task = await pinnedTaskWithCompleted(999);
+      const task = await currentTaskWithCompleted(999);
 
       const result = await logCompletedSession(focusRun("clamped-run"));
 
@@ -334,22 +341,23 @@ describe("session-repository: logCompletedSession", () => {
       expect(await completedFor(task.id)).toBe(999);
     });
 
-    it("logs untagged without throwing when the pin points at a missing task", async () => {
-      const db = await openDatabase();
-      await db.appMeta.put({ key: "pinnedTaskId", value: "does-not-exist" });
+    it("logs untagged without throwing when every task is done", async () => {
+      const task = await createTask({ title: "Only", eta: 1 });
+      await setTaskDone(task.id, true);
 
-      const result = await logCompletedSession(focusRun("dangling-pin-run"));
+      const result = await logCompletedSession(focusRun("all-done-run"));
 
       expect(result.status).toBe("logged");
       expect(result.task).toBeNull();
       const [row] = await listAllSessionsForTests();
       expect(row.taskId).toBeNull();
+      expect(await completedFor(task.id)).toBe(0);
     });
   });
 
   describe("deleted task handling", () => {
     it("sessions persist even if their task is deleted", async () => {
-      const task = await createTask({ title: "Delete Me", emoji: "❌", eta: 1 });
+      const task = await createTask({ title: "Delete Me", eta: 1 });
 
       // Seed sessions for this task (bypassing the repository so no pin is needed)
       await seedSessionsForTests([
@@ -424,32 +432,28 @@ describe("session-repository: listSessionsInRange", () => {
 });
 
 describe("session-repository: schema migration v1 -> v2", () => {
-  it("preserves tasks and pin through version bump", async () => {
+  it("preserves tasks and the last-chosen current task through the version 4 upgrade", async () => {
     const tasks = [
-      { title: "Task 1", emoji: "1️⃣", eta: 1 },
-      { title: "Task 2", emoji: "2️⃣", eta: 2 },
-      { title: "Task 3", emoji: "3️⃣", eta: 3 },
-      { title: "Task 4", emoji: "4️⃣", eta: 4 },
-      { title: "Task 5", emoji: "5️⃣", eta: 5 },
+      { title: "Task 1", eta: 1 },
+      { title: "Task 2", eta: 2 },
+      { title: "Task 3", eta: 3 },
+      { title: "Task 4", eta: 4 },
+      { title: "Task 5", eta: 5 },
     ];
 
     await resetDatabaseForTests();
     const created = await Promise.all(tasks.map((t) => createTask(t)));
     const pinned = created[2]; // Third task
 
-    // Upgrade to v2 using the seed function
     await seedVersion1DatabaseForTests({
-      tasks: created,
+      tasks: created.map((t) => ({ ...t, emoji: "🥔", colorId: "tomato" })),
       pinnedTaskId: pinned.id,
     });
 
-    // Verify tasks survived
     const afterUpgrade = await listTasks();
     expect(afterUpgrade).toHaveLength(5);
-    expect(afterUpgrade.map((t) => t.title)).toEqual(["Task 1", "Task 2", "Task 3", "Task 4", "Task 5"]);
-
-    // Verify pin survived
-    const current = await getCurrentTask();
-    expect(current?.id).toBe(pinned.id);
+    // The v4 upgrade moves the last-chosen task to position 0 and keeps the rest in order.
+    expect(afterUpgrade.map((t) => t.title)).toEqual(["Task 3", "Task 1", "Task 2", "Task 4", "Task 5"]);
+    expect((await getCurrentTask())?.id).toBe(pinned.id);
   });
 });

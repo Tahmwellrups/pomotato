@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { TASK_COLOR_HEX } from "./task-palette-colors";
 import { modeChipVariants } from "./ui/mode-chip";
 
 // Task 007 QA: source-level checks for criteria that a browser run does not reach
@@ -52,30 +51,9 @@ describe("task 007 criterion 22 and ModeSelector: the cue moved off the containe
   });
 });
 
-describe("task 007 criterion 16: the swatch values and their comment", () => {
-  // Pinned from d7d1bec. Owner palette decision: changing a value is a finding, not an edit.
-  const PINNED: Record<string, string> = {
-    potato: "#8a5a2b",
-    tomato: "#c23b22",
-    mint: "#3f9b6c",
-    sky: "#2f7fb8",
-    lavender: "#7a5fb0",
-    sunflower: "#8f6508",
-    blush: "#c05a74",
-    slate: "#5b6672",
-  };
-
-  it("every TASK_COLOR_HEX value is unchanged from d7d1bec", () => {
-    expect(TASK_COLOR_HEX).toEqual(PINNED);
-  });
-
-  it("the docstring names --card as the ground the swatches are measured against, not white", () => {
-    const source = read("components/task-palette-colors.ts");
-    expect(source).toContain("--card");
-    expect(source).not.toMatch(/white, `#ffffff`/);
-    expect(source).toContain("mint 3.14");
-  });
-});
+// Task 007 criterion 16 (the eight task swatch values, pinned by value and their docstring) is
+// retired by task 015: components/task-palette-colors.ts is deleted with the colour dot, so there is
+// no value left to pin. Its coverage ends here on purpose, not by accident.
 
 describe("task 007 criteria 18 and 19: the interactive-boundary token and its comment", () => {
   const css = () => read("app/globals.css");
@@ -114,15 +92,10 @@ describe("task 007 criteria 18 and 19: the interactive-boundary token and its co
 describe("task 007 criterion 44: no any in the changed code", () => {
   const CHANGED = [
     "components/TaskForm.tsx",
-    "components/TaskRow.tsx",
-    "components/TaskList.tsx",
-    "components/TaskListDialog.tsx",
-    "components/TaskColorDot.tsx",
     "components/StatsButton.tsx",
     "components/FocusLengthInput.tsx",
     "components/ModeSelector.tsx",
     "components/ui/mode-chip.tsx",
-    "components/task-palette-colors.ts",
   ];
 
   for (const file of CHANGED) {

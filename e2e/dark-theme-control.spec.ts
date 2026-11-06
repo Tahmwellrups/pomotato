@@ -16,7 +16,7 @@ import {
   type Preference,
 } from "./helpers/dark";
 import { readPainted } from "./helpers/painted";
-import { closeTaskList, openTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
 import { seedTimerState } from "./helpers/timer-hold";
 
 // Task 009 criteria 3, 5, 8, 9, 10, 31-37, 40, 47, 48. The theme control and the
@@ -225,8 +225,8 @@ test.describe("criterion 3, 5, 40: storage, malformed values, immediate change, 
 test.describe("criterion 6: the theme is not stored in IndexedDB", () => {
   test("the preference lives in localStorage, and no IndexedDB store holds it", async ({ page }) => {
     await openThemed(page, { stored: "dark", osDark: false });
-    await page.getByRole("button", { name: "Your tasks", exact: true }).click();
-    await page.getByRole("dialog", { name: "Your tasks", exact: true }).waitFor();
+    await openTaskList(page);
+    await taskPanel(page).waitFor();
     const hasLocal = await page.evaluate((key) => window.localStorage.getItem(key) !== null, THEME_KEY);
     expect(hasLocal).toBe(true);
     const dump = await page.evaluate(async () => {
@@ -430,10 +430,9 @@ test.describe("criterion 47: the theme transition is off under prefers-reduced-m
 
     // The colour swatch lives in the task form inside the dialog, so the scan must open it.
     await openTaskList(page);
-    const dialog = page.getByRole("dialog", { name: "Your tasks", exact: true });
+    const dialog = taskPanel(page);
     await expect(dialog.locator('input[type="radio"]').first()).toBeAttached();
     expect(await scan(page), "/ with the task dialog open (includes swatches)").toEqual([]);
-    await closeTaskList(page);
 
     await page.goto("/stats");
     await page.waitForLoadState("networkidle");

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { openTaskList, closeTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
 import { seedTimerState, resetControl } from "./helpers/timer-hold";
 import {
   DESKTOP,
@@ -206,7 +206,6 @@ test.describe("criterion 28 (amended): every listed control shows a 2 px ring at
         );
       }
       await assertRings(page, testInfo, theme, checks);
-      await closeTaskList(page);
     });
 
     test(`[${theme}] /stats view chips and the Focus stats return: each focus ring`, async ({ page }, testInfo) => {
@@ -249,7 +248,6 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
       // Normal state: pin a task.
       const dialog = await addTask(page, "QA Card Task");
       await dialog.getByRole("button", { name: "Pin QA Card Task as current task" }).click();
-      await closeTaskList(page);
       const cardTitle = page.locator("span.font-comfortaa").filter({ hasText: "QA Card Task" }).first();
       await expect(cardTitle).toBeVisible();
       sheet.row("CurrentTaskCard normal title vs page", textVsGround(await readPainted(page, cardTitle)), 4.5);
@@ -374,7 +372,6 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
       sheet.row("TaskForm Cancel label vs fill", textVsFill(cancelReading), 4.5);
       sheet.row("TaskForm Cancel edge vs ground", borderVsGround(cancelReading), 3);
       sheet.done();
-      await closeTaskList(page);
     });
 
     test(`[${theme}] /stats: chart ticks (all), StatsViewSwitcher chips, StatsTables; no legend or tooltip exists`, async ({ page }, testInfo) => {
@@ -479,7 +476,7 @@ test.describe("criterion 43 and 26: disabled states, dark figures not worse than
       // and Cancel take `disabled={submitting}`. The fields are forced disabled here so the
       // disabled style, if one is ever applied, is measured. Each is restored afterwards.
       await openTaskList(page);
-      const dialog = page.getByRole("dialog", { name: "Your tasks", exact: true });
+      const dialog = taskPanel(page);
       const fields: [string, Locator][] = [
         ["task Title field", dialog.getByLabel("Title", { exact: true })],
         ["task Emoji field", dialog.getByLabel("Emoji", { exact: true })],
@@ -501,7 +498,6 @@ test.describe("criterion 43 and 26: disabled states, dark figures not worse than
       out["disabled submit label vs fill"] = textVsFill(sr);
       out["disabled submit fill vs ground"] = contrast(sr.fill, sr.ground);
       await submit.evaluate((el) => ((el as HTMLButtonElement).disabled = false));
-      await closeTaskList(page);
       return out;
     };
 

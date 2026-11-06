@@ -3,16 +3,19 @@ import {
   DARK_CLASS,
   PREFERENCES_STORAGE_KEY,
   PREFERENCES_VERSION,
+  TASK_PANEL_ATTRIBUTE,
+  TASK_PANEL_HIDDEN_VALUE,
   THEME_VALUES,
   resolveTheme,
   sanitizePreferences,
 } from "./schema";
-import { THEME_BOOT_SCRIPT } from "./boot-script";
+import { PREFERENCES_BOOT_SCRIPT } from "./boot-script";
 import { usePreferencesStore } from "./store";
 
-// Task 009 criteria 5, 7 and 8 (the synchronous half): the inline pre-hydration
-// script is executed for real in jsdom, against real localStorage entries and a
-// stubbed prefers-color-scheme, and compared with the store's resolver.
+// Task 009 criteria 5, 7 and 8 (the synchronous half), extended by task 015
+// criterion 32: the inline pre-hydration script is executed for real in jsdom,
+// against real localStorage entries and a stubbed prefers-color-scheme, and is
+// compared with the store's resolver (theme) and sanitiser (taskPanelVisible).
 
 function setOs(osDark: boolean) {
   window.matchMedia = ((query: string) => ({
@@ -30,11 +33,20 @@ function setOs(osDark: boolean) {
 /** Runs the exact string the layout puts in <head>, as the browser would. */
 function runBootScript(): void {
   // Executing the shipped inline script is the point of this test.
-  new Function(THEME_BOOT_SCRIPT)();
+  new Function(PREFERENCES_BOOT_SCRIPT)();
 }
 
 function painted(): boolean {
   return document.documentElement.classList.contains(DARK_CLASS);
+}
+
+/** The attribute the script leaves on <html>, or null when it is absent. */
+function panelAttr(): string | null {
+  return document.documentElement.getAttribute(TASK_PANEL_ATTRIBUTE);
+}
+
+function hiddenByScript(): boolean {
+  return panelAttr() === TASK_PANEL_HIDDEN_VALUE;
 }
 
 /** The resolver applied to the same sanitised value the store would hold. */
@@ -52,6 +64,11 @@ function expectedFor(storedRaw: string | null, osDark: boolean): boolean {
 }
 
 const envelope = (theme: unknown) => JSON.stringify({ state: { theme }, version: PREFERENCES_VERSION });
+
+/** A version-2 envelope whose state carries `taskPanelVisible` as given. */
+function envelopeWithPanel(theme: unknown, panel: unknown): string {
+  return JSON.stringify({ state: { theme, taskPanelVisible: panel }, version: PREFERENCES_VERSION });
+}
 
 // Every stored state the boot script can meet: no entry, each valid value, and
 // each malformed shape both as a whole entry and as the theme inside a valid envelope.
@@ -72,21 +89,35 @@ const STORED_STATES: [string, string | null][] = [
   ["envelope theme #1c140e (a colour)", envelope("#1c140e")],
 ];
 
+/** Every value the panel key can hold in storage, including the absent key (a v1 payload). */
+const PANEL_STATES: [string, unknown][] = [
+  ["absent (v1 payload)", undefined],
+  ["true", true],
+  ["false", false],
+  ['"false" (string)', "false"],
+  ["0", 0],
+  ["null", null],
+];
+
 beforeEach(() => {
   window.localStorage.clear();
   document.documentElement.className = "";
+  document.documentElement.removeAttribute(TASK_PANEL_ATTRIBUTE);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   document.documentElement.className = "";
+  document.documentElement.removeAttribute(TASK_PANEL_ATTRIBUTE);
 });
 
 describe("criterion 7: the boot script and the store read the same key with the same semantics", () => {
-  it("the script is built from the shared key, value set and class name", () => {
-    expect(THEME_BOOT_SCRIPT).toContain(JSON.stringify(PREFERENCES_STORAGE_KEY));
-    expect(THEME_BOOT_SCRIPT).toContain(JSON.stringify([...THEME_VALUES]));
-    expect(THEME_BOOT_SCRIPT).toContain(JSON.stringify(DARK_CLASS));
+  it("the script is built from the shared key, value set, class name and panel attribute", () => {
+    expect(PREFERENCES_BOOT_SCRIPT).toContain(JSON.stringify(PREFERENCES_STORAGE_KEY));
+    expect(PREFERENCES_BOOT_SCRIPT).toContain(JSON.stringify([...THEME_VALUES]));
+    expect(PREFERENCES_BOOT_SCRIPT).toContain(JSON.stringify(DARK_CLASS));
+    expect(PREFERENCES_BOOT_SCRIPT).toContain(JSON.stringify(TASK_PANEL_ATTRIBUTE));
+    expect(PREFERENCES_BOOT_SCRIPT).toContain(JSON.stringify(TASK_PANEL_HIDDEN_VALUE));
   });
 
   it("the store's persist name is the same key the script reads", () => {
@@ -94,7 +125,7 @@ describe("criterion 7: the boot script and the store read the same key with the 
   });
 
   it("the script names the storage key exactly once, so a second copy cannot drift in", () => {
-    const occurrences = THEME_BOOT_SCRIPT.split(PREFERENCES_STORAGE_KEY).length - 1;
+    const occurrences = PREFERENCES_BOOT_SCRIPT.split(PREFERENCES_STORAGE_KEY).length - 1;
     expect(occurrences).toBe(1);
   });
 
@@ -111,6 +142,18 @@ describe("criterion 7: the boot script and the store read the same key with the 
           resolveTheme(value, osDark) === "dark",
         );
       }
+    }
+  });
+
+  it("a panel value written by the store is hidden by the script exactly when the store holds false", () => {
+    setOs(false);
+    for (const visible of [true, false]) {
+      window.localStorage.clear();
+      document.documentElement.removeAttribute(TASK_PANEL_ATTRIBUTE);
+      usePreferencesStore.getState().setTaskPanelVisible(visible);
+      const written = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
+      runBootScript();
+      expect(hiddenByScript(), `taskPanelVisible=${visible} / stored ${written}`).toBe(!visible);
     }
   });
 });
@@ -147,6 +190,7 @@ describe("criterion 5: malformed stored values paint the default, never throw, n
     setOs(true);
     expect(() => runBootScript()).not.toThrow();
     expect(painted()).toBe(true);
+    expect(panelAttr()).toBeNull();
   });
 
   it("with no matchMedia at all, system falls back to light and does not throw", () => {
@@ -155,4 +199,109 @@ describe("criterion 5: malformed stored values paint the default, never throw, n
     expect(() => runBootScript()).not.toThrow();
     expect(painted()).toBe(false);
   });
+});
+
+describe("task 015 criterion 32 (boot half): the panel attribute is set only for a stored boolean false", () => {
+  it("stored taskPanelVisible false sets the hidden attribute", () => {
+    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, envelopeWithPanel("system", false));
+    setOs(false);
+    runBootScript();
+    expect(panelAttr()).toBe(TASK_PANEL_HIDDEN_VALUE);
+  });
+
+  for (const [label, panel] of PANEL_STATES.filter(([, value]) => value !== false)) {
+    it(`stored panel value ${label} leaves the attribute absent`, () => {
+      window.localStorage.setItem(PREFERENCES_STORAGE_KEY, envelopeWithPanel("system", panel));
+      setOs(false);
+      runBootScript();
+      expect(panelAttr()).toBeNull();
+    });
+  }
+
+  for (const [label, raw] of [
+    ["no entry", null],
+    ["malformed JSON", "{bad"],
+    ["an empty string", ""],
+  ] as const) {
+    it(`${label} leaves the attribute absent and the theme at its default`, () => {
+      if (raw !== null) window.localStorage.setItem(PREFERENCES_STORAGE_KEY, raw);
+      setOs(false);
+      expect(() => runBootScript()).not.toThrow();
+      expect(panelAttr()).toBeNull();
+      expect(painted()).toBe(false);
+    });
+  }
+
+  it("getItem throwing leaves the attribute absent and does not throw", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+    setOs(false);
+    expect(() => runBootScript()).not.toThrow();
+    expect(panelAttr()).toBeNull();
+  });
+
+  it("a stale hidden attribute is removed when storage says visible", () => {
+    document.documentElement.setAttribute(TASK_PANEL_ATTRIBUTE, TASK_PANEL_HIDDEN_VALUE);
+    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, envelopeWithPanel("system", true));
+    setOs(false);
+    runBootScript();
+    expect(panelAttr()).toBeNull();
+  });
+
+  it("a stale hidden attribute is removed when storage is unreadable", () => {
+    document.documentElement.setAttribute(TASK_PANEL_ATTRIBUTE, TASK_PANEL_HIDDEN_VALUE);
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+    setOs(false);
+    runBootScript();
+    expect(panelAttr()).toBeNull();
+  });
+
+  it("running the script twice gives the same attribute state in both directions", () => {
+    setOs(false);
+    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, envelopeWithPanel("system", false));
+    runBootScript();
+    runBootScript();
+    expect(panelAttr()).toBe(TASK_PANEL_HIDDEN_VALUE);
+    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, envelopeWithPanel("system", true));
+    runBootScript();
+    runBootScript();
+    expect(panelAttr()).toBeNull();
+  });
+});
+
+describe("task 015 criterion 32 (theme x panel cross-product): the panel key does not disturb the theme and the theme does not disturb the panel", () => {
+  for (const theme of THEME_VALUES) {
+    for (const [panelLabel, panel] of PANEL_STATES) {
+      for (const osDark of [false, true]) {
+        it(`theme ${theme} x panel ${panelLabel} / OS ${osDark ? "dark" : "light"}: class and attribute are both as specified`, () => {
+          const raw = panel === undefined
+            ? JSON.stringify({ state: { theme }, version: 1 })
+            : envelopeWithPanel(theme, panel);
+          window.localStorage.setItem(PREFERENCES_STORAGE_KEY, raw);
+          setOs(osDark);
+          expect(() => runBootScript()).not.toThrow();
+          expect(painted()).toBe(resolveTheme(theme, osDark) === "dark");
+          expect(hiddenByScript()).toBe(panel === false);
+          const tokens = document.documentElement.className.split(/\s+/).filter(Boolean);
+          expect(tokens.every((token) => token === DARK_CLASS)).toBe(true);
+        });
+      }
+    }
+  }
+});
+
+describe("task 015 criterion 32 (parity): the script hides the panel exactly when sanitizePreferences says taskPanelVisible is false", () => {
+  const SAMPLES: unknown[] = [false, true, "false", 0, null, undefined, "true", 1, {}, []];
+  for (const sample of SAMPLES) {
+    it(`stored ${JSON.stringify(sample) ?? "undefined"}: script attribute matches the sanitiser`, () => {
+      const sanitised = sanitizePreferences({ taskPanelVisible: sample }).taskPanelVisible;
+      window.localStorage.setItem(PREFERENCES_STORAGE_KEY, envelopeWithPanel("system", sample));
+      setOs(false);
+      runBootScript();
+      expect(hiddenByScript()).toBe(sanitised === false);
+    });
+  }
 });

@@ -1,6 +1,6 @@
 import { test, expect, type Page, type TestInfo } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
-import { openTaskList } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
 import { readPainted, compositeOver, contrast, tokenRgb, type PaintedReading, type Rgb } from "./helpers/painted";
 
 // Task 007 QA, Parts 2 and 3 (criteria 17-31, 35-36, 42-43). Every colour is read from the painted
@@ -9,7 +9,7 @@ import { readPainted, compositeOver, contrast, tokenRgb, type PaintedReading, ty
 const DESKTOP = { width: 1280, height: 800 };
 const NARROW = { width: 320, height: 720 };
 
-const dialogLocator = (page: Page) => page.getByRole("dialog", { name: "Your tasks", exact: true });
+const dialogLocator = (page: Page) => taskPanel(page);
 const rowFor = (page: Page, title: string) => page.locator("ul li").filter({ hasText: title }).first();
 // In edit mode the title is an input value, which hasText cannot see. The edit row is the one holding the Save button.
 const editRowFor = (page: Page) => page.locator("ul li").filter({ has: page.getByRole("button", { name: "Save", exact: true }) }).first();

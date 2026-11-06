@@ -112,14 +112,11 @@ describe("TaskForm", () => {
       const { container } = render(<TaskForm idPrefix="test" submitLabel="Add" onSubmit={onSubmit} />);
 
       const titleInput = container.querySelector('input[id*="-title"]') as HTMLInputElement;
-      const emojiInput = container.querySelector('input[id*="-emoji"]') as HTMLInputElement;
       const etaInput = container.querySelector('input[id*="-eta"]') as HTMLInputElement;
       const buttons = container.querySelectorAll("button");
       const submitButton = Array.from(buttons as NodeListOf<HTMLButtonElement>).find((b) => b.textContent === "Add");
 
       await user.type(titleInput, "My Task");
-      await user.clear(emojiInput);
-      await user.type(emojiInput, "🎯");
       await user.clear(etaInput);
       await user.type(etaInput, "5");
       if (submitButton) {
@@ -127,19 +124,19 @@ describe("TaskForm", () => {
       }
 
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ title: "My Task", emoji: "🎯", eta: 5 }));
+      expect(onSubmit).toHaveBeenCalledWith({ title: "My Task", eta: 5 });
     });
   });
 
   describe("add form (initialValues undefined)", () => {
-    it("displays defaults: 🥔 emoji, 1 ETA", () => {
+    it("displays the default ETA of 1 and renders no emoji or colour field (task 015)", () => {
       const { container } = render(<TaskForm idPrefix="test" submitLabel="Add" onSubmit={vi.fn()} />);
 
-      const emojiInput = container.querySelector('input[id*="-emoji"]') as HTMLInputElement;
       const etaInput = container.querySelector('input[id*="-eta"]') as HTMLInputElement;
 
-      expect(emojiInput.value).toBe("🥔");
       expect(etaInput.value).toBe("1");
+      expect(container.querySelector('input[id*="-emoji"]')).toBeNull();
+      expect(container.querySelectorAll('input[name*="-color"]')).toHaveLength(0);
     });
 
     it("resets fields to defaults after successful submit", async () => {
@@ -149,14 +146,11 @@ describe("TaskForm", () => {
       const { container } = render(<TaskForm idPrefix="test" submitLabel="Add" onSubmit={onSubmit} />);
 
       const titleInput = container.querySelector('input[id*="-title"]') as HTMLInputElement;
-      const emojiInput = container.querySelector('input[id*="-emoji"]') as HTMLInputElement;
       const etaInput = container.querySelector('input[id*="-eta"]') as HTMLInputElement;
       const buttons = container.querySelectorAll("button");
       const submitButton = Array.from(buttons as NodeListOf<HTMLButtonElement>).find((b) => b.textContent === "Add");
 
       await user.type(titleInput, "Test Task");
-      await user.clear(emojiInput);
-      await user.type(emojiInput, "🎯");
       await user.clear(etaInput);
       await user.type(etaInput, "10");
 
@@ -166,7 +160,6 @@ describe("TaskForm", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(titleInput.value).toBe("");
-      expect(emojiInput.value).toBe("🥔");
       expect(etaInput.value).toBe("1");
     });
 
@@ -182,8 +175,6 @@ describe("TaskForm", () => {
   describe("edit form (initialValues provided)", () => {
     const initialValues: TaskFormValues = {
       title: "Existing Task",
-      emoji: "🎯",
-      colorId: "tomato",
       eta: 5,
     };
 
@@ -199,11 +190,9 @@ describe("TaskForm", () => {
       );
 
       const titleInput = container.querySelector('input[id*="-title"]') as HTMLInputElement;
-      const emojiInput = container.querySelector('input[id*="-emoji"]') as HTMLInputElement;
       const etaInput = container.querySelector('input[id*="-eta"]') as HTMLInputElement;
 
       expect(titleInput.value).toBe("Existing Task");
-      expect(emojiInput.value).toBe("🎯");
       expect(etaInput.value).toBe("5");
     });
 
@@ -257,51 +246,23 @@ describe("TaskForm", () => {
     });
   });
 
-  describe("emoji validation edge cases", () => {
-    it("accepts ZWJ sequence emoji", async () => {
+  describe("task 015: the form is title and ETA only", () => {
+    it("has no emoji input and no colour radios, and submits exactly title and eta", async () => {
       const user = userEvent.setup();
       const onSubmit = vi.fn().mockResolvedValue(undefined);
 
       const { container } = render(<TaskForm idPrefix="test" submitLabel="Add" onSubmit={onSubmit} />);
 
+      expect(container.querySelector('input[id*="-emoji"]')).toBeNull();
+      expect(container.querySelectorAll('input[name*="-color"]')).toHaveLength(0);
       const titleInput = container.querySelector('input[id*="-title"]') as HTMLInputElement;
-      const emojiInput = container.querySelector('input[id*="-emoji"]') as HTMLInputElement;
-      const buttons = container.querySelectorAll("button");
-      const submitButton = Array.from(buttons as NodeListOf<HTMLButtonElement>).find((b) => b.textContent === "Add");
-
-      await user.type(titleInput, "test");
-      await user.clear(emojiInput);
-      await user.type(emojiInput, "👩‍💻");
-      if (submitButton) {
-        await user.click(submitButton as HTMLElement);
-      }
+      const submitButton = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Add");
+      await user.type(titleInput, "plain");
+      if (submitButton) await user.click(submitButton as HTMLElement);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ emoji: "👩‍💻" }));
-    });
-  });
-
-  describe("color selection", () => {
-    it("allows selecting different colors", async () => {
-      const user = userEvent.setup();
-      const onSubmit = vi.fn().mockResolvedValue(undefined);
-
-      const { container } = render(<TaskForm idPrefix="test" submitLabel="Add" onSubmit={onSubmit} />);
-
-      const titleInput = container.querySelector('input[id*="-title"]') as HTMLInputElement;
-      const lavenderRadios = container.querySelectorAll('input[name*="-color"]');
-      const lavenderRadio = Array.from(lavenderRadios)[4] as HTMLInputElement; // Lavender is the 5th color
-      const buttons = container.querySelectorAll("button");
-      const submitButton = Array.from(buttons as NodeListOf<HTMLButtonElement>).find((b) => b.textContent === "Add");
-
-      await user.type(titleInput, "test");
-      await user.click(lavenderRadio);
-      if (submitButton) {
-        await user.click(submitButton as HTMLElement);
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ colorId: "lavender" }));
+      const submitted = onSubmit.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(Object.keys(submitted).sort()).toEqual(["eta", "title"]);
     });
   });
 });
