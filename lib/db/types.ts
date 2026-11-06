@@ -1,27 +1,31 @@
 import type { TimerMode } from "../timer/types";
-import type { PaletteColorId } from "./palette";
 
 /**
  * A task as stored in the `tasks` table and returned by the repository.
  *
- * The pin is deliberately not a field here — see `AppMetaRecord` — so that
- * "exactly one task pinned" is a structural property of the data (a single
- * nullable reference) rather than an invariant the write path has to police
- * across many rows.
+ * There is no pin. The current task is derived: the first task in display
+ * order whose `done` is false. That "exactly one current task" property is
+ * still structural, now because `position` is dense and unique by
+ * construction (every structural write renumbers), so the answer is a pure
+ * function of the sorted list with no write path left to police. Task 014
+ * retired the pin; before it, the guarantee came from a single nullable
+ * reference in `appMeta`.
  */
 export interface Task {
   /** Stable, unique, never reused after deletion. */
   id: string;
   /** Trimmed, 1-100 Unicode code points. */
   title: string;
-  /** Exactly one emoji grapheme cluster. */
-  emoji: string;
-  /** Identifier of one entry in the fixed palette (see `./palette`), not a raw color value. */
-  colorId: PaletteColorId;
   /** Estimated pomodoros. Integer, 1-20. */
   eta: number;
   /** Completed pomodoros. Integer, 0-999. Incremented automatically when a focus-type session completes. */
   completed: number;
+  /**
+   * The user has marked this task finished. Independent of `completed` and
+   * `eta`: a task can be done at 0 of 5 pomodoros, and not done at 7 of 3.
+   * Never set automatically, never touched by `updateTask`. Not indexed.
+   */
+  done: boolean;
   /**
    * Display order. A dense, unique, zero-based integer among all tasks.
    * Renumbered on every structural change (create, delete, reorder) so
@@ -36,36 +40,32 @@ export interface Task {
 export type TaskRecord = Task;
 
 /**
- * Single-row key/value table for app-wide state that must change atomically
- * with task rows, starting with the pin. Modeled as a table (not a field on
- * `PomotatoDatabase`) so a later schema version can add more keys without a
- * version bump just for app state.
+ * Key/value table for app-wide state that must change atomically with task
+ * rows. Modeled as a table so a later version can add keys without a bump.
+ * `"pinnedTaskId"` was its only key and was retired in schema version 4
+ * (task 014): nothing reads or writes it, and the upgrade deletes the stored
+ * row. The literal stays because that upgrade has to name the key.
  */
 export interface AppMetaRecord {
   key: "pinnedTaskId";
-  /** The pinned task's id, or `null` when nothing is pinned. */
   value: string | null;
 }
 
 /** Input accepted by `createTask`. Every field is optional except `title`; omitted fields take the defaults from the task file's Field rules table. */
 export interface CreateTaskInput {
   title: string;
-  emoji?: string;
-  colorId?: string;
   eta?: number;
 }
 
-/** Input accepted by `updateTask`. Only the provided keys are validated and changed; omitted keys keep their stored value. Does not touch `completed`, `position`, or the pin — those have their own repository functions. */
+/** Input accepted by `updateTask`. Only the provided keys are validated and changed; omitted keys keep their stored value. Does not touch `completed`, `position`, or `done` — those have their own repository functions. */
 export interface UpdateTaskInput {
   title?: string;
-  emoji?: string;
-  colorId?: string;
   eta?: number;
 }
 
 /** One field-level validation failure, suitable for mapping straight onto a form field's inline error. */
 export interface ValidationIssue {
-  field: "title" | "emoji" | "colorId" | "eta";
+  field: "title" | "eta";
   message: string;
 }
 
@@ -100,13 +100,13 @@ export interface SessionRecord {
   endedAt: number;
   /** The run's full planned duration in ms. Stats sum this, not `endedAt - startedAt`. */
   plannedDurationMs: number;
-  /** Task credited at completion time, or `null` when none was pinned (or the pinned task no longer existed). */
+  /** Task credited at completion time, or `null` when there was no current task (empty list, or every task done). */
   taskId: string | null;
   /** The credited task's title at log time, or `null` when `taskId` is `null`. Survives task deletion and keeps the breakdown label readable. */
   taskTitle: string | null;
 }
 
-/** Input to `logCompletedSession`. The task is NOT passed: the repository reads the pin itself, inside the transaction. */
+/** Input to `logCompletedSession`. The task is NOT passed: the repository resolves the current task (first not-done, by position) itself, inside the transaction. */
 export interface LogSessionInput {
   runId: string;
   mode: SessionMode;

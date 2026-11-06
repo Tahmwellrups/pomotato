@@ -1,8 +1,11 @@
-import Dexie, { type EntityTable } from "dexie";
+import Dexie, { type EntityTable, type Transaction } from "dexie";
 import { DatabaseBlockedError, DatabaseUnavailableError } from "./errors";
 import type { AppMetaRecord, BackgroundRecord, SessionRecord, TaskRecord } from "./types";
 
 export const DATABASE_NAME = "pomotato";
+
+/** The `appMeta` key that held the pin until version 4 retired it; the upgrade names it to delete the row. */
+const PINNED_TASK_KEY = "pinnedTaskId";
 
 /**
  * The version number of the original (version-1) schema block below. It is
@@ -13,8 +16,14 @@ export const DATABASE_NAME = "pomotato";
  */
 export const SCHEMA_VERSION = 1;
 
-/** The schema version the app opens. Version 2 adds `sessions`, version 3 adds `backgrounds`. */
-export const CURRENT_SCHEMA_VERSION = 3;
+/**
+ * The schema version the app opens. Version 2 adds `sessions`, version 3 adds
+ * `backgrounds`, version 4 adds `Task.done` and retires the pin, version 5 strips
+ * `emoji` and `colorId` from stored tasks. Every
+ * `.version(n)` block below uses a literal; the constructor checks the highest
+ * one equals this constant, so a bump that forgets a block fails loudly.
+ */
+export const CURRENT_SCHEMA_VERSION = 5;
 
 /**
  * How long an upgrade may stay blocked by another open connection (usually
@@ -23,6 +32,72 @@ export const CURRENT_SCHEMA_VERSION = 3;
  * the open attempt, so the user sees the message about this long after load.
  */
 export const BLOCKED_UPGRADE_TIMEOUT_MS = 5000;
+
+/**
+ * Version 3 -> 4, one transaction (Dexie's upgrade transaction), idempotent and
+ * tolerant of whatever an older build wrote:
+ * 1. every task row gets `done: false` (the field did not exist before this version);
+ * 2. the task the old pin pointed at moves to position 0 and positions are
+ *    renumbered densely; no pin, a null pin, a dangling pin, or a pin already
+ *    first leaves the order alone;
+ * 3. the `pinnedTaskId` row is deleted. The `appMeta` table itself stays.
+ * Rows with a missing or duplicate `position` sort after valid ones, ties by id,
+ * so the order is deterministic and the renumber lands on a dense assignment.
+ * Never touches `sessions`.
+ */
+async function upgradeToVersion4(tx: Transaction): Promise<void> {
+  const tasksTable = tx.table<Record<string, unknown> & { id: string }, string>("tasks");
+  const metaTable = tx.table<{ key: string; value: unknown }, string>("appMeta");
+
+  const rows = await tasksTable.toArray();
+  const positionOf = (row: Record<string, unknown>): number =>
+    typeof row.position === "number" && Number.isFinite(row.position) ? row.position : Number.POSITIVE_INFINITY;
+  const ordered = [...rows].sort((a, b) => {
+    const delta = positionOf(a) - positionOf(b);
+    if (delta !== 0 && !Number.isNaN(delta)) return delta;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+
+  const pin = await metaTable.get(PINNED_TASK_KEY);
+  const pinnedId = typeof pin?.value === "string" ? pin.value : null;
+  const pinnedIndex = pinnedId === null ? -1 : ordered.findIndex((row) => row.id === pinnedId);
+  if (pinnedIndex > 0) {
+    const [pinned] = ordered.splice(pinnedIndex, 1);
+    ordered.unshift(pinned);
+  }
+
+  // Renumbering is a no-op on clean data, so a pin already at 0 changes no position.
+  await tasksTable.bulkPut(ordered.map((row, index) => ({ ...row, done: false, position: index })));
+  await metaTable.delete(PINNED_TASK_KEY);
+}
+
+/** The two properties version 5 removes from every stored task row. */
+const RETIRED_TASK_FIELDS = ["emoji", "colorId"] as const;
+
+/**
+ * Version 4 -> 5, one transaction (Dexie's upgrade transaction), idempotent and
+ * tolerant of whatever an older build wrote:
+ * 1. read every task row;
+ * 2. for each row that has an own `emoji` or `colorId` property (whatever its
+ *    value: a string, `null`, a number), write back a copy without them;
+ * 3. rows that already lack both are not written at all, so a second run, an
+ *    empty table, or clean data does no writes.
+ * It never renumbers `position`, never touches `done`, and never reads or
+ * writes `sessions`, `backgrounds` or `appMeta`. No validation of any other
+ * field: the upgrade removes data, it does not judge what stays.
+ */
+async function upgradeToVersion5(tx: Transaction): Promise<void> {
+  const tasksTable = tx.table<Record<string, unknown> & { id: string }, string>("tasks");
+  const rows = await tasksTable.toArray();
+  const stripped = rows
+    .filter((row) => RETIRED_TASK_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(row, field)))
+    .map((row) => {
+      const clean: Record<string, unknown> & { id: string } = { ...row };
+      for (const field of RETIRED_TASK_FIELDS) delete clean[field];
+      return clean;
+    });
+  if (stripped.length > 0) await tasksTable.bulkPut(stripped);
+}
 
 export class PomotatoDatabase extends Dexie {
   tasks!: EntityTable<TaskRecord, "id">;
@@ -53,9 +128,28 @@ export class PomotatoDatabase extends Dexie {
     // Added beside the version-2 block, same rule. Purely additive: one new
     // table, nothing restated, no `.upgrade()` callback, so no existing row is
     // read or rewritten. At most one row is ever stored (task 010).
-    this.version(CURRENT_SCHEMA_VERSION).stores({
+    // A literal, never `CURRENT_SCHEMA_VERSION`: a historical block tied to the
+    // constant renumbers itself on the next bump, which drops this version and
+    // makes the new block a duplicate.
+    this.version(3).stores({
       backgrounds: "id",
     });
+    // No `.stores()` change: `done` is a non-indexed field and the pin row lives
+    // in a table that stays declared. The version exists to run the upgrade
+    // (task 014), which is the first one in this repo that reads and rewrites rows.
+    this.version(4)
+      .stores({})
+      .upgrade(upgradeToVersion4);
+    // Same shape as version 4: no `.stores()` change (neither removed field was
+    // indexed, `tasks: "id, position"` stands), the version exists to run the upgrade.
+    this.version(5)
+      .stores({})
+      .upgrade(upgradeToVersion5);
+    if (this.verno !== CURRENT_SCHEMA_VERSION) {
+      throw new Error(
+        `Highest declared schema version is ${this.verno} but CURRENT_SCHEMA_VERSION is ${CURRENT_SCHEMA_VERSION}.`,
+      );
+    }
     this.on("blocked", () => {
       this.blockedByOtherConnection = true;
     });
@@ -109,6 +203,21 @@ export function __resetDatabaseInstanceForTests(): void {
  * A rejected call can be retried; it succeeds once the other tab closes.
  */
 export function openDatabase(): Promise<PomotatoDatabase> {
+  const shared = openShared();
+  // Hand every caller its own promise, constructed here in the caller's zone.
+  // `shared` may have been created by an earlier caller outside any Dexie zone,
+  // where `Promise` is the native one; a native `await` does not carry a
+  // liveQuery's zone across, so the reads after it were attributed to no
+  // subscription and the query never re-fired. Inside a zone `Promise` is
+  // Dexie's zone-aware one, so this wrapper resumes the awaiter in its own zone.
+  // Each wrapper subscribes to `shared` in call order, so continuations still
+  // resume in the order callers called.
+  return new Promise<PomotatoDatabase>((resolve, reject) => {
+    shared.then(resolve, reject);
+  });
+}
+
+function openShared(): Promise<PomotatoDatabase> {
   // Concurrent callers share ONE attempt, so their continuations resume in the
   // order they called (callers fired together keep their relative write order).
   if (pendingOpen) return pendingOpen;

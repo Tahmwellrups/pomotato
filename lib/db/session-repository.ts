@@ -1,10 +1,9 @@
 import { openDatabase } from "./database";
+import { firstNotDone } from "./task-repository";
 import { SessionValidationError } from "./errors";
 import { isFocusTypeMode, isSessionMode } from "./session-modes";
 import type { LogSessionInput, LogSessionResult, SessionRecord, SessionValidationIssue, Task } from "./types";
 import { COMPLETED_MAX } from "./validation";
-
-const PINNED_TASK_KEY = "pinnedTaskId" as const;
 
 function isNonNegativeFinite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -35,15 +34,15 @@ function validateLogInput(input: LogSessionInput): void {
 /**
  * Logs one timer run that reached its end timestamp, exactly once.
  *
- * Everything happens in ONE `rw` transaction over `sessions`, `tasks`, and
- * `appMeta`:
+ * Everything happens in ONE `rw` transaction over `sessions` and `tasks`:
  * 1. Look up `runId`. If a row already has it, return `{ status: "duplicate" }`
  *    and write nothing (no row, no increment). IndexedDB serializes
  *    overlapping read-write transactions across tabs, so two tabs racing on the
  *    same `runId` cannot both pass this check; the `&runId` unique index is a
  *    second, storage-level guard behind it.
- * 2. Read the pin and the pinned task AT THIS MOMENT (completion time). A
- *    missing/dangling pin means untagged, not an error.
+ * 2. Resolve the current task AT THIS MOMENT (completion time): the first
+ *    not-done task by position. None (empty list, all done) means untagged,
+ *    not an error.
  * 3. Add the session row.
  * 4. If the mode is focus-type and a task is attached, add 1 to its
  *    `completed` (clamped at 999; the row is still logged at 999).
@@ -52,19 +51,18 @@ function validateLogInput(input: LogSessionInput): void {
  *
  * Throws `SessionValidationError` (nothing written) on bad input,
  * `DatabaseUnavailableError` / `DatabaseBlockedError` if the DB cannot open.
- * Never throws for a duplicate or for a deleted/unpinned task.
+ * Never throws for a duplicate or when there is no current task.
  */
 export async function logCompletedSession(input: LogSessionInput): Promise<LogSessionResult> {
   validateLogInput(input);
   const db = await openDatabase();
-  return db.transaction("rw", [db.sessions, db.tasks, db.appMeta], async () => {
+  return db.transaction("rw", [db.sessions, db.tasks], async () => {
     const existing = await db.sessions.where("runId").equals(input.runId).first();
     if (existing) {
       return { status: "duplicate", session: existing, task: null } satisfies LogSessionResult;
     }
 
-    const meta = await db.appMeta.get(PINNED_TASK_KEY);
-    const pinned = meta?.value ? await db.tasks.get(meta.value) : undefined;
+    const current = firstNotDone(await db.tasks.toArray());
 
     const session: SessionRecord = {
       id: crypto.randomUUID(),
@@ -73,14 +71,14 @@ export async function logCompletedSession(input: LogSessionInput): Promise<LogSe
       startedAt: input.startedAt,
       endedAt: input.endedAt,
       plannedDurationMs: input.plannedDurationMs,
-      taskId: pinned?.id ?? null,
-      taskTitle: pinned?.title ?? null,
+      taskId: current?.id ?? null,
+      taskTitle: current?.title ?? null,
     };
     await db.sessions.add(session);
 
-    let updatedTask: Task | null = pinned ?? null;
-    if (pinned && isFocusTypeMode(input.mode) && pinned.completed < COMPLETED_MAX) {
-      updatedTask = { ...pinned, completed: pinned.completed + 1 };
+    let updatedTask: Task | null = current ?? null;
+    if (current && isFocusTypeMode(input.mode) && current.completed < COMPLETED_MAX) {
+      updatedTask = { ...current, completed: current.completed + 1 };
       await db.tasks.put(updatedTask);
     }
     return { status: "logged", session, task: updatedTask } satisfies LogSessionResult;

@@ -24,6 +24,7 @@ interface PreferencesActions {
   setGaugeStyle: (gaugeStyle: GaugeStylePreference) => void;
   setBackground: (background: BackgroundPreference) => void;
   setMix: (mix: Mix) => void;
+  setTaskPanelVisible: (visible: boolean) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -39,6 +40,8 @@ export const usePreferencesStore = create<PreferencesStore>()(
         set({ gaugeStyle: sanitizePreferences({ gaugeStyle }).gaugeStyle }),
       setBackground: (background) => set({ background: sanitizePreferences({ background }).background }),
       setMix: (mix) => set({ mix: sanitizePreferences({ mix }).mix }),
+      setTaskPanelVisible: (visible) =>
+        set({ taskPanelVisible: sanitizePreferences({ taskPanelVisible: visible }).taskPanelVisible }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -53,6 +56,7 @@ export const usePreferencesStore = create<PreferencesStore>()(
         gaugeStyle: state.gaugeStyle,
         background: state.background,
         mix: state.mix,
+        taskPanelVisible: state.taskPanelVisible,
       }),
       migrate: (persisted): Preferences => migratePreferences(persisted),
       // migrate is skipped when the stored version matches, so validate on every
