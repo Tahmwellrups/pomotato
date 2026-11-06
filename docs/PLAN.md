@@ -340,7 +340,7 @@ Finding 1 — the solid header Surface having zero appliers — was **not** a de
 2026-11-06 that dropping the header panel was deliberate, and chose a two-tone glyph halo as the
 replacement defence. See DECISIONS.md for both halves. What remains from that ruling:
 
-- [ ] **Implement the two-tone glyph halo on the header** (owner ruling 2026-11-06). A halo of the opposite
+- [x] **Implement the two-tone glyph halo on the header** (owner ruling 2026-11-06). **Done.** A halo of the opposite
       luminance tight around the `pomotato` wordmark (`--primary`) and the three theme chips, painting only
       while an image is active. Pass condition inherits the two-tone edge's rule: one of the two clears 3:1
       against the ground, **and** the two clear 3:1 against each other. Small/self-contained, but it is a
@@ -355,6 +355,22 @@ replacement defence. See DECISIONS.md for both halves. What remains from that ru
       control with no visible focus indicator over a photograph** — the halo (or an equivalent defence) is
       the fix, and the negative outline offset should be reconsidered at the same time since it now buys
       nothing. Until it lands, `/` with an uploaded image has no keyboard-focus floor on the theme toggle.
+- [ ] **Re-point `control-edge-measure` to read the halo flank, not the bare ring.** The halo fixed the
+      1.27:1 focus ring by flanking it with `--popover`, which is the same two-tone structure the control
+      edges use — so **the bare ring still reads 1.27 (light/grey) and 2.06 (dark/white) against the
+      photograph, by design**. A test that measures ring-vs-ground alone will still fail and will be
+      measuring the wrong thing; it must read the flank, or `max(ring, flank)`. The spec also still asserts
+      "chip focus ring lies inside the header border box", whose premise died with the header fill — 3 of 4
+      fail at 1280 light. This replaces the probe retired earlier in this list.
+- [ ] **Nothing asserts half 2 of the two-tone rule, still** (012 review R-3, now twice over). The halo's
+      figures clear both halves (half 1 minimum 3.80 in light on 50% grey, half 2 minimum 4.84), but those
+      numbers live only in a frontend report and a scratch script that was not committed. Both the control
+      edges and the halo now depend on a clause no test checks.
+- [ ] **The `:has()` fallback gap now guards a defect fix** (012 review R-2). `.glyph-halo` is gated on
+      `body:has([data-background="active"])`, so in a browser without `:has()` — Firefox before 121,
+      including 115 ESR — the image paints at full opacity and the halo does not, which is precisely the
+      state the halo exists to prevent. It was a legibility gap before; it is now the difference between a
+      visible and an invisible focus indicator.
 - [ ] **Correct task 012's criteria 4, 9, 14 and 15, which were measured against a surface that is not
       shipping.** Their recorded figures read a `--popover` header fill that no longer paints: do not quote
       criterion 15's wordmark 4.835:1 or criterion 9's "delta 0 per channel" anywhere. Criterion 14's
