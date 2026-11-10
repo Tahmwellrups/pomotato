@@ -100,8 +100,9 @@ test.describe("criterion 6: the entry stays small, and a drag writes per value c
     expect(keys.filter((k) => k === PREFS_KEY)).toHaveLength(1);
     const raw = await page.evaluate((key) => window.localStorage.getItem(key) ?? "", PREFS_KEY);
     const parsed = JSON.parse(raw) as { version: number; state: Record<string, unknown> };
-    expect(parsed.version).toBe(1);
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "theme"]);
+    // Task 015 adds taskPanelVisible and moves the envelope to version 2 (lib/preferences/schema.ts).
+    expect(parsed.version).toBe(2);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "taskPanelVisible", "theme"]);
     const growth = raw.length - baseline;
     console.log(`criterion 6 bytes: default-mix entry ${baseline} chars, all four on at 80 ${raw.length} chars, growth ${growth}`);
     expect(growth).toBeLessThan(1024);

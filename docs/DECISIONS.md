@@ -4,6 +4,89 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-11-10 — The task panel loses its visible heading and is named by `aria-label`; a dangling `aria-labelledby` cost ~157 tests
+
+The owner removed the panel's visible `<h2>Task list</h2>` from `widgets/TaskPanel.tsx`. **Confirmed
+intentional**: the panel is the only task surface on `/` and the heading was redundant above a list that
+announces itself.
+
+**What the removal left behind is the entry worth keeping.** Both the `<section>` in `widgets/TaskPanel.tsx`
+and the `<ul>` at `components/TaskChecklist.tsx:297` carried `aria-labelledby="task-panel-heading"`, and
+nothing rendered that id any more. **`aria-labelledby` pointing at a missing id yields no accessible name at
+all** — not a fallback to the element's content, not a warning, nothing. So the `region` landmark and its
+`list` both went unnamed, and roughly **157 e2e tests** that resolve
+`getByRole('region', { name: 'Task list' })` found nothing. `e2e/sessions.spec.ts` alone went 18/18 to 4/14.
+Measured: the suite reads **657 passed / 14 failed** with the heading present and **504 / 167** with it
+removed and the naming unfixed.
+
+**Ruling: name the region with `aria-label="Task list"`, and give the list no name of its own.** A `list`
+nested directly inside a `region` of the same name reads as a duplicate; the list role is still exposed, it
+just carries no redundant label. `TASK_PANEL_HEADING_ID` is deleted rather than left as a dead export — the
+same class as the `dark:` and `disabled:` utilities already in PLAN's maintenance list.
+
+**Fallout: one painted criterion lost its subject permanently.** `token-task-surface.spec.ts`'s criterion
+24-30 sweep measured a "heading" pair. Its original subject, `#add-task-heading`, went with the dialog in
+`4ca861e`; the 2026-11-10 re-point moved it to the panel's `#task-panel-heading`, and this ruling then
+removed that too. **An `aria-label` paints nothing, so there is no heading left to measure on any surface**
+and the pair is retired, not re-pointed. The other four pairs still carry the criterion. Retiring it is the
+honest move: a contrast assertion needs painted ink, and re-pointing it at the region's label would be a
+test that cannot fail.
+
+**The reusable rule.** `aria-labelledby` is a reference, and a reference can dangle. Removing the element it
+names breaks the name silently in the browser and loudly in the suite — which is the right way round, but
+only because something asserted the name. **Prefer `aria-label` when the naming text is not also visible
+content**, and when deleting an element, grep for its `id` as a string, not only for the constant that holds
+it: the constant was imported in two files, the literal `#task-panel-heading` appeared in a third
+(`e2e/token-task-surface.spec.ts:239`), and a grep for the constant alone reported the removal clean.
+
+### 2026-11-10 — The layout-shift metric measures the painted rect, so an arriving shadow shifts a box that never moved
+
+Task 012 criterion 22 ("the image's arrival moves nothing") failed at 320 px on the shipped tree: the
+no-image load totalled **0.19547067901234566** of layout shift and the image load **0.19666165123456789**,
+a delta of **0.0011909722222222252**, against an assertion of equality to six decimals
+(`e2e/focus-surface-behaviour.spec.ts:116`). The two `sameGeometry` assertions above it **passed**, so no
+layout box moved.
+
+**The orchestrator's diagnosis was wrong, and the way it was wrong is the point.** It reasoned from recency:
+the glyph halo had just shipped, `-webkit-text-stroke` paints outside the letterforms, so the halo's arrival
+must be growing the wordmark's painted rect. That is a coherent story and it is false. Making the stroke
+width unconditional and flipping only its colour — the fix ruled on from that diagnosis — changed the figure
+**not at all**: still 0.19666165123456789 against 0.19547067901234566.
+
+**The actual shifted node is the task panel.** Dumping the shift sources for the 320 px load in both states
+puts neither the wordmark nor the chips among them. The node is the task-list `section`'s `surface-solid`
+div: rect `16,554 288x166` with no image, `13,552 294x168` with one. The 3 px left and 2 px top growth is
+`box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08)`, which **exists only while an image is active** — it is declared
+inside `body:has([data-background="active"]) &` and nowhere else. Chromium counts a shadow's painted overflow
+in the layout-shift rect, so the shadow's *appearance* is a shift of a box whose layout never changed.
+
+**Fix: declare the property transparent in the no-image state rather than omitting it.** Both
+`surface-solid` and `surface-frosted` now carry `box-shadow: 0 1px 2px 0 transparent` at rest, and the
+active rule changes only the colour. The painted extent is then identical in both states and the arrival
+adds zero. The same treatment is applied to `.glyph-halo`'s stroke — not because it was the cause, but
+because it is the same shape of hazard and the uniform rule is cheaper to keep than a per-property
+exception. Criterion 22 passes at 320 and 1280, verified by the orchestrator on its own build.
+
+**The reusable rule, two parts.**
+1. **A property that appears on arrival must be declared at rest with a transparent value, not left
+   undeclared.** This applies to every `box-shadow`, `outline`, `text-stroke` and `filter` behind the
+   `body:has([data-background="active"])` gate — the whole surface system is built on properties that
+   switch on with the image, so any of them can do this. CLS reads the painted rect; `sameGeometry` reads
+   the layout box; **a criterion that asserts both needs both, and passing the second tells you nothing
+   about the first.**
+2. **Find the shifted node before theorising about it.** `PerformanceObserver`'s layout-shift entries carry
+   `sources`, each with the node and its previous and current rects. One dump settled in minutes what a
+   plausible story about the most recent commit got wrong. Same family as the 2026-11-06 `liveQuery` entry,
+   where reading the source "confirmed" a mechanism that only a probe actually established.
+
+**One recorded figure moved, and nothing painted differently.** The 320 px no-image total went
+**0.19547 to 0.19716**, because the transparent shadow is now in the painted rect from first paint. No pixel
+changed — a transparent shadow cannot paint — and criterion 22 asserts the *equality* of the two totals, not
+either absolute value, so the assertion is unaffected. But any figure recorded as "0.19547 at 320 px with no
+image" is now stale, and the "no-image default is unchanged from HEAD" invariant that 012 and the halo both
+lean on is true **in pixels and false in this metric**. Stated here so the next reader does not treat the
+move as a regression.
+
 ### 2026-11-06 — Two agents measured the task panel and disagreed by 64 px, and both were right
 Task 015 criterion 34 caps the empty panel at 240 px tall. Frontend recorded **352 x 234** and QA measured
 **298** tall and **416 x 544** for three tasks. That looked like the 2026-10-29 sampler disagreement, so it

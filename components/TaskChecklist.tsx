@@ -266,22 +266,15 @@ export function TaskChecklist() {
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      {/*
-        Add sits above the list and outside its scroll region, so it stays put
-        while a long list scrolls and renders in the empty state, where it is
-        the only way forward. Not rendered while loading or after a failed
-        read: a write would fail there anyway.
-      */}
-      <div className="shrink-0 px-1">
-        <TaskForm idPrefix="add-task" submitLabel="Add task" onSubmit={handleAdd} titleInputRef={addTitleInputRef} />
-      </div>
       {writeError ? (
         <p role="alert" className="shrink-0 px-1 text-sm text-destructive">
           {writeError}
         </p>
       ) : null}
       {tasks.length === 0 ? (
-        <p className="px-1 text-sm text-muted-foreground">Nothing here yet. Add your first task above.</p>
+        <p className="px-1 text-sm text-muted-foreground">
+          Nothing here yet. Add your first task above.
+        </p>
       ) : (
         <div className="flex min-h-0 flex-col xl:-mx-1.5 xl:overflow-y-auto xl:overscroll-contain xl:px-1.5 xl:py-1">
           <DndContext
@@ -293,8 +286,11 @@ export function TaskChecklist() {
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >
-            <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
-              <ul aria-labelledby={TASK_PANEL_HEADING_ID} className="flex flex-col gap-2">
+            <SortableContext
+              items={orderedIds}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="flex flex-col gap-2">
                 {orderedTasks.map((task, index) => (
                   <TaskChecklistRow
                     key={task.id}
@@ -318,6 +314,14 @@ export function TaskChecklist() {
           </DndContext>
         </div>
       )}
+      <div className="shrink-0 px-1">
+        <TaskForm
+          idPrefix="add-task"
+          submitLabel="Add task"
+          onSubmit={handleAdd}
+          titleInputRef={addTitleInputRef}
+        />
+      </div>
     </div>
-  );
+  )
 }

@@ -1,15 +1,19 @@
 import { test, expect, type Page, type TestInfo } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
-import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
-import { readPainted, compositeOver, contrast, tokenRgb, type PaintedReading, type Rgb } from "./helpers/painted";
+import { openTaskList, taskPanel, taskPanelToggle } from "./helpers/task-list-dialog";
+import { readPainted, contrast, tokenRgb, type PaintedReading, type Rgb } from "./helpers/painted";
 
 // Task 007 QA, Parts 2 and 3 (criteria 17-31, 35-36, 42-43). Every colour is read from the painted
 // browser output (compositeOver on a canvas over the real ground), never from token arithmetic.
+//
+// Task 015 re-point (2026-11-10 re-point pass). Commit 4ca861e ("Panel-only task surface") deleted the
+// "Your tasks" dialog, the per-row Pin button and the eight-swatch colour picker. The criteria they served
+// are still live; their subjects moved to the always-visible task panel (`taskPanel`, a region named
+// "Task list") and its rows (components/TaskChecklistRow.tsx). Retired subjects are named where they were.
 
 const DESKTOP = { width: 1280, height: 800 };
 const NARROW = { width: 320, height: 720 };
 
-const dialogLocator = (page: Page) => taskPanel(page);
 const rowFor = (page: Page, title: string) => page.locator("ul li").filter({ hasText: title }).first();
 // In edit mode the title is an input value, which hasText cannot see. The edit row is the one holding the Save button.
 const editRowFor = (page: Page) => page.locator("ul li").filter({ has: page.getByRole("button", { name: "Save", exact: true }) }).first();
@@ -27,7 +31,8 @@ async function addTask(page: Page, title: string) {
   const input = page.locator('input[id*="-title"]').first();
   await input.fill(title);
   await input.press("Enter");
-  await expect(page.getByText(title, { exact: true })).toBeVisible();
+  // Scoped to the panel: the timer's current-task card repeats the title of the first open task.
+  await expect(taskPanel(page).getByText(title, { exact: true })).toBeVisible();
 }
 
 /** Lets the open/colour transitions finish before a painted reading. */
@@ -124,11 +129,11 @@ test.describe("task 007 criteria 17, 21, 22, 23: the interactive boundary token 
     expect(borderAgainst(inputReading, "ground")).toBeGreaterThanOrEqual(3);
     expect(borderAgainst(inputReading, "fill")).toBeGreaterThanOrEqual(3);
 
-    // Row action buttons: Edit, Pin (idle), +1, -1, Move up, Move down, Delete.
+    // Row action buttons: Edit, +1, -1, Move up, Move down, Delete.
+    // Re-point (task 015, 4ca861e): the Pin button is gone, so its boundary is no longer swept here.
     const row = rowFor(page, "Alpha");
     const labels = [
       "Edit Alpha",
-      "Pin Alpha as current task",
       "+1, add a completed pomodoro to Alpha",
       "-1, remove a completed pomodoro from Alpha",
       "Move Alpha up",
@@ -141,17 +146,6 @@ test.describe("task 007 criteria 17, 21, 22, 23: the interactive boundary token 
       record(testInfo, `action button border vs card: ${name}`, ratio);
       expect(ratio, name).toBeGreaterThanOrEqual(3);
     }
-
-    // Pinned Pin button: border and state against the unpinned button of the same row shape.
-    await row.getByRole("button", { name: "Pin Alpha as current task", exact: true }).click();
-    const pinned = await readPainted(page, row.getByRole("button", { name: "Unpin Alpha", exact: true }));
-    record(testInfo, "pinned Pin border vs card", borderAgainst(pinned, "ground"));
-    expect(borderAgainst(pinned, "ground")).toBeGreaterThanOrEqual(3);
-    const unpinnedRow = rowFor(page, "Bravo");
-    const unpinned = await readPainted(page, unpinnedRow.getByRole("button", { name: "Pin Bravo as current task", exact: true }));
-    expect(pinned.fill).not.toEqual(unpinned.fill);
-    expect(pinned.borderColor).not.toEqual(unpinned.borderColor);
-    expect(pinned.color).not.toEqual(unpinned.color);
 
     // Edit mode: Cancel in the edit form.
     await row.getByRole("button", { name: "Edit Alpha", exact: true }).click();
@@ -168,81 +162,29 @@ test.describe("task 007 criteria 17, 21, 22, 23: the interactive boundary token 
     await row.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 
-  test("criterion 23: the colour-swatch picker's checked ring reaches 3:1 against the card and against the unchecked ring", async ({ page }, testInfo) => {
-    await freshDialog(page);
-    const swatches = page.locator('fieldset input[type="radio"][name$="-color"]');
-    await expect(swatches.first()).toBeAttached();
-    const count = await swatches.count();
-    expect(count).toBe(8);
-    const checkedIdx = await swatches.evaluateAll((els) => els.findIndex((e) => (e as HTMLInputElement).checked));
-    const ringOf = (idx: number) => swatches.nth(idx).locator("xpath=following-sibling::span[last()]");
-    // The ring is Tailwind's --tw-ring-color; read the custom property, composite it, and read the ring width from the shadow.
-    const ringState = async (idx: number) => {
-      const raw = await ringOf(idx).evaluate((el) => {
-        const s = getComputedStyle(el);
-        return { ringColor: s.getPropertyValue("--tw-ring-color").trim(), ringShadow: s.getPropertyValue("--tw-ring-shadow").trim(), boxShadow: s.boxShadow };
-      });
-      return { ...raw, ring: await compositeOver(page, raw.ringColor, "rgb(255, 255, 255)") };
-    };
-    const checkedRing = await ringState(checkedIdx);
-    const uncheckedRing = await ringState((checkedIdx + 1) % count);
-    testInfo.annotations.push({ type: "measure", description: `checked ring: ${checkedRing.ringColor} shadow ${checkedRing.ringShadow}` });
-    testInfo.annotations.push({ type: "measure", description: `unchecked ring: ${uncheckedRing.ringColor} shadow ${uncheckedRing.ringShadow}` });
-    // Criterion 31: the state is also carried by ring width, not only colour.
-    expect(checkedRing.ringShadow).toMatch(/calc\(2px \+/);
-    expect(uncheckedRing.ringShadow).toMatch(/calc\(1px \+/);
-    const section = await readPainted(page, page.locator("#add-task-heading").locator(".."));
-    expect(contrast(checkedRing.ring, section.fill)).toBeGreaterThanOrEqual(3);
-    expect(contrast(checkedRing.ring, uncheckedRing.ring)).toBeGreaterThanOrEqual(3);
-  });
+  // RETIRED (task 015, commit 4ca861e): the colour-swatch picker was deleted. Its criterion 23 subject, the
+  // checked ring of a swatch radio against the card, has no live equivalent. The task rows carry no colour
+  // choice in v1 of the panel, so there is nothing to sweep for a checked ring.
 });
 
-test.describe("task 007 pinned Pin button: the pinned state paints, and differs from the unpinned button", () => {
-  // Regression for the d7d1bec defect: the pinned colour utilities were joined onto actionButtonClass with no merge,
-  // so the base bg-white / border-stone-300 / text-stone-700 won, and a pinned Pin button painted exactly like an
-  // unpinned one. These assertions read painted pixels, not class names, so a class-list check cannot stand in for them.
-  test("pinned fill, border and label paint the pinned tokens and differ from the unpinned button in all three", async ({ page }) => {
+// RETIRED (task 015, commit 4ca861e): the pinned Pin button (criteria 24-30 pinned state, and the
+// "pinned fill, border and label paint the pinned tokens" check) was deleted with the dialog. The current
+// task is now the first open row, marked by aria-current and a "Current task" label, not by a paint of its own.
+// Its boundary is swept by the row-action test above, and its state-not-by-colour is covered by the
+// current-task test under criterion 31 below.
+
+test.describe("task 007 criterion 31: no state is conveyed by colour alone", () => {
+  test("current task: aria-current and a visible 'Current task' label mark the first open row, not only its border", async ({ page }) => {
+    // Re-point (task 015, 4ca861e): replaces the pinned/unpinned aria-pressed check. The Pin button is gone.
     await freshDialog(page);
     await addTask(page, "Alpha");
     await addTask(page, "Bravo");
-    await rowFor(page, "Alpha").getByRole("button", { name: "Pin Alpha as current task", exact: true }).click();
-    // Task 009 R-5: the pinned button now has a hover border. Move the pointer off
-    // it, then wait for the transition to settle, so this reads the resting colour.
-    await page.mouse.move(0, 0);
-    const pinnedButton = rowFor(page, "Alpha").getByRole("button", { name: "Unpin Alpha", exact: true });
-    await expect
-      .poll(async () => (await readPainted(page, pinnedButton)).borderColor)
-      .toEqual(await tokenRgb(page, "--primary"));
-    const pinned = await readPainted(page, pinnedButton);
-    const unpinned = await readPainted(page, rowFor(page, "Bravo").getByRole("button", { name: "Pin Bravo as current task", exact: true }));
-
-    // Pinned: fill --accent (#fef3c7), border --primary (#b45309), label --accent-foreground (#78350f).
-    expect(pinned.fill).toEqual(await tokenRgb(page, "--accent"));
-    expect(pinned.borderColor).toEqual(await tokenRgb(page, "--primary"));
-    expect(pinned.color).toEqual(await tokenRgb(page, "--accent-foreground"));
-    // Unpinned: the idle action button, popover fill, control boundary, secondary label.
-    expect(unpinned.fill).toEqual(await tokenRgb(page, "--popover"));
-    expect(unpinned.borderColor).toEqual(await tokenRgb(page, "--control-border"));
-    expect(unpinned.color).toEqual(await tokenRgb(page, "--secondary-foreground"));
-    // The state is painted: each of the three differs from the unpinned value.
-    expect(pinned.fill).not.toEqual(unpinned.fill);
-    expect(pinned.borderColor).not.toEqual(unpinned.borderColor);
-    expect(pinned.color).not.toEqual(unpinned.color);
-  });
-});
-
-test.describe("task 007 criterion 31: no state is conveyed by colour alone", () => {
-  test("pinned versus unpinned: aria-pressed and the Pin/Unpin label change, not only the paint", async ({ page }) => {
-    await freshDialog(page);
-    await addTask(page, "Alpha");
-    const row = rowFor(page, "Alpha");
-    const pin = row.getByRole("button", { name: "Pin Alpha as current task", exact: true });
-    await expect(pin).toHaveAttribute("aria-pressed", "false");
-    await expect(pin).toHaveText("Pin");
-    await pin.click();
-    const unpin = row.getByRole("button", { name: "Unpin Alpha", exact: true });
-    await expect(unpin).toHaveAttribute("aria-pressed", "true");
-    await expect(unpin).toHaveText("Unpin");
+    const alpha = rowFor(page, "Alpha");
+    await expect(alpha).toHaveAttribute("aria-current", "true");
+    await expect(alpha.getByText("Current task", { exact: true })).toBeVisible();
+    const bravo = rowFor(page, "Bravo");
+    await expect(bravo).not.toHaveAttribute("aria-current", "true");
+    await expect(bravo.getByText("Current task", { exact: true })).toHaveCount(0);
   });
 
   test("drag-active: the dragged row drops to 0.6 opacity and gains a 2 px ring, not only a colour change", async ({ page }) => {
@@ -290,13 +232,16 @@ test.describe("task 007 criterion 31: no state is conveyed by colour alone", () 
 });
 
 test.describe("task 007 criteria 24-30: measured contrast of the swept pairs", () => {
-  test("the named pairs that fell but still pass clear their thresholds (heading, row title, error text, delete fill, prompt)", async ({ page }, testInfo) => {
+  test("the named pairs that fell but still pass clear their thresholds (row title, error text, delete fill, prompt)", async ({ page }, testInfo) => {
     await freshDialog(page);
     await addTask(page, "Alpha");
-    const heading = page.locator("#add-task-heading");
-    const headingReading = await readPainted(page, heading);
-    record(testInfo, "heading on add section", contrast(headingReading.color, headingReading.ground));
-    expect(contrast(headingReading.color, headingReading.ground)).toBeGreaterThanOrEqual(4.5);
+    // RETIRED, the heading pair only (owner ruling 2026-11-10): there is no heading left to measure.
+    // #add-task-heading went with the dialog in 4ca861e; this probe was re-pointed to the panel's own
+    // <h2 id="task-panel-heading"> on 2026-11-10, and the owner then removed that heading deliberately in
+    // the same pass. The panel's region is now named by aria-label, which paints nothing, so the criterion
+    // 24-30 "heading" pair has no painted subject on any surface. The other four pairs below are unaffected
+    // and still carry the criterion. Do not re-point this to the region's label: an aria-label has no
+    // contrast to measure.
 
     const title = rowFor(page, "Alpha").getByText("Alpha", { exact: true });
     const titleReading = await readPainted(page, title);
@@ -326,31 +271,16 @@ test.describe("task 007 criteria 24-30: measured contrast of the swept pairs", (
     expect(contrast(delReading.fill, delReading.ground)).toBeGreaterThanOrEqual(3);
   });
 
-  test("the eight task swatches each reach 3:1 against the card, with mint the thinnest", async ({ page }, testInfo) => {
-    await freshDialog(page);
-    await addTask(page, "Alpha");
-    // Add form swatches: the inline background is the TASK_COLOR_HEX value for each swatch.
-    const values = await page.locator('input[type="radio"][name$="-color"]').evaluateAll((radios) =>
-      radios.map((r) => r.closest("label")!.querySelector<HTMLElement>("[style]")!.style.backgroundColor),
-    );
-    const card = await readPainted(page, page.locator("#add-task-heading").locator(".."));
-    expect(values).toHaveLength(8);
-    const cardRgb = card.fill;
-    const ratios: number[] = [];
-    for (const value of values) {
-      const swatch = await compositeOver(page, value, "rgb(255, 255, 255)");
-      const ratio = contrast(swatch, cardRgb);
-      ratios.push(ratio);
-      expect(ratio, `swatch ${value} against card`).toBeGreaterThanOrEqual(3);
-    }
-    testInfo.annotations.push({ type: "measure", description: `swatches vs card: ${ratios.map((r) => r.toFixed(2)).join(", ")}` });
-  });
+  // RETIRED (task 015, commit 4ca861e): "the eight task swatches each reach 3:1 against the card" swept the
+  // colour-swatch radios of the deleted dialog form. There are no swatches to sweep.
 
   test("the trigger fill, the wordmark and the custom input text reach their thresholds on the cream page", async ({ page }, testInfo) => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
-    const trigger = page.getByRole("button", { name: "Your tasks", exact: true });
+    // Re-point (task 015, 4ca861e): the "Your tasks" trigger is gone; its live equivalent is the bottom-right
+    // panel toggle, named "Task list".
+    const trigger = taskPanelToggle(page);
     const reading = await readPainted(page, trigger);
     record(testInfo, "trigger fill vs page", contrast(reading.fill, reading.ground));
     expect(contrast(reading.fill, reading.ground)).toBeGreaterThanOrEqual(3);
@@ -365,7 +295,7 @@ test.describe("task 007 criteria 24-30: measured contrast of the swept pairs", (
 
 test.describe("task 007 criterion 35 and 36: target size and accessibility on the surfaces", () => {
   for (const viewport of [NARROW, DESKTOP]) {
-    test(`every visible control is at least 44 px on / and in the open dialog at ${viewport.width} px`, async ({ page }) => {
+    test(`every visible control is at least 44 px on / and in the task panel at ${viewport.width} px`, async ({ page }) => {
       await freshDialog(page, viewport);
       await addTask(page, "Alpha");
       const sizes = await page.evaluate(() => {
@@ -384,7 +314,7 @@ test.describe("task 007 criterion 35 and 36: target size and accessibility on th
   }
 
   for (const viewport of [NARROW, DESKTOP]) {
-    test(`no serious or critical axe violation in the open dialog at ${viewport.width} px, in display, editing, confirming-delete and error states`, async ({ page }) => {
+    test(`no serious or critical axe violation in the task panel at ${viewport.width} px, in display, editing, confirming-delete and error states`, async ({ page }) => {
       await freshDialog(page, viewport);
       await addTask(page, "Alpha");
       const seriousOrCritical = (violations: { impact?: string | null }[]) =>
@@ -405,7 +335,7 @@ test.describe("task 007 criterion 35 and 36: target size and accessibility on th
 
 test.describe("task 007 criteria 42 and 43: console and hydration", () => {
   for (const viewport of [NARROW, DESKTOP]) {
-    test(`zero console errors or warnings across the dialog interactions at ${viewport.width} px`, async ({ page }) => {
+    test(`zero console errors or warnings across the task panel interactions at ${viewport.width} px`, async ({ page }) => {
       const problems: string[] = [];
       page.on("console", (msg) => {
         if (msg.type() === "error" || msg.type() === "warning") problems.push(`[${msg.type()}] ${msg.text()}`);
@@ -423,7 +353,7 @@ test.describe("task 007 criteria 42 and 43: console and hydration", () => {
       await editRowFor(page).getByRole("button", { name: "Cancel", exact: true }).click();
       await rowFor(page, "Alpha").getByRole("button", { name: "Delete Alpha", exact: true }).click();
       await rowFor(page, "Alpha").getByRole("button", { name: "Cancel", exact: true }).click();
-      await rowFor(page, "Alpha").getByRole("button", { name: "Pin Alpha as current task", exact: true }).click();
+      // Re-point (task 015, 4ca861e): the Pin step is gone; +1/-1 still exercise the row's count controls.
       await rowFor(page, "Alpha").getByRole("button", { name: "+1, add a completed pomodoro to Alpha", exact: true }).click();
       await rowFor(page, "Alpha").getByRole("button", { name: "-1, remove a completed pomodoro from Alpha", exact: true }).click();
       const handle = page.getByRole("button", { name: "Reorder Bravo", exact: true });
@@ -431,8 +361,11 @@ test.describe("task 007 criteria 42 and 43: console and hydration", () => {
       await page.keyboard.press("Space");
       await page.keyboard.press("ArrowUp");
       await page.keyboard.press("Space");
-      await page.getByRole("button", { name: "Close", exact: true }).click();
-      await expect(dialogLocator(page)).toHaveCount(0);
+      // Re-point (task 015, 4ca861e): the dialog's Close button is gone; hiding the panel is the same flow.
+      await taskPanelToggle(page).click();
+      await expect(taskPanel(page)).toHaveCount(0);
+      await taskPanelToggle(page).click();
+      await expect(taskPanel(page)).toBeVisible();
       await page.locator('label:has(input[value="shortBreak"])').click();
       await page.reload();
       await page.waitForLoadState("networkidle");
@@ -440,7 +373,7 @@ test.describe("task 007 criteria 42 and 43: console and hydration", () => {
     });
   }
 
-  test("no React hydration mismatch on reload of / with the task dialog trigger rendered", async ({ page }) => {
+  test("no React hydration mismatch on reload of / with the task panel toggle rendered", async ({ page }) => {
     const problems: string[] = [];
     page.on("console", (msg) => {
       if (/hydrat/i.test(msg.text())) problems.push(`[${msg.type()}] ${msg.text()}`);
@@ -449,7 +382,8 @@ test.describe("task 007 criteria 42 and 43: console and hydration", () => {
     await page.waitForLoadState("networkidle");
     await page.reload();
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("button", { name: "Your tasks", exact: true })).toBeVisible();
+    // Re-point (task 015, 4ca861e): the "Your tasks" trigger is gone; the panel toggle is its live equivalent.
+    await expect(taskPanelToggle(page)).toBeVisible();
     expect(problems).toEqual([]);
   });
 });

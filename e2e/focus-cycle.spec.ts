@@ -200,6 +200,13 @@ test.describe("012 surface states: paint only with an image, grain steps aside, 
       })
     );
 
+  // Outcome, not mechanism: a box-shadow or border paints nothing when its colour is fully transparent, whatever its
+  // offsets. Re-pointed 2026-11-10 after commit-level change (DECISIONS 2026-11-10, 012 criterion 22): the surfaces now
+  // declare `box-shadow: 0 1px 2px 0 transparent` at rest so the image's arrival does not enlarge the painted rect.
+  // A literal `none` is therefore no longer the right test; a transparent shadow is no paint.
+  const shadowPaints = (s: string) => s !== "none" && !/^rgba\(0, 0, 0, 0\)\s/.test(s);
+  const borderPaints = (c: string) => c !== "rgba(0, 0, 0, 0)" && c !== "transparent";
+
   test("criterion 21: with no image stored, no surface paints a fill, border, shadow or blur", async ({ page }) => {
     await seed(page, focusIdle);
     const paints = await surfacePaint(page);
@@ -207,7 +214,8 @@ test.describe("012 surface states: paint only with an image, grain steps aside, 
     for (const p of paints) {
       expect(p.background, p.kind).toMatch(/^rgba\(0, 0, 0, 0\)$/);
       expect(p.blur, p.kind).toBe("none");
-      expect(p.shadow, p.kind).toBe("none");
+      expect(shadowPaints(p.shadow), `${p.kind} shadow paints nothing (got ${p.shadow})`).toBe(false);
+      expect(borderPaints(p.border), `${p.kind} border paints nothing (got ${p.border})`).toBe(false);
     }
   });
 

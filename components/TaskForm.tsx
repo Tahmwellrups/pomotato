@@ -160,29 +160,6 @@ export function TaskForm({ idPrefix, initialValues, submitLabel, onSubmit, onCan
 
       {/* The count field and the buttons share a line, so the add form is two rows tall and not four. */}
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={etaFieldId} className="text-sm font-medium text-muted-foreground">
-            Estimated pomodoros
-          </label>
-          <input
-            id={etaFieldId}
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            autoComplete="off"
-            value={etaRaw}
-            aria-invalid={errors.eta !== undefined}
-            aria-describedby={errors.eta !== undefined ? `${etaFieldId}-error` : undefined}
-            onChange={(event) => setEtaRaw(event.target.value)}
-            className="min-h-11 w-24 rounded-lg border border-control-border bg-popover px-3 py-2 text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-[color-mix(in_srgb,var(--muted-foreground)_56%,var(--muted))]"
-          />
-          {errors.eta !== undefined ? (
-            <p id={`${etaFieldId}-error`} role="alert" className="text-sm text-destructive">
-              {errors.eta}
-            </p>
-          ) : null}
-        </div>
-
         <div className="flex gap-2">
           <button
             type="submit"

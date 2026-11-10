@@ -1,9 +1,36 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page, Locator } from "@playwright/test";
 import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
 
 /** The Current Task card in `app/page.tsx` shows the derived current title in a bare span (015: pin retired). */
 function currentTaskCard(page: Page) {
   return page.locator("div.max-w-full.items-center > span.font-comfortaa");
+}
+
+/**
+ * Adds one task and waits until the panel shows it. The add form clears its title when the submit resolves, so a
+ * second fill typed while the first write is in flight is wiped (the 2026-11-10 flake behind :119, :133 and :911).
+ * Waiting on the row, not a sleep, makes the next fill land after the reset.
+ */
+async function addTitle(page: Page, title: string) {
+  const titleInput = page.locator('input[id*="-title"]').first();
+  await titleInput.fill(title);
+  await titleInput.press("Enter");
+  await expect(taskPanel(page).getByText(title, { exact: true })).toBeVisible();
+}
+
+/**
+ * Waits until the keyboard drag is in flight (dnd-kit sets aria-pressed="true" on the handle) and its key listener is
+ * armed. dnd-kit attaches that listener in a setTimeout(0) after the state flips, so a key pressed in the gap is
+ * dropped. Waiting on the same task replaces the fixed 150 ms and 400 ms sleeps this test used to carry.
+ */
+async function armKeyboardDrag(page: Page, handle: Locator) {
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
+  // After a keyboard move dnd-kit animates the sort; a key pressed while those transitions run is measured against
+  // rects that are still moving. Wait for the running transitions to finish, then for the sensor's own task.
+  await page.evaluate(async () => {
+    await Promise.all(document.getAnimations().filter((a) => a.playState === "running").map((a) => a.finished.catch(() => undefined)));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 test.describe("Task List Feature", () => {
@@ -118,11 +145,8 @@ test.describe("Task List Feature", () => {
 
     test("ticking the current task done moves Current Task to the next open row", async ({ page }) => {
       // Task 015 re-point of the old "unpin" test: "unpinning" is now ticking the task done.
-      const titleInput = page.locator('input[id*="-title"]').first();
-      await titleInput.fill("Nebula");
-      await titleInput.press("Enter");
-      await titleInput.fill("Quasar");
-      await titleInput.press("Enter");
+      await addTitle(page, "Nebula");
+      await addTitle(page, "Quasar");
       await expect(currentTaskCard(page)).toHaveText("Nebula");
       await expect(taskPanel(page).getByText("Quasar", { exact: true })).toBeVisible();
 
@@ -132,11 +156,8 @@ test.describe("Task List Feature", () => {
 
     test("moving another task to the top makes it the Current Task", async ({ page }) => {
       // Task 015 re-point of the old "switching pin" test: reordering is how the current task changes.
-      const titleInput = page.locator('input[id*="-title"]').first();
-      await titleInput.fill("Onyx");
-      await titleInput.press("Enter");
-      await titleInput.fill("Pearl");
-      await titleInput.press("Enter");
+      await addTitle(page, "Onyx");
+      await addTitle(page, "Pearl");
       await expect(taskPanel(page).getByText("Pearl", { exact: true })).toBeVisible();
       await expect(currentTaskCard(page)).toHaveText("Onyx");
 
@@ -381,17 +402,9 @@ test.describe("Task List Feature", () => {
     });
 
     test("moves task with arrow keys during keyboard drag", async ({ page }) => {
-      const titleInput = page.locator('input[id*="-title"]').first();
-
-      await titleInput.fill("Seraph");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(100);
-      await titleInput.fill("Cipher");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(100);
-      await titleInput.fill("Whisper");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(100);
+      await addTitle(page, "Seraph");
+      await addTitle(page, "Cipher");
+      await addTitle(page, "Whisper");
 
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Seraph", "Cipher", "Whisper"]);
 
@@ -399,10 +412,9 @@ test.describe("Task List Feature", () => {
       const liveRegion = page.locator('[id^="DndLiveRegion"]');
       await dragHandle.focus();
       await dragHandle.press("Space");
-      // The sensor needs a beat to finish measuring before it will register
-      // the first ArrowDown — without this wait the first press is dropped
-      // (confirmed empirically; it isn't an app bug, just sensor startup).
-      await page.waitForTimeout(150);
+      // dnd-kit drops a key pressed before its sensor is armed (confirmed empirically; not an app bug). Wait on the
+      // drag's observable state, not a clock.
+      await armKeyboardDrag(page, dragHandle);
 
       // Regression check for the real bug: right after pickup, dnd-kit fires
       // a no-op onDragOver (over === active, no movement yet), which was
@@ -414,21 +426,20 @@ test.describe("Task List Feature", () => {
       await expect(liveRegion).toHaveText("Picked up Seraph. Position 1 of 3.");
 
       await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(150);
 
       // The announcement must report where the item is LANDING (position 2),
       // not its pre-move position — also confirm no internal id/UUID leaks.
       await expect(liveRegion).toHaveText("Seraph moved to position 2 of 3.");
       await expect(liveRegion).not.toHaveText(/[0-9a-f]{8}-[0-9a-f]{4}-/);
 
-      // Task 015 re-point: a second ArrowDown straight after a move is dropped by dnd-kit; the wait lets it re-arm.
-      await page.waitForTimeout(400);
+      // APP DEFECT, not a timing race (2026-11-10 diagnosis): after one ArrowDown moves the task, every further ArrowDown
+      // in the same drag is ignored, at 0, 300 and 1500 ms alike, and the order does not change. docs/tasks/002-task-list.md
+      // criterion "Up/Down arrow keys move it one position at a time" is not met. The test is correct; it fails until fixed.
+      await armKeyboardDrag(page, dragHandle);
       await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(150);
       await expect(liveRegion).toHaveText("Seraph moved to position 3 of 3.");
 
       await dragHandle.press("Space");
-      await page.waitForTimeout(100);
       await expect(liveRegion).toHaveText("Dropped Seraph. Position 3 of 3.");
 
       // Seraph moved down two positions, past both Cipher and Whisper.
@@ -909,28 +920,8 @@ test.describe("Task List Feature", () => {
     });
 
     test("persists task order after reload", async ({ page }) => {
-      const titleInput = page.locator('input[id*="-title"]').first();
-
-      // Add 5 tasks
-      await titleInput.fill("Umber");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(150);
-
-      await titleInput.fill("Violet");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(150);
-
-      await titleInput.fill("Wisteria");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(150);
-
-      await titleInput.fill("Xander");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(150);
-
-      await titleInput.fill("Yarrow");
-      await titleInput.press("Enter");
-      await page.waitForTimeout(200);
+      // Add 5 tasks, each waited on before the next (see addTitle).
+      for (const title of ["Umber", "Violet", "Wisteria", "Xander", "Yarrow"]) await addTitle(page, title);
 
       // Verify all five are created
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Umber", "Violet", "Wisteria", "Xander", "Yarrow"]);
@@ -938,15 +929,19 @@ test.describe("Task List Feature", () => {
       // Use the keyboard reorder which is more reliable for testing order persistence
       // Move Umber down to middle (to position 2)
       const umberHandle = page.locator('button[aria-label="Reorder Umber"]');
+      // APP DEFECT, same as the keyboard test above: the second ArrowDown in one drag is ignored (docs/tasks/002-task-list.md
+      // criterion "one position at a time"). This test is deterministic red until the app moves more than one step.
+      const liveRegion = page.locator('[id^="DndLiveRegion"]');
       await umberHandle.focus();
       await umberHandle.press("Space");
-      await page.waitForTimeout(150);
+      await armKeyboardDrag(page, umberHandle);
       await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(400);
+      await expect(liveRegion).toHaveText("Umber moved to position 2 of 5.");
+      await armKeyboardDrag(page, umberHandle);
       await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(400);
+      await expect(liveRegion).toHaveText("Umber moved to position 3 of 5.");
       await umberHandle.press("Space");
-      await page.waitForTimeout(200);
+      await expect(liveRegion).toHaveText("Dropped Umber. Position 3 of 5.");
 
       // Verify reorder happened
       await expect.poll(() => getOrderedTitles(page)).toEqual(["Violet", "Wisteria", "Umber", "Xander", "Yarrow"]);

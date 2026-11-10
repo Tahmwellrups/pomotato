@@ -49,9 +49,10 @@ test.describe("criterion 3: the bytes are not in localStorage", () => {
     expect(after.length - before.length).toBeLessThan(1024);
     expect(after).not.toMatch(/data:|base64|blob:|iVBOR/);
     const parsed = JSON.parse(after) as { state: Record<string, unknown>; version: number };
-    expect(parsed.version).toBe(1);
+    // Task 015 adds taskPanelVisible and moves the envelope to version 2 (lib/preferences/schema.ts).
+    expect(parsed.version).toBe(2);
     // Task 011 adds the mix key; the pinned key list gains it.
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "theme"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "taskPanelVisible", "theme"]);
     expect(parsed.state.theme).toBe("light");
     expect(typeof parsed.state.background).toBe("string");
     // Measured figures for the QA Report.

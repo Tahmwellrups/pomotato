@@ -176,9 +176,9 @@ test.describe("criterion 3, 5, 40: storage, malformed values, immediate change, 
     await themeLabel(page, "Dark").click();
     const raw = await page.evaluate((key) => window.localStorage.getItem(key), THEME_KEY);
     // Task 008 widened the entry to { theme, gaugeStyle }; task 010 adds the background reference, null here.
-    // Task 011 adds the mix key at its default; the envelope is otherwise unchanged.
-    expect(raw).toBe(JSON.stringify({ state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: Object.fromEntries(LAYERS.map((layer) => [layer.id, { on: false, level: 50 }])) }, version: 1 }));
-    expect(Object.keys(JSON.parse(raw ?? "null").state).sort()).toEqual(["background", "gaugeStyle", "mix", "theme"]);
+    // Task 011 adds the mix key at its default. Task 015 adds taskPanelVisible (default true) and moves the envelope to version 2 (lib/preferences/schema.ts).
+    expect(raw).toBe(JSON.stringify({ state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: Object.fromEntries(LAYERS.map((layer) => [layer.id, { on: false, level: 50 }])), taskPanelVisible: true }, version: 2 }));
+    expect(Object.keys(JSON.parse(raw ?? "null").state).sort()).toEqual(["background", "gaugeStyle", "mix", "taskPanelVisible", "theme"]);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class|hsl/i);
   });
 

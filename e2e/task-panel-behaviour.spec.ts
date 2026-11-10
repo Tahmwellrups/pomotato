@@ -271,7 +271,9 @@ test.describe("criterion 15: a rejected write reports on the panel's alert line 
     await openSeeded(page, ["Alpha"]);
     await setWriteFailure(page, true);
     const box = rowFor(page, "Alpha").getByRole("checkbox");
-    await box.check({ force: true });
+    // A plain click, not .check(): .check() asserts the state sticks, and under an injected write failure the
+    // checkbox is correctly reverted to the stored value. The revert is what this test asserts, so it is asserted here.
+    await box.click({ force: true });
     await expect(panelLine(page)).toHaveText(GENERIC_FAILURE);
     await expect(box).not.toBeChecked();
     await setWriteFailure(page, false);

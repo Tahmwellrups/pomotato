@@ -384,10 +384,11 @@ test.describe("criterion 24: a chosen option reaches the real timer and survives
     const raw = await page.evaluate((key) => window.localStorage.getItem(key), THEME_KEY);
     const parsed = JSON.parse(raw ?? "null") as { state: Record<string, unknown>; version: number };
     expect(Object.keys(parsed).sort()).toEqual(["state", "version"]);
-    // Task 011 adds the mix key; the pinned key list gains it.
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "theme"]);
+    // Task 011 adds the mix key; the pinned key list gains it. Task 015 adds
+    // taskPanelVisible and moves the envelope to version 2 (lib/preferences/schema.ts).
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "taskPanelVisible", "theme"]);
     expect(parsed.state.gaugeStyle).toBe("glyph");
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class/i);
   });
 });
