@@ -18,12 +18,14 @@ export const SCHEMA_VERSION = 1;
 
 /**
  * The schema version the app opens. Version 2 adds `sessions`, version 3 adds
- * `backgrounds`, version 4 adds `Task.done` and retires the pin, version 5 strips
- * `emoji` and `colorId` from stored tasks. Every
+ * `backgrounds`, version 4 adds the finished flag and retires the pin, version 5
+ * strips `emoji` and `colorId` from stored tasks, version 6 adopts the owner's
+ * task vocabulary (`completed`, `completedPomodoros`, `order`, timestamps), drops
+ * `eta` and re-indexes `tasks` by `order`. Every
  * `.version(n)` block below uses a literal; the constructor checks the highest
  * one equals this constant, so a bump that forgets a block fails loudly.
  */
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 /**
  * How long an upgrade may stay blocked by another open connection (usually
@@ -99,6 +101,79 @@ async function upgradeToVersion5(tx: Transaction): Promise<void> {
   if (stripped.length > 0) await tasksTable.bulkPut(stripped);
 }
 
+/** True for a finite number; the only kind of timestamp or order the upgrade trusts. */
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * Version 5 -> 6, one transaction (Dexie's upgrade transaction). Operates on
+ * raw rows, in this order:
+ * 1. `done` -> `completed`: `true` stays true; a missing or non-boolean `done`
+ *    becomes `false`. A row that already carries `completedPomodoros` is
+ *    already in the new shape and its boolean `completed` is kept as is;
+ * 2. the numeric `completed` -> `completedPomodoros`: an integer >= 0 is kept,
+ *    anything else (missing, null, 7.5, a string, negative) becomes 0;
+ * 3. `position` -> `order`: rows sort by `position` (or `order` when already
+ *    migrated), missing or non-finite values last, ties by id; then `order` is
+ *    renumbered dense and zero-based PER SIBLING GROUP (every row sharing a
+ *    `parentId`; on a version-5 database that is one group, there are no
+ *    parents yet);
+ * 4. `eta` is deleted. Nothing is converted to `etaMinutes`: pomodoros to
+ *    minutes would need a focus length the user may since have changed;
+ * 5. `createdAt` and `updatedAt` are set to ONE timestamp captured once for the
+ *    whole upgrade, unless the row already holds finite values;
+ * 6. nothing else is added: `parentId`, `emoji`, `color` and `etaMinutes` stay
+ *    absent. `done` and `position` are deleted.
+ * Idempotent: a second run on its own output finds `completedPomodoros`
+ * present (so it keeps the boolean), renumbers an already-dense order to
+ * itself, keeps the timestamps and finds nothing to delete. Never throws on a
+ * row an older build wrote: every read is a typeof check with a fallback. Never
+ * reads or writes `sessions`, `backgrounds` or `appMeta`.
+ */
+export async function upgradeToVersion6(tx: Transaction): Promise<void> {
+  const tasksTable = tx.table<Record<string, unknown> & { id: string }, string>("tasks");
+  const rows = await tasksTable.toArray();
+  if (rows.length === 0) return;
+  const now = Date.now();
+
+  const sortKey = (row: Record<string, unknown>): number => {
+    if (isFiniteNumber(row.position)) return row.position;
+    if (isFiniteNumber(row.order)) return row.order;
+    return Number.POSITIVE_INFINITY;
+  };
+  const sorted = [...rows].sort((a, b) => {
+    const ka = sortKey(a);
+    const kb = sortKey(b);
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+
+  const nextOrder = new Map<string, number>();
+  const migrated = sorted.map((row) => {
+    const alreadyMigrated = Object.prototype.hasOwnProperty.call(row, "completedPomodoros");
+    const completed = alreadyMigrated ? row.completed === true : row.done === true;
+    const count = alreadyMigrated ? row.completedPomodoros : row.completed;
+    const completedPomodoros = typeof count === "number" && Number.isInteger(count) && count >= 0 ? count : 0;
+
+    const groupKey = typeof row.parentId === "string" ? row.parentId : "";
+    const order = nextOrder.get(groupKey) ?? 0;
+    nextOrder.set(groupKey, order + 1);
+
+    const next: Record<string, unknown> & { id: string } = { ...row };
+    delete next.done;
+    delete next.position;
+    delete next.eta;
+    next.completed = completed;
+    next.completedPomodoros = completedPomodoros;
+    next.order = order;
+    next.createdAt = isFiniteNumber(row.createdAt) ? row.createdAt : now;
+    next.updatedAt = isFiniteNumber(row.updatedAt) ? row.updatedAt : now;
+    return next;
+  });
+  await tasksTable.bulkPut(migrated);
+}
+
 export class PomotatoDatabase extends Dexie {
   tasks!: EntityTable<TaskRecord, "id">;
   appMeta!: EntityTable<AppMetaRecord, "key">;
@@ -145,6 +220,16 @@ export class PomotatoDatabase extends Dexie {
     this.version(5)
       .stores({})
       .upgrade(upgradeToVersion5);
+    // The first index change in this repo. Restating `tasks` makes Dexie diff the
+    // two schemas: the `position` index is deleted, an `order` index is created, and
+    // only then does the upgrade callback run, so the callback writes rows into the
+    // new index. The primary key is unchanged (changing it is unsupported). A literal
+    // 6, never the constant.
+    this.version(6)
+      .stores({
+        tasks: "id, order",
+      })
+      .upgrade(upgradeToVersion6);
     if (this.verno !== CURRENT_SCHEMA_VERSION) {
       throw new Error(
         `Highest declared schema version is ${this.verno} but CURRENT_SCHEMA_VERSION is ${CURRENT_SCHEMA_VERSION}.`,

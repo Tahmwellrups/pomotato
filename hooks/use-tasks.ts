@@ -27,8 +27,9 @@ export type TasksQuery =
 // A single stable reference, not reconstructed per render: `useLiveQuery`
 // returns `undefined` on every render before the first resolved read, and
 // returning a freshly-allocated `{ status: "loading" }` object here would
-// make `TaskList`'s `tasksQuery`-keyed sync effect see a "new" value each
-// time, re-running indefinitely until that first read resolves.
+// make anything keyed on the query value (TaskChecklist's reorder override
+// compares it by identity) see a "new" value each time, until that first read
+// resolves.
 const LOADING_TASKS_QUERY: TasksQuery = { status: "loading" };
 
 // Same rationale as `LOADING_TASKS_QUERY`: one stable reference, not a

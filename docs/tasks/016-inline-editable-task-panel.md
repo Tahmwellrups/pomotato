@@ -1,7 +1,7 @@
 ---
 id: 016
 slug: inline-editable-task-panel
-status: draft # draft | in-progress | qa | review | done | blocked
+status: in-progress # draft | in-progress | qa | review | done | blocked
 ---
 
 # The task panel becomes an inline-editable list: type in the row, a kebab per row, one level of subtasks, and an undo toast instead of a confirm
@@ -29,6 +29,38 @@ deleted `components/TaskColorDot.tsx`, `components/task-palette-colors.ts` and `
 now wants `emoji` and `color` back in the schema. That is an intentional reversal, not an oversight, and it
 is planned here as one. See Risks; **`docs/DECISIONS.md` needs an entry recording the reversal, written by
 the orchestrator** — neither backend nor frontend edits `docs/`.
+
+## Approved 2026-11-10, with the open questions settled
+
+The owner approved this task as drafted. The five open questions below are now closed; the numbering is
+theirs, from "Open questions for the owner" at the bottom of this file. **None of these changes a criterion** —
+each confirms the reading the criteria were already written against, so no group needs re-numbering.
+
+1. **`eta` goes, with no conversion.** Confirmed by the owner. The `.version(6)` upgrade deletes the field and
+   `etaMinutes` starts absent on every row. Any estimate a user already set is lost, deliberately: the stored
+   unit is pomodoros, the owner's field is minutes, and converting would invent a figure nobody entered
+   against a focus length that has since changed. Ruling 2 stands as written.
+2. **The panel keeps a visible heading, and it reads "Tasks".** Not answered by the owner; taken as drafted,
+   orchestrator's call, overrule at any point. Ruling 4 stands: a rendered `<h2>Tasks</h2>` names the region
+   via `aria-labelledby`. This reverses the 2026-11-10 `aria-label` ruling in DECISIONS.md, which the owner's
+   own amend commit (`834f0fd`) had already reversed in the tree — `TASK_PANEL_HEADING_ID` and the `<h2>` are
+   both back, reading "Task list". Criterion 17 renames that text to `Tasks`; criterion 17 also moves
+   `components/TaskPanelToggle.tsx:29`'s `aria-label` off `Task list`, so the string leaves the app entirely.
+3. **Three placeholder rows at mount on an empty list, not a list padded to three.** Not answered by the
+   owner; taken as drafted. Ruling 6 stands.
+4. **Five seconds flat.** Chosen by the owner over a window that pauses on focus and over a longer window for
+   everyone. Criterion 44's 5.0-6.0 s dismissal and criterion 45's "Tab reaches Undo within three stops" are
+   the requirement as it ships. The accessibility cost is accepted and named: a screen-reader user who has to
+   hear the announcement before acting will sometimes miss the window. **This does not license a focus steal
+   to compensate** — criterion 44 still forbids it.
+5. **`color`'s values stay unanswered, and that is fine here.** The field is stored and never rendered by this
+   task, so nothing blocks. The next task — the one that renders `emoji`, `color` and `etaMinutes` — opens by
+   settling the swatch set, because task 015 deleted `lib/db/palette.ts` and its eight swatches, so there is
+   nothing to inherit. Backend stores `color` as a free string with no enum validation; inventing a palette to
+   validate against would pre-empt that decision.
+
+**antislop runs in `during` mode for this task** (owner's choice this session). Frontend applies the rules
+while it writes rather than auditing afterwards, and the Delivery Gate runs before frontend reports done.
 
 ## Settled here, do not reopen
 
@@ -799,6 +831,204 @@ second one).
 ## Implementation Notes
 (Filled in by backend, then frontend, as they build. Criterion 1 lists what backend must record **before**
 frontend starts; criterion 2 gates group P.)
+
+### Backend (016, criteria 1-16) — handed off 2026-11-10
+
+All six items criterion 1 enumerates. Schema is at **version 6**; `PREFERENCES_VERSION`, `package.json` and `lib/preferences/**` are untouched. An omitted optional field is **ABSENT**: the key does not exist on the stored row (and on the returned `Task`). Never `undefined`, never `null`, never a default. `null` appears only as an *input* to `updateTask`, meaning "delete this key".
+
+#### 1. The `.version(6)` block, verbatim (`lib/db/database.ts`)
+
+```ts
+this.version(6)
+  .stores({
+    tasks: "id, order",
+  })
+  .upgrade(upgradeToVersion6);
+```
+
+A literal `6`, beside the unchanged v1-v5 blocks (their `.stores()` arguments are not edited; `tasks: "id, position"` is still the frozen v1 text). `CURRENT_SCHEMA_VERSION = 6`. The highest-literal guard (`if (this.verno !== CURRENT_SCHEMA_VERSION) throw ...`) is unedited and passes. The only version-1 constant, `SCHEMA_VERSION = 1`, stays 1 (it was never the moving constant; no historical block references `CURRENT_SCHEMA_VERSION`, which closes 013's finding 1).
+
+**What Dexie does to the old `position` index** (read from `node_modules/dexie/dist/dexie.js` `updateTablesAndIndexes` and confirmed on a seeded database): when a later version restates `tasks`, Dexie diffs the old and new schemas inside the IndexedDB upgrade transaction. The `position` index is **deleted**, an `order` index is **created**, the primary key `id` is unchanged (changing a primary key is unsupported and throws), and **only then** does the `.upgrade()` callback run, so the callback's `bulkPut` writes rows into the new index. Rows that lack `order` at the moment the index is created are simply not in it until the callback writes them. Verified: after a seeded 5 -> 6 open, `db.table("tasks").orderBy("order")` returns every row and `schema.idxByName.position` is `undefined`.
+
+#### 2. `upgradeToVersion6(tx)` (exported from `lib/db/database.ts`), in order
+
+1. Read every `tasks` row raw. Empty table: return, no write.
+2. Capture ONE `Date.now()` for the whole upgrade.
+3. Sort rows by `position` (or `order` if already migrated); missing/non-finite last; ties by `id`.
+4. Per row: `completed` := `row.done === true` (missing or non-boolean `done` -> `false`); `completedPomodoros` := the old numeric `completed` if it is an integer >= 0, else `0` (null, 7.5, string, negative all -> 0); `order` := dense index, zero-based, **per `parentId` group** (on a v5 database there are no parents, so one group); `createdAt`/`updatedAt` := the one timestamp (kept if the row already holds finite values).
+5. Delete `done`, `position`, `eta`. `eta` is **not converted**; `etaMinutes`, `parentId`, `emoji`, `color` are not added (absent).
+6. `bulkPut` the result. Never reads or writes `sessions`, `backgrounds` or `appMeta`.
+
+**Idempotent**: a row that already has own property `completedPomodoros` is treated as migrated, so its boolean `completed` is kept instead of being re-read as a count (without that check a second run would zero the counts); `order` is dense so renumbering maps it to itself; timestamps are kept; there is nothing left to delete. **Cannot throw on an old row**: every read is a `typeof`/`isFinite`/`Number.isInteger` check with a fallback; no field is assumed present. Proven on a version-5-seeded database (bad rows: `done` absent, `"yes"`, `completed: null`, `7.5`, missing/duplicate `position`) and by running the callback a second time on its own output (scratch-checked, output unchanged). Version-1 and -3 seeded databases upgrade straight through to 6 (a pin on the task at position 3 gives it `order: 0`, rest dense in prior relative order).
+
+#### 3. Types (`lib/db/types.ts`)
+
+```ts
+interface Task = TaskRecord {
+  id: string;                 // uuid, never reused
+  title: string;              // trimmed, 1-100 code points
+  completed: boolean;         // default false; the finished flag. NOT a count.
+  order: number;              // dense, unique, zero-based WITHIN a sibling group; indexed
+  parentId?: string;          // absent = top level; must name a stored top-level task
+  emoji?: string;             // 1-16 code points trimmed. stored, not rendered
+  color?: string;             // FREE string, 1-64 chars trimmed, no enum. stored, not rendered
+  etaMinutes?: number;        // integer 1-1440. stored, not rendered
+  completedPomodoros: number; // integer 0-999, default 0
+  createdAt: number;          // epoch ms, never changes (a restore keeps it)
+  updatedAt: number;          // epoch ms, >= createdAt, moves only on a real write
+}
+interface TaskTree { task: Task; children: Task[] }   // children empty for a subtask
+interface CreateTaskInput { title: string; parentId?: string; order?: number; emoji?: string; color?: string; etaMinutes?: number }
+interface UpdateTaskInput { title?: string; emoji?: string | null; color?: string | null; etaMinutes?: number | null; parentId?: string | null }
+ValidationIssue["field"] = "title" | "emoji" | "color" | "etaMinutes" | "parentId"   // no "eta"
+```
+
+- `CreateTaskInput.order` is an insertion index in the sibling group (clamped, later siblings shift down); omitted = last. Non-integer -> `InvalidReorderIndexError`. This is how the surface stores a row typed in the middle of the list.
+- `UpdateTaskInput`: `null` removes the key. `parentId: "<id>"` moves the task to the END of that group and renumbers both groups; `parentId: null` promotes to top level, last. Rejected (`TaskValidationError`, field `parentId`, nothing written) when the target is missing, is itself a subtask, is the task itself, or the task has children. **The surface does not need this** (promote/demote is out of scope); it exists because criterion 12 needs a path by which "a task that has children cannot be given a parentId" can be asserted.
+- `updateTask` and `createTask` ignore every key outside their input types (so `done`, `eta`, `position`, `emoji` on a row that way, `colorId`, `id` etc. are never stored) and never throw for them.
+- `completed`, `completedPomodoros` and `order`-within-group are not reachable through `updateTask`.
+- Errors: `TaskValidationError`, `TaskNotFoundError`, `InvalidReorderIndexError`, and **`InvalidCompletedValueError`** (renamed from `InvalidDoneValueError`).
+
+#### 4. Repository API (import from `@/lib/db`, no Dexie needed)
+
+```ts
+createTask(input: CreateTaskInput): Promise<Task>                      // top-level, or subtask via parentId; insertion index via order
+updateTask(id: string, input: UpdateTaskInput): Promise<Task>          // rename etc.; no-op write guard returns the stored row
+setTaskCompleted(id: string, completed: boolean): Promise<Task>        // renamed from setTaskDone; no cascade either way
+reorderTask(id: string, toIndex: number): Promise<Task[]>              // WITHIN the task's sibling group; a parent carries its children; returns display-ordered list
+duplicateTask(id: string): Promise<TaskTree>                           // copy directly below; parent copies its children; subtask copy touches only its group
+deleteTask(id: string): Promise<TaskTree>                              // was Promise<void>; now returns what it removed (parent + children) for undo
+restoreTask(tree: TaskTree): Promise<Task>                             // undo: same ids/createdAt/fields, recorded order clamped to group length, children back under it
+incrementCompleted(id: string): Promise<Task>                          // completedPomodoros + 1, clamp 999
+decrementCompleted(id: string): Promise<Task>                          // completedPomodoros - 1, clamp 0. NO consumer after this task; kept, not deleted, per ruling 2. Route as maintenance.
+listTasks(): Promise<Task[]>                                           // display order: top level by order, each parent's children right after it
+getCurrentTask(): Promise<Task | null>                                 // first NOT completed in display order
+```
+Also exported from `lib/db/task-repository.ts` (not re-exported by `index.ts`): `displayOrder(rows)`, `firstNotCompleted(rows)`, `normalizeTask`.
+
+- **Restore twice is a NO-OP**, not a rejection: if a row with the task's id is stored, nothing is written and the stored task is returned. Restoring a subtask whose parent is gone (or is itself a subtask) throws `TaskNotFoundError(parentId)`, writes nothing.
+- **Undo for "second delete commits the first"** is entirely the surface's: backend keeps no pending state. Frontend holds the one `TaskTree` it got back from `deleteTask`.
+- `updatedAt` moves on: rename, complete toggle, increment/decrement, reorder (every row whose `order` changed, including the displaced ones), duplicate (the later siblings it shifts), delete (the later siblings it shifts down), restore (restored rows and the siblings it shifts), `logCompletedSession`'s increment. A write that changes nothing writes nothing. `updatedAt` is `max(Date.now(), previous + 1)`, so it is strictly later even inside one millisecond.
+- **Ambiguity for QA, decided here**: criterion 13 says originals are byte-identical "except where the shift changed their `order`", criterion 15 says a duplicate's shift moves `updatedAt`. A shifted row is rewritten, so it differs in `order` **and** `updatedAt`; compare it with `updatedAt` excluded. The duplicated source itself is not touched.
+- `logCompletedSession` now credits `firstNotCompleted(...)` (display order, so a subtask can be current) and increments `completedPomodoros`, bumping `updatedAt`.
+
+#### 5. Seeding a version-5 database
+
+`seedVersion5DatabaseForTests(data: { tasks: Array<Record<string, unknown> & { id: string }>; sessions?: SessionRecord[]; backgrounds?: Array<Record<string, unknown> & { id: string }> }): Promise<void>` in `lib/db/test-utils.ts`; same shape as `seedVersion4DatabaseForTests`. It deletes the database and creates one that exists ONLY at version 5 (v1-v5 stores, no upgrade callbacks, `tasks` indexed by `position`), so rows land exactly as seeded; the next `openDatabase()` runs `upgradeToVersion6`. Read back with `(await openDatabase()).table("tasks").toArray()`. The version-1, -3 and -4 seeders still work unchanged and now upgrade through to 6, so **no test can observe a mid-chain state**. `LegacyTask` (the version-1 seeder's row type) is now an explicit `{ id, title, eta, completed: number, position, emoji, colorId }`.
+
+#### 6. Red on the handoff tree, and why
+
+Baseline before my change (measured by stashing): 5 failing tests in 2 files (4 in `components/TaskForm.test.tsx`, 1 in `components/focus-cycle.guards.test.ts`), already red and not mine. On the handoff tree `npm run test` is **55 failed / 1095 passed (1150)**, 8 files:
+- `lib/db/task-repository.test.ts` (33): seeds/asserts `eta`, `done`, `position`, numeric `completed`; calls `setTaskDone`/`InvalidDoneValueError`; the v5 "never stores emoji/colorId" cases assert the old `eta` default.
+- `lib/db/session-repository.test.ts` (7): reads `task.completed` as a count, `done`, and "version 4 upgrade" shape.
+- `lib/db/upgrade-v5.test.ts` (6): asserts `verno === 5`, and the rows' `eta`/`done`/`position` after the open; a seeded open now runs through to 6.
+- `lib/db/background-migration.test.ts` (1), `lib/db/background-repository.test.ts` (1): assert the old task shape / `verno` after a seeded open.
+- `components/panel-only.guards.test.ts` (2, task 015 criterion 5): `lib/db` now contains `validateEmoji` again and `ValidationIssue["field"]` is no longer `"title" | "eta"`. This is the intended reversal of 015 ruling 3; QA re-points the guard.
+- `components/TaskForm.test.tsx` (4) and `components/focus-cycle.guards.test.ts` (1): pre-existing, not caused by this change.
+Non-test red: `npm run typecheck` errors in `components/TaskChecklist.tsx` (imports `setTaskDone`, reads `task.done` at line 55 — line 55 `tasks.find((task) => !task.done)` is the current-task read; it must become `!task.completed` against the NEW boolean (same answer as before), and no read of `task.completed` anywhere may still mean the old pomodoro count), `components/TaskChecklistRow.tsx` (`task.done`, `task.eta`) and `components/TaskForm.tsx` (indexes by the old `ValidationIssue["field"]`). `npm run build` fails for the same reason (`setTaskDone` export missing). All three are frontend's.
+
+Gates run on this tree: `npm run lint` 0 errors, 37 warnings (all in test files, none in files I touched; baseline not separately measured); `npm run typecheck`: 0 errors under `lib/` outside tests, errors only in the components and test files named above.
+
+### Frontend (016, criteria 17-57)
+
+antislop ran in `during` mode (session override). Design Read: task panel inside an existing cozy, calm, minimalist app (DESIGN.md), dial ENERGY 1 / RHYTHM 1 / MOTION 1: no new colour, no new token, motion limited to a 150 ms toast fade and the menu's 100 ms fade, both off under reduced motion. Nothing in `:root`, `.dark` or `app/globals.css` moved.
+
+**Component structure**
+- `widgets/TaskPanel.tsx`: `<section aria-labelledby>` plus the rendered `<h2>Tasks</h2>`; the `<ul>` has no name. Surface padding is `p-2` below `sm` and `p-3` from `sm` up (needed for the 320 px title width, see M below). Header comment rewritten to match.
+- `components/TaskChecklist.tsx`: the list, the write queue, the drafts, the undo state, the single `role="alert"` line, the one `DndContext`. Still exports `TASK_PANEL_HEADING_ID`.
+- `components/task-rows.ts`: pure. `buildBlocks` merges stored tasks and drafts into top-level blocks that own their subtasks; `insertDraft`, `flattenBlocks`, `ordinalNames`.
+- `components/TaskChecklistRow.tsx`: one `<li>` per row: handle, checkbox cell, `<input type="text">`, kebab. A parent's subtask `<ul>` is rendered inside the parent's `<li>`, so one drag moves the block. Exports `RowModel`.
+- `components/TaskRowMenu.tsx` + `components/ui/dropdown-menu.tsx` (new, `radix-ui`'s `DropdownMenu`, tokens only, same "future `shadcn add` is a conflict" header as `dialog.tsx`).
+- `components/UndoToast.tsx`, `hooks/use-inline-title.ts` (new). `components/task-row-styles.ts` now holds `rowIconButtonClass` (handle and kebab only); its comment is true of that.
+- `components/TaskPanelToggle.tsx`: `aria-label="Tasks"`. The string `Task list` no longer appears under `app/`, `components/`, `widgets/`, `hooks/` outside test files.
+- `components/CurrentTaskCard.tsx` needed no edit: it reads `task.title` only. `hooks/use-tasks.ts`: one stale comment re-pointed.
+- `components/TaskForm.tsx` **deleted**. With no add form, no modal and no ETA field nothing imports it. Consequence for QA: `components/TaskForm.test.tsx` now fails to import (2 tsc errors, 1 failed file) and goes with it.
+
+**The `completed` line.** `TaskChecklist.tsx` picks the current task with `tasks.find((task) => !task.completed)`. Every `.completed` read under `components/ widgets/ hooks/` is the boolean (grep: 4 hits, all boolean). `completedPomodoros` is not read anywhere in the frontend.
+
+**Drafts, keys and the write queue.** A row with no text is a *draft*, held only in panel state; it is never written. The first non-empty title creates the task in place: `createTask({ title, order: <stored siblings above it>, parentId? })`. The row keeps its draft key as its React key and drag id after the write (`draftTaskIds` maps draft key to task id), so the input is the same DOM node before and after and the caret never moves. Every write (title, tick, duplicate, delete, restore, reorder) goes through one promise queue, so a row's create always lands before anything that depends on it. `insertDraft` re-anchors blank rows already waiting under the same row so blanks stay at the end of what was typed above them.
+
+**Debounce and flush points** (the two `setTimeout`s this task adds, per criterion 57): the title debounce, `TITLE_DEBOUNCE_MS = 300` in `hooks/use-inline-title.ts`; and the undo window, `UNDO_WINDOW_MS = 5000` in `TaskChecklist.tsx`. Flush immediately on: blur, Enter, unmount (panel hidden), `pagehide` and `beforeunload`. Verified by hand: type then hide the panel at once, type then reload at once, both stored. `beforeunload` was added because `pagehide` alone lost the write in a reload test; both are best effort by nature. An empty or whitespace value is never sent to `save`; a stored row left empty goes back to its stored title on blur. Title `maxLength` is 100 UTF-16 units, which cannot exceed the repository's 100 code points.
+
+**Undo bookkeeping.** `deleteTask` returns the removed `TaskTree`; the panel keeps exactly one in `undo` state with its message. A second delete replaces it, which is the whole of "commits the first" (the first is already deleted, the panel just forgets its tree), and the timer effect restarts, so there is one toast and the full 5 s for the newest. `Undo` calls `restoreTask(tree)`, clears the tree, and asks for focus on the restored row. Expiry only clears state; it writes nothing. **Nothing is persisted, so a reload inside the window lets the delete stand and shows no toast** (the toast is component state). `deletedIdsRef` makes a late title flush for a deleted row a no-op instead of a write-failure alert.
+
+**Toast live region.** `<div role="status" aria-live="polite" aria-atomic="true">` is always mounted and the toast is inserted into it (a live region must exist before its content appears to be announced). Polite, not assertive: the delete is the user's own action, and assertive would cut across the screen reader reading out where focus just landed. Not a dialog, never takes focus. Note for QA: `role="status"` count on `/` goes up by one (`focus-cycle.guards.test.ts` pins that set).
+
+**Focus after a delete (criteria 44, 45, 27).** Menu `Delete task`: focus goes to "Add task", which is directly before the toast in DOM order, so Undo is one Tab stop away. Backspace on an empty row: focus goes to the previous row's input, caret at the end, **as criterion 27 requires; in that case Undo is not within three Tab stops** unless the deleted row was near the end of the list. Criterion 45's three-stop budget is therefore met on the menu path and not on the Backspace path; the two criteria cannot both hold for a Backspace delete without a focus steal or a new shortcut, and neither is allowed. Backspace on the first row (when another row exists) lands on the next row. Add subtask: focus goes to the new subtask's input. Duplicate: focus returns to the row's kebab (Radix default).
+
+**Where criteria read differently from what shipped**
+- 17: the three-placeholder seeding, `<h2>` and landmark are as written.
+- 20/48: the handle's accessible name is `Reorder <title>`; the "how to reorder with the keyboard" half is carried by dnd-kit's `aria-describedby` instructions (accessible description), not packed into the name. Name plus description is the usual pairing; say if the name itself must carry it.
+- 21: `<input type="text">`, not `<textarea>`, because a title is single line and Enter has to mean "next row". `text-base` (16 px) so iOS does not zoom on focus.
+- 23: placeholder is `What’s your priority?` with the typographic apostrophe (U+2019). The input's accessible name is `Task N` or `Subtask N of task M` (stable, does not change as you type).
+- 25: Enter on a parent that has subtasks inserts the new top-level row after its last subtask (stored order puts a sibling there; "directly below" visually would put it between parent and children).
+- 26: Escape restores the title the row had when focus arrived, and writes it back if the debounce already stored part of the edit. For a row born in the current edit (baseline empty) it can only discard the not-yet-written text.
+- 27: Backspace with `event.repeat` set does not delete the row, so holding Backspace through a title stops at the empty row.
+- 35: no visible "Current task" badge (the row has no room for one). The current task is `aria-current="true"` on its `<li>`, a `border-primary` edge on the row and `font-semibold` title. Old e2e that looks for the badge text needs re-pointing.
+- 36: no progress or count text anywhere.
+- 38/39: opening by click, Enter or Space focuses the first enabled item (Radix only does that for the keyboard, so `dropdown-menu.tsx` redirects the container's first focus). Arrow keys wrap (`loop`). The menu is **non-modal with an invisible full-screen click-catcher** behind it: Radix's modal mode `aria-hidden`s the page while leaving it focusable, which axe reports as serious `aria-hidden-focus` (8 nodes, measured). The catcher keeps "click outside closes and activates nothing" (checked: clicking the page with the menu open leaves a checkbox unchanged). `Delete task` is told apart by position (last, after a separator), wording and a bin glyph, not hue alone. Per-item focus: Add subtask to the new input, Delete to "Add task" (or to a neighbouring row for an unsaved blank), Duplicate back to the kebab.
+- Unsaved blank rows: handle and checkbox are `disabled` and `Add subtask` and `Duplicate` are disabled menu items, because there is no task to act on. Their droppable is disabled so a drag cannot target a blank. Still exactly three `role="menuitem"`s on a stored top-level row, two on a subtask.
+- 40/41/42: subtasks are indented 16 px below `sm`, 24 px from `sm`; subtask kebab has two items.
+- 48: one `DndContext`; collision detection and the keyboard coordinate getter are restricted to the dragged row's own group (`parentKey` on the sortable data), so a subtask cannot be dropped among top-level rows and a parent never lands between a task and its children. `sortableKeyboardCoordinates` was not reusable because it looks at every droppable.
+- 50: blank rows hanging below a dragged row are re-anchored to the row that was above it, so they do not ride along with the drop. A reorder is enqueued on drop; the reordered order is shown from local state until the next query result, and dropped on failure.
+- 54: the list scrolls internally at every width: `max-h-[min(22rem,50dvh)]` below `xl`, the existing panel `max-height` at `xl`. Measured: 1280x800 cap 362 px; 320x568 cap 284 px, 50 rows, `scrollWidth == clientWidth`. At 320 the page itself was already taller than the viewport, and it grows from 914 to 1032 px as the list fills to its cap (the cap, not the row count).
+- 55: only the toast (`animate-in fade-in-0`, 150 ms) and the menu (100 ms) animate; both carry `motion-reduce:animate-none`. Rows add and remove with no animation at all. Verified: zero `document.getAnimations()` under `reducedMotion: "reduce"` with a toast up.
+- 56: menu items take `Highlight`/`HighlightText` under forced colors; row buttons and "Add task" get a border; the toast and `Undo` have real 1 px borders. Not exercised beyond a screenshot of the menu.
+
+**Layout numbers measured by hand (not QA's sweep).** 320 px: handle 44, checkbox cell 44, kebab 44, title input 136 px on a top-level row and 120 px on a subtask row (floor met exactly on subtasks). That needed the row to carry no padding of its own and the Surface to use `p-2` on phones. Timer Surface at 320x568 with three placeholder rows: bottom edge at y 542 (<= 568); the panel is below the timer, so rows never move it. 1280: inputs 44 px tall.
+
+**axe-core by hand** (light 320, dark 1280): placeholder rows, three tasks with one completed, menu open, toast up: no serious or critical violation; only the moderate page-level `region` (and `page-has-heading-one` before the menu opened), neither new.
+
+**Gates (real numbers).**
+- `npm run lint`: 0 errors, 20 warnings, all in `e2e/` and test files; none in files I touched.
+- `npm run typecheck`: 41 errors, **0 outside tests**: 39 in `lib/db/*.test.ts` (backend's list) and 2 in `components/TaskForm.test.tsx` (its import of the deleted file).
+- `npm run build`: compiles; fails at the TypeScript phase on those same 41 test-file errors, because `next build` type-checks test files. Not green and not fixable without editing tests.
+- `npm run test`: 58 failed, 1094 passed (1152). Frontend-attributable reds, all QA to re-point: `TaskForm.test.tsx` (file gone); `panel-only.guards.test.ts` criterion 42 (`setTimeout` in `TaskChecklist.tsx`, the named toast window) and criterion 18 (reads deleted `TaskForm.tsx`); `TaskPanel.tokens.test.ts` and `token-foundation.test.ts` (read deleted `TaskForm.tsx`); `palette.tokens.test.ts` ("every swept file is in the discovered set": new files `TaskRowMenu.tsx`, `UndoToast.tsx`, `task-rows.ts`, `ui/dropdown-menu.tsx`); `focus-cycle.guards.test.ts` (new `role="status"` live region; was already red before this task). `token-dark.test.ts` criterion 30 was red on a `bg-border` separator in `dropdown-menu.tsx`; fixed (hairline is now `border-t border-border`); the file now passes (94/94). The remaining reds are backend's `lib/db` list.
+
+**Delivery Gate (antislop).** Hard Gate: R-02 PASS (grep for the em dash character in every file I wrote: none), R-03 PASS (320/375-class width: no horizontal overflow, 44 px targets), R-25 PASS by token (all text on existing AA tokens; group P measures it), R-26 PASS (every control acts: handle drags, checkbox ticks, kebab items add/duplicate/delete, Undo restores, Add task appends), R-27 PASS (loading, error and empty copy present), R-32 PASS (every control Tab-reachable, 2 px focus ring on each, no `outline: none` without a replacement), R-34 PASS (light and dark both screenshotted and axe-run), R-35 PASS (ran it; click-through list below), R-23/R-38 PASS (no asset invented; glyphs from `react-icons/ri`). Purpose-Gate: R-04 PASS (Remix drag/more/add/copy/bin glyphs, each literally what the control does; no `lucide-react`), R-10 PASS (no new blur), R-12/R-13 PASS (menu has one `shadow-md` as an elevation marker over the panel; no glow), R-19 PASS (the two fades signal "this just appeared", off under reduced motion). Liveliness/quality locks: focal point stays the timer; accent unchanged (amber for the checked box and the current row's edge); no new palette colour, no pill-everything, copy is plain ("What’s your priority?", "Add task", "Deleted “x”", "Undo", "No tasks yet. Add one below.").
+Click-through (Playwright, chromium, throwaway scripts outside the repo): type, Enter, Escape, arrows, Backspace on empty/stored rows, tick, kebab by click and Enter, add subtask, duplicate, delete then Tab to Undo then Enter, 5.36 s dismissal, drag by pointer and by keyboard (parent with children, and a subtask within its group), 50 rows, hide/show, reload; zero console errors or warnings.
+
+**Not done / for QA and the orchestrator**
+- `decrementCompleted` has no consumer (backend's note stands).
+- Not measured: group P figures, 375 px, reduced-transparency (not applicable), a real screen reader.
+- The 100 ms reload-after-drop and reload-after-typing cases are best effort in the browser, as above.
+
+## Orchestrator notes at the backend handoff (2026-11-10)
+
+Backend's gate numbers re-run independently, per DECISIONS.md 2026-10-07. They hold:
+
+- `npm run typecheck`: **47 errors** — 39 across four `lib/db/*.test.ts` files, 8 in
+  `components/TaskChecklistRow.tsx` (5), `components/TaskChecklist.tsx` (2) and `components/TaskForm.tsx` (1).
+  Nothing under `lib/` outside tests.
+- `npm run test`: **54-55 failed / ~1096 passed (1150)** across 8 files. The count moves by one between runs,
+  so **one of these is flaky** and nobody has identified which; QA should pin it rather than re-run until it
+  passes.
+- `npm run build`: **fails** — `Export setTaskDone doesn't exist` in `components/TaskChecklist.tsx`. Frontend's.
+- The **5 reds that predate this task** are confirmed pre-existing and are *not* schema fallout: 4 in
+  `components/TaskForm.test.tsx` (`Cannot read properties of null` — the tests reach for the ETA field the
+  owner's amend commit `834f0fd` already removed) and 1 in `components/focus-cycle.guards.test.ts` (the task
+  013 criterion 33 live-region pin). They are QA's to re-point, and `TaskForm.test.tsx` probably dies with
+  `TaskForm.tsx` itself.
+
+Three things QA inherits, which are not in the criteria:
+
+1. **The 5 → 6 upgrade currently has no committed test.** Backend proved it against a version-5 seed in a
+   throwaway it then deleted, which under this project's own rule (DECISIONS.md 2026-10-07, "an uncommitted
+   throwaway is not evidence") means the upgrade ships unproven. **QA writes the committed version-5-seeded
+   migration spec**, covering what the throwaway covered: bad `done`/`completed`/`position` values, the `order`
+   index returning every row with `position` gone, a second callback run changing nothing, and version-1 and
+   version-3 seeds upgrading straight through to 6.
+2. **Criteria 13 and 15 conflict slightly, by backend's own account.** A sibling shifted by a duplicate,
+   delete, restore or reorder is rewritten, so its `order` *and* its `updatedAt` both change. Compare those
+   rows with `updatedAt` excluded; do not weaken either criterion to make them agree.
+3. **`decrementCompleted` has no consumer left.** Kept deliberately under ruling 2 rather than deleted mid-task.
+   Routed to PLAN.md Maintenance when this task closes — not frontend's to call, not QA's to test.
+
+Accepted as backend's call, overruleable later: `emoji` 1-16 code points, `color` a free string of 1-64
+characters, `etaMinutes` an integer 1-1440; omitted optionals stored **absent**, with `null` meaningful only as
+an `updateTask` input meaning "delete this key"; `updateTask` accepts `parentId` (criterion 12 needs some path
+to assert against, and the surface does not call it); `deleteTask` returns the `TaskTree` it removed and
+`restoreTask(tree)` is idempotent.
 
 ## QA Report
 (Filled in by qa.)

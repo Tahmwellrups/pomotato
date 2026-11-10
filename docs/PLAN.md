@@ -70,6 +70,25 @@ measuring both twice).
       in favour of "current = first not-done task", reordering kept. 60 criteria. Largest risk is that the
       frontend diff is a restructure, not an addition: `TaskList.tsx` and `TaskRow.tsx` split into panel
       and dialog variants, with 89 e2e tests and two `lib/db` suites in the blast radius.
+- [ ] **015. Panel-only task surface.** ([docs/tasks/015-panel-only-task-surface.md](tasks/015-panel-only-task-surface.md))
+      Added retroactively, 2026-11-10 — 015 shipped without ever getting a PLAN.md line. The dialog
+      (`components/TaskListDialog.tsx`) was deleted and its add, edit, delete and `+1`/`-1` controls moved
+      inline into the panel, which gained a hide/show control, and `emoji`/`colorId` left `Task` in the
+      `.version(5)` upgrade. Code committed as `4ca861e` + `9f7ad5d` + `95f062b`. **QA never reached PASS**
+      (two FAIL rounds, then a re-point pass; criterion 15's one-place clause was fixed and criteria 25, 32,
+      36, 37-44 and 47 were never measured) and **no reviewer pass ran at all**. Its unmeasured figures are
+      under "Deferred from tasks 014 and 015" below, and task 016 explicitly does not absorb them.
+- [ ] **016. Inline-editable task panel.** ([docs/tasks/016-inline-editable-task-panel.md](tasks/016-inline-editable-task-panel.md))
+      Owner requirements, 2026-11-10, approved the same day. The panel is retitled "Tasks" and becomes an
+      inline-editable list: borderless text inputs, a per-row kebab on `radix-ui`'s `DropdownMenu`, one level
+      of subtasks, duplicate, delete with a 5 s undo toast instead of a confirm, and drag by the handle only.
+      Schema **5 → 6** adopts the owner's field names (`completed` becomes the boolean, `completedPomodoros`
+      the count, `order` replaces `position`, `eta` goes), adds `parentId`, `createdAt`, `updatedAt`, and
+      brings back `emoji` and `color` nine days after 015 stripped them. 61 criteria. **Backend goes first and
+      alone**: the rename re-points five stored fields at once and the `completed` collision type-checks
+      silently at `!task.completed`, which is the line that decides which task a session is credited to.
+      Approval rulings in [DECISIONS.md](DECISIONS.md): `eta` deleted with no conversion, the undo window five
+      seconds flat, the visible heading kept.
 
 ## Found by the 2026-11-10 re-point pass — three app defects, none of them test faults
 

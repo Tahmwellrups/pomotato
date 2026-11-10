@@ -4,6 +4,41 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-11-10 — Task 016 approved: `eta` is deleted outright, the undo window is five seconds flat, and the panel's visible heading comes back as "Tasks"
+
+Approval rulings on [tasks/016-inline-editable-task-panel.md](tasks/016-inline-editable-task-panel.md). Three
+of them are the owner's, two are the orchestrator's defaults where the owner did not rule.
+
+**`eta` is deleted in the 5 → 6 upgrade with no conversion** (owner). Every stored pomodoro estimate goes;
+`etaMinutes` starts absent on every row. The alternatives were keeping `eta` alongside `etaMinutes` until
+something renders one of them, or multiplying by the focus length. Rejected because the second invents a
+figure the user never entered — against a focus length that has changed since those rows were written — and
+the first leaves a dead field that `tsc` cannot tell anyone to remove.
+**How to apply:** this is permanent data loss for an existing user, accepted knowingly. If export/import
+(milestone 7) ever needs to read a pre-v6 backup, `eta` will not be in it.
+
+**The undo window is five seconds flat** (owner), chosen over a countdown that pauses while the toast has
+focus and over a longer window for everyone. The cost is named rather than hidden: a screen-reader user who
+waits to hear the announcement can miss it. It does **not** buy a focus steal into the toast — the toast stays
+a live region, not a dialog.
+**How to apply:** if this comes back as a complaint, the pause-on-focus variant is the cheap fix; it was
+drafted and declined, not overlooked.
+
+**The panel's visible heading stays, and reads "Tasks"** (orchestrator's default, owner may overrule). This
+reverses the 2026-11-10 entry below, which named the region by `aria-label` and deleted
+`TASK_PANEL_HEADING_ID`. The owner's amend commit `834f0fd` had already put the `<h2>` and the id back in the
+tree, and "Tasks" is now visible content in the owner's own requirements, so naming the region by content
+beats naming it by an attribute. The string `Task list` leaves the app with it, including
+`components/TaskPanelToggle.tsx`'s `aria-label`.
+**How to apply:** the painted-heading criterion that the earlier ruling orphaned (`token-task-surface.spec.ts`
+24-30) has a subject again. It is **not** re-pointed by task 016 — that stays a PLAN.md maintenance item — but
+it is no longer unfixable.
+
+Also settled: three placeholder rows appear at mount on an empty list rather than the list being padded to
+three forever (orchestrator's default); and `color` ships as a free string with no enum, because task 015
+deleted the eight-swatch palette and inventing one to validate against would pre-empt the next task's own
+decision. antislop runs in `during` mode for this task, by the owner's choice this session.
+
 ### 2026-11-10 — The task panel loses its visible heading and is named by `aria-label`; a dangling `aria-labelledby` cost ~157 tests
 
 The owner removed the panel's visible `<h2>Task list</h2>` from `widgets/TaskPanel.tsx`. **Confirmed

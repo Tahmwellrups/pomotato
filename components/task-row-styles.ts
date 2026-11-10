@@ -1,4 +1,8 @@
-// The panel row's secondary button (drag handle, move, count, edit, delete,
-// cancel). One class string so those controls cannot drift apart.
-export const actionButtonClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-control-border bg-popover px-3 text-sm font-medium text-secondary-foreground outline-none hover:border-[color-mix(in_srgb,var(--control-border),var(--foreground)_40%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40";
+// The two icon-only controls on a task row (drag handle, kebab). One class
+// string so they cannot drift apart: both are 44 px squares, borderless on the
+// panel's ground, and both draw their focus ring inside the box because the row
+// packs its controls flush and an outer ring would be painted over by the
+// neighbour. Under forced colours the border appears, since a borderless
+// button there reads as bare text.
+export const rowIconButtonClass =
+  "inline-grid size-11 shrink-0 cursor-pointer place-items-center rounded-lg text-secondary-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 forced-colors:border";
