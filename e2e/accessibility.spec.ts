@@ -55,9 +55,10 @@ test.describe("Accessibility - axe-core checks", () => {
     expect(seriousViolations).toHaveLength(0);
   });
 
-  test("no axe violations with the Focus length field shown", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
+  // Task 017: the Focus length field moved to /settings (ruling 1), so the axe check with the field shown runs there.
+  test("no axe violations on /settings with the Focus length field shown", async ({ page }) => {
+    await page.goto("/settings");
+    await expect(page.locator("input#focus-length")).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();
 
@@ -115,12 +116,10 @@ test.describe("Accessibility - axe-core checks", () => {
       expect(await label.count()).toBeGreaterThan(0);
     }
 
-    // Custom input should have a label
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
-
-    const customLabelText = page.locator("label:has-text('Focus length')");
-    await expect(customLabelText).toBeVisible();
+    // Task 017: the duration field has a programmatic label on /settings.
+    await page.goto("/settings");
+    const customLabelText = page.locator("label[for='focus-length']");
+    await expect(customLabelText).toHaveText(/Focus length/);
 
     const customInput = page.locator('input[id="focus-length"]');
     await expect(customInput).toHaveAttribute("id", "focus-length");

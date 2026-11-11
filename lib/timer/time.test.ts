@@ -3,43 +3,74 @@ import {
   fullDurationMs,
   getRemainingMs,
   formatRemaining,
-  parseFocusMinutes,
+  parseMinutes,
+  isDurationMinutes,
+  type Durations,
 } from "./time";
 import {
   DEFAULT_FOCUS_MINUTES,
-  SHORT_BREAK_MINUTES,
-  LONG_BREAK_MINUTES,
+  DEFAULT_SHORT_BREAK_MINUTES,
+  DEFAULT_LONG_BREAK_MINUTES,
   MS_PER_MINUTE,
 } from "./constants";
 
+// Task 017: every duration is read from one settings record. These are the defaults.
+const D: Durations = {
+  focusMinutes: DEFAULT_FOCUS_MINUTES,
+  shortBreakMinutes: DEFAULT_SHORT_BREAK_MINUTES,
+  longBreakMinutes: DEFAULT_LONG_BREAK_MINUTES,
+};
+
 describe("time.ts", () => {
   describe("fullDurationMs", () => {
-    it("returns focus duration in ms", () => {
-      expect(fullDurationMs("focus", DEFAULT_FOCUS_MINUTES)).toBe(DEFAULT_FOCUS_MINUTES * MS_PER_MINUTE);
-      expect(fullDurationMs("focus", 25)).toBe(25 * 60_000);
+    it("returns the configured Focus length in ms, at the 1 and 180 minute bounds", () => {
+      expect(fullDurationMs("focus", { ...D, focusMinutes: 25 })).toBe(25 * MS_PER_MINUTE);
+      expect(fullDurationMs("focus", { ...D, focusMinutes: 1 })).toBe(MS_PER_MINUTE);
+      expect(fullDurationMs("focus", { ...D, focusMinutes: 180 })).toBe(180 * MS_PER_MINUTE);
     });
 
-    it("returns short break duration in ms", () => {
-      expect(fullDurationMs("shortBreak", 25)).toBe(SHORT_BREAK_MINUTES * MS_PER_MINUTE);
-      expect(fullDurationMs("shortBreak", 25)).toBe(5 * 60_000);
+    it("returns the configured short break length, not a fixed constant (task 017 criterion 23)", () => {
+      expect(fullDurationMs("shortBreak", { ...D, shortBreakMinutes: 9 })).toBe(9 * MS_PER_MINUTE);
+      expect(fullDurationMs("shortBreak", { ...D, shortBreakMinutes: 60 })).toBe(60 * MS_PER_MINUTE);
     });
 
-    it("returns long break duration in ms", () => {
-      expect(fullDurationMs("longBreak", 25)).toBe(LONG_BREAK_MINUTES * MS_PER_MINUTE);
-      expect(fullDurationMs("longBreak", 25)).toBe(15 * 60_000);
+    it("returns the configured long break length, not a fixed constant (task 017 criterion 23)", () => {
+      expect(fullDurationMs("longBreak", { ...D, longBreakMinutes: 1 })).toBe(MS_PER_MINUTE);
+      expect(fullDurationMs("longBreak", { ...D, longBreakMinutes: 120 })).toBe(120 * MS_PER_MINUTE);
     });
 
-    it("returns the stored Focus length for focus, at the 1 and 180 minute bounds", () => {
-      expect(fullDurationMs("focus", 30)).toBe(30 * MS_PER_MINUTE);
-      expect(fullDurationMs("focus", 1)).toBe(1 * MS_PER_MINUTE);
-      expect(fullDurationMs("focus", 180)).toBe(180 * MS_PER_MINUTE);
+    it("every duration is independent of the other two (criterion 23)", () => {
+      const changedFocus = { ...D, focusMinutes: 50 };
+      expect(fullDurationMs("shortBreak", changedFocus)).toBe(D.shortBreakMinutes * MS_PER_MINUTE);
+      expect(fullDurationMs("longBreak", changedFocus)).toBe(D.longBreakMinutes * MS_PER_MINUTE);
+      const changedShort = { ...D, shortBreakMinutes: 9 };
+      expect(fullDurationMs("focus", changedShort)).toBe(D.focusMinutes * MS_PER_MINUTE);
+      expect(fullDurationMs("longBreak", changedShort)).toBe(D.longBreakMinutes * MS_PER_MINUTE);
     });
 
-    it("ignores the Focus length for both break modes (criterion 5)", () => {
-      expect(fullDurationMs("shortBreak", 1)).toBe(5 * MS_PER_MINUTE);
-      expect(fullDurationMs("shortBreak", 180)).toBe(5 * MS_PER_MINUTE);
-      expect(fullDurationMs("longBreak", 1)).toBe(15 * MS_PER_MINUTE);
-      expect(fullDurationMs("longBreak", 180)).toBe(15 * MS_PER_MINUTE);
+    it("the defaults are 25, 5 and 15 minutes", () => {
+      expect(D).toEqual({ focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15 });
+    });
+  });
+
+  describe("isDurationMinutes (one validator for every length)", () => {
+    it("accepts whole minutes inside each field's own bounds", () => {
+      expect(isDurationMinutes("focusMinutes", 180)).toBe(true);
+      expect(isDurationMinutes("shortBreakMinutes", 60)).toBe(true);
+      expect(isDurationMinutes("longBreakMinutes", 120)).toBe(true);
+    });
+
+    it("rejects the first out-of-range integer of each field", () => {
+      expect(isDurationMinutes("focusMinutes", 181)).toBe(false);
+      expect(isDurationMinutes("shortBreakMinutes", 61)).toBe(false);
+      expect(isDurationMinutes("longBreakMinutes", 121)).toBe(false);
+      expect(isDurationMinutes("shortBreakMinutes", 0)).toBe(false);
+    });
+
+    it("rejects fractions and non-numbers", () => {
+      expect(isDurationMinutes("focusMinutes", 2.5)).toBe(false);
+      expect(isDurationMinutes("focusMinutes", "25")).toBe(false);
+      expect(isDurationMinutes("focusMinutes", null)).toBe(false);
     });
   });
 
@@ -145,68 +176,68 @@ describe("time.ts", () => {
     });
   });
 
-  describe("parseFocusMinutes", () => {
+  describe("parseMinutes (focusMinutes)", () => {
     it("accepts valid integers from 1 to 180", () => {
-      expect(parseFocusMinutes("1")).toEqual({ ok: true, value: 1 });
-      expect(parseFocusMinutes("25")).toEqual({ ok: true, value: 25 });
-      expect(parseFocusMinutes("180")).toEqual({ ok: true, value: 180 });
-      expect(parseFocusMinutes("60")).toEqual({ ok: true, value: 60 });
+      expect(parseMinutes("focusMinutes", "1")).toEqual({ ok: true, value: 1 });
+      expect(parseMinutes("focusMinutes", "25")).toEqual({ ok: true, value: 25 });
+      expect(parseMinutes("focusMinutes", "180")).toEqual({ ok: true, value: 180 });
+      expect(parseMinutes("focusMinutes", "60")).toEqual({ ok: true, value: 60 });
     });
 
     it("rejects empty input", () => {
-      const result = parseFocusMinutes("");
+      const result = parseMinutes("focusMinutes", "");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe("Enter a duration in minutes.");
     });
 
     it("rejects whitespace-only input", () => {
-      const result = parseFocusMinutes("   ");
+      const result = parseMinutes("focusMinutes", "   ");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toBe("Enter a duration in minutes.");
     });
 
     it("rejects decimal values", () => {
-      const result = parseFocusMinutes("2.5");
+      const result = parseMinutes("focusMinutes", "2.5");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("rejects negative numbers", () => {
-      const result = parseFocusMinutes("-5");
+      const result = parseMinutes("focusMinutes", "-5");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("rejects zero", () => {
-      const result = parseFocusMinutes("0");
+      const result = parseMinutes("focusMinutes", "0");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toContain("Enter a number from");
     });
 
     it("rejects values above 180", () => {
-      const result = parseFocusMinutes("181");
+      const result = parseMinutes("focusMinutes", "181");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error).toContain("Enter a number from");
     });
 
     it("rejects non-numeric text", () => {
-      const result = parseFocusMinutes("abc");
+      const result = parseMinutes("focusMinutes", "abc");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("rejects mixed alphanumeric", () => {
-      const result = parseFocusMinutes("25m");
+      const result = parseMinutes("focusMinutes", "25m");
       expect(result.ok).toBe(false);
       if (!result.ok)
         expect(result.error).toBe("Enter a whole number of minutes, with no decimals.");
     });
 
     it("trims whitespace before validation", () => {
-      expect(parseFocusMinutes("  25  ")).toEqual({ ok: true, value: 25 });
+      expect(parseMinutes("focusMinutes", "  25  ")).toEqual({ ok: true, value: 25 });
     });
   });
 });

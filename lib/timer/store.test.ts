@@ -1,13 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useTimerStore } from "./store";
 import { MS_PER_MINUTE } from "./constants";
+import { usePreferencesStore } from "@/lib/preferences";
 
 describe("useTimerStore", () => {
   beforeEach(() => {
     // Reset the store state before each test
+    // Task 017: the Focus length lives in preferences, not in the timer store.
+    usePreferencesStore.setState({ focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15 });
     useTimerStore.setState({
       mode: "focus",
-      focusMinutes: 25,
+      cyclePosition: 0,
+      plannedDurationMs: null,
+      lastAdvance: null,
       status: "idle",
       endTimestamp: null,
       pausedRemainingMs: null,
@@ -16,11 +21,12 @@ describe("useTimerStore", () => {
   });
 
   describe("initial state", () => {
-    it("starts with Focus mode, idle status, and a 25 minute Focus length", () => {
+    it("starts with Focus mode, idle status, and no planned duration (task 017 criterion 21)", () => {
       const state = useTimerStore.getState();
       expect(state.mode).toBe("focus");
       expect(state.status).toBe("idle");
-      expect(state.focusMinutes).toBe(25);
+      expect(state.plannedDurationMs).toBeNull();
+      expect(usePreferencesStore.getState().focusMinutes).toBe(25);
       expect(state.endTimestamp).toBeNull();
       expect(state.pausedRemainingMs).toBeNull();
     });
@@ -270,58 +276,49 @@ describe("useTimerStore", () => {
       expect(state.status).toBe("idle");
     });
 
-    it("does not touch focusMinutes", () => {
+    it("does not touch the session lengths in preferences (task 017 criterion 12)", () => {
       const store = useTimerStore.getState();
-      useTimerStore.setState({ focusMinutes: 50 });
+      usePreferencesStore.setState({ focusMinutes: 50 });
       store.start();
       store.reset();
-      const state = useTimerStore.getState();
-      expect(state.focusMinutes).toBe(50);
+      expect(usePreferencesStore.getState().focusMinutes).toBe(50);
+      expect(useTimerStore.getState().plannedDurationMs).toBeNull();
     });
   });
 
-  describe("setFocusMinutes", () => {
-    it("updates focusMinutes when idle", () => {
-      const store = useTimerStore.getState();
-      store.setFocusMinutes(30);
-      const state = useTimerStore.getState();
-      expect(state.focusMinutes).toBe(30);
+  describe("session lengths are enabled in every state (task 017 criteria 14, 15)", () => {
+    it("setDuration updates the Focus length when idle", () => {
+      usePreferencesStore.getState().setDuration("focusMinutes", 30);
+      expect(usePreferencesStore.getState().focusMinutes).toBe(30);
     });
 
-    it("updates focusMinutes when complete", () => {
-      const store = useTimerStore.getState();
+    it("setDuration updates the Focus length when complete", () => {
       useTimerStore.setState({ status: "complete" });
-      store.setFocusMinutes(50);
-      const state = useTimerStore.getState();
-      expect(state.focusMinutes).toBe(50);
+      usePreferencesStore.getState().setDuration("focusMinutes", 50);
+      expect(usePreferencesStore.getState().focusMinutes).toBe(50);
     });
 
-    it("no-op when focus is running", () => {
-      const store = useTimerStore.getState();
-      useTimerStore.setState({ mode: "focus", focusMinutes: 25 });
-      store.start();
-      store.setFocusMinutes(50);
-      const state = useTimerStore.getState();
-      expect(state.focusMinutes).toBe(25);
+    it("setDuration is no longer a no-op while a Focus run is running (the run keeps its own length)", () => {
+      useTimerStore.getState().start();
+      const planned = useTimerStore.getState().plannedDurationMs;
+      usePreferencesStore.getState().setDuration("focusMinutes", 50);
+      expect(usePreferencesStore.getState().focusMinutes).toBe(50);
+      expect(useTimerStore.getState().plannedDurationMs).toBe(planned);
+      expect(planned).toBe(25 * MS_PER_MINUTE);
     });
 
-    it("no-op when focus is paused", () => {
-      const store = useTimerStore.getState();
-      useTimerStore.setState({ mode: "focus", focusMinutes: 25 });
-      store.start();
-      store.pause();
-      store.setFocusMinutes(50);
-      const state = useTimerStore.getState();
-      expect(state.focusMinutes).toBe(25);
+    it("setDuration is no longer a no-op while a Focus run is paused", () => {
+      useTimerStore.getState().start();
+      useTimerStore.getState().pause();
+      usePreferencesStore.getState().setDuration("focusMinutes", 50);
+      expect(usePreferencesStore.getState().focusMinutes).toBe(50);
     });
 
-    it("allows updates while a break is running (criterion 7: the next Focus run is not begun)", () => {
-      const store = useTimerStore.getState();
+    it("allows updates while a break is running, and the next Focus run reads them", () => {
       useTimerStore.setState({ mode: "shortBreak" });
-      store.start();
-      store.setFocusMinutes(50);
-      const state = useTimerStore.getState();
-      expect(state.focusMinutes).toBe(50);
+      useTimerStore.getState().start();
+      usePreferencesStore.getState().setDuration("focusMinutes", 50);
+      expect(usePreferencesStore.getState().focusMinutes).toBe(50);
     });
   });
 
@@ -432,7 +429,7 @@ describe("useTimerStore", () => {
         mode: "focus",
         status: "running",
         endTimestamp: Date.now() + 10 * MS_PER_MINUTE,
-        focusMinutes: 25,
+        plannedDurationMs: 25 * MS_PER_MINUTE,
       });
       // Simulate a reload by checking the state
       const state = useTimerStore.getState();

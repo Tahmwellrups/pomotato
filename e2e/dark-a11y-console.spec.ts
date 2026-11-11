@@ -117,10 +117,13 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
       // Mode switch and custom-duration edits: one valid, one invalid.
       await page.locator('label:has(input[name="timer-mode"][value="shortBreak"])').click();
       await page.locator('label:has(input[name="timer-mode"][value="focus"])').click();
+      // Task 017: the duration field is on /settings. Valid, invalid, valid there, then back to the timer.
+      await page.goto("/settings");
       const custom = page.locator("input#focus-length");
       await custom.fill("5");
       await custom.fill("0");
       await custom.fill("5");
+      await page.goto("/");
       await page.locator('label:has(input[name="timer-mode"][value="focus"])').click();
 
       // Completion: a timer that ends while the page is open.

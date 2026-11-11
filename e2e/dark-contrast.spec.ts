@@ -263,7 +263,8 @@ test.describe("criterion 26, 43: the disabled task submit and its fields are mea
       await submit.evaluate((el) => ((el as HTMLButtonElement).disabled = false));
     });
 
-    test(`[${theme}] the disabled custom-duration field while running is visible, not invisible (criterion 43)`, async ({ page }, testInfo) => {
+    // RETIRED (task 017 criterion 14, 70): the duration field is never disabled, so there is no disabled field to measure.
+    test.skip(`[${theme}] RETIRED: the disabled custom-duration field while running is visible, not invisible (criterion 43)`, async ({ page }, testInfo) => {
       await themed(page, stored);
       await seedTimerState(page, { status: "running", mode: "focus", focusMinutes: 5, endTimestamp: Date.now() + 600_000, startedAt: Date.now(), runId: "qa", pausedRemainingMs: null });
       await page.reload();
@@ -331,7 +332,7 @@ test.describe("criterion 27, 28, 29: the focus ring and the pinned hover", () =>
       // [name, element to focus, element that paints the ring]. Radios are sr-only; the chip span paints the ring.
       const targets: [string, Locator, Locator][] = [
         ["Reset", resetControl(page), resetControl(page)],
-        ["Custom duration input", page.locator("input#focus-length"), page.locator("input#focus-length")],
+        // RETIRED (task 017 criterion 70): the duration field left / (criterion 2). Its focus ring is measured on /settings in e2e/settings-measure.spec.ts.
         ["Focus mode chip", page.locator('input[name="timer-mode"][value="focus"]'), page.locator('label:has(input[name="timer-mode"][value="focus"]) span')],
         ["Theme chip Dark", page.locator('input[name="theme"][value="dark"]'), page.locator('label:has(input[name="theme"][value="dark"]) span')],
       ];

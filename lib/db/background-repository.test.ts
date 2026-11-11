@@ -179,13 +179,16 @@ describe("background-repository", () => {
 describe("schema version 3 is additive", () => {
   it("upgrading a version-1 database keeps tasks and the last-chosen current task and adds an empty backgrounds table", async () => {
     await resetDatabaseForTests();
-    await createTask({ title: "keep me" });
-    const second = await createTask({ title: "keep me too" });
-    await seedVersion1DatabaseForTests({ tasks: (await listTasks()).map((t) => ({ ...t, emoji: "🥔", colorId: "tomato" })), pinnedTaskId: second.id });
+    // Version-1 rows in the legacy shape, so the whole chain 1 -> 6 runs.
+    const legacy = [
+      { id: "bg-1", title: "keep me", eta: 1, completed: 0, position: 0, emoji: "🥔", colorId: "tomato" },
+      { id: "bg-2", title: "keep me too", eta: 1, completed: 0, position: 1, emoji: "🍅", colorId: "sage" },
+    ];
+    await seedVersion1DatabaseForTests({ tasks: legacy, pinnedTaskId: "bg-2" });
     expect((await listTasks()).map((t) => t.title)).toEqual(["keep me too", "keep me"]);
-    expect((await getCurrentTask())?.id).toBe(second.id);
+    expect((await getCurrentTask())?.id).toBe("bg-2");
     expect(await rowCount()).toBe(0);
     const db = await openDatabase();
-        expect(db.verno).toBe(5);
+    expect(db.verno).toBe(6);
   });
 });

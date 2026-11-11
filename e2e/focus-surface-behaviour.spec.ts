@@ -165,14 +165,20 @@ test.describe("013 criterion 11: the Focus length persists across reloads and is
     await page.goto("/");
     await seedTimerState(page, { mode: "focus", status: "idle", focusMinutes: 25, cyclePosition: 0, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
     await page.reload();
+    // Task 017: the field is on /settings. Set there, then read the timer on /.
+    await page.goto("/settings");
     const field = page.locator("input#focus-length");
     await field.fill("50");
     await field.press("Tab");
+    await page.goto("/");
     await expect(page.locator("p.tabular-nums").first()).toHaveText("50:00");
     await page.reload();
-    await expect(field).toHaveValue("50");
     await expect(page.locator("p.tabular-nums").first()).toHaveText("50:00");
+    await page.goto("/settings");
+    await expect(field).toHaveValue("50");
+    await page.goto("/");
     await holdResetWithPointer(page);
+    await page.goto("/settings");
     await expect(field).toHaveValue("50");
     await page.reload();
     await expect(field).toHaveValue("50");

@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTimerStore } from "@/lib/timer/store";
+import { usePreferencesStore } from "@/lib/preferences";
 import { DEFAULT_FOCUS_MINUTES, MS_PER_MINUTE } from "@/lib/timer/constants";
 import type { TimerMode, TimerStatus } from "@/lib/timer/types";
 import { CycleDots } from "./CycleDots";
@@ -10,11 +11,13 @@ import { CycleDots } from "./CycleDots";
 // data-treatment attribute, the same surface the e2e sweep reads.
 
 function seed(mode: TimerMode, status: TimerStatus, cyclePosition: number, focusMinutes = 1) {
+  // Task 017: the Focus length is a preference. Seeding it keeps the 1-minute runs these cases were written against.
+  usePreferencesStore.setState({ focusMinutes });
   useTimerStore.setState({
+    plannedDurationMs: status === "running" || status === "paused" ? focusMinutes * MS_PER_MINUTE : null,
     mode,
     status,
     cyclePosition,
-    focusMinutes,
     endTimestamp: status === "running" ? Date.now() + MS_PER_MINUTE : null,
     pausedRemainingMs: status === "paused" ? MS_PER_MINUTE : null,
     runId: status === "running" || status === "paused" ? "r-test" : null,

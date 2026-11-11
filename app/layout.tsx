@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Comfortaa, Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeSync } from "@/components/ThemeSync";
+import { TimerClockProvider } from "@/components/TimerClockProvider";
 // Leaf module, not the package index: the index re-exports the zustand store.
 import { PREFERENCES_BOOT_SCRIPT } from "@/lib/preferences/boot-script";
 import "./globals.css";
@@ -48,7 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col">
         <ThemeSync />
-        {children}
+        <TimerClockProvider>{children}</TimerClockProvider>
       </body>
     </html>
   );

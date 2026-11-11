@@ -91,9 +91,10 @@ describe("task 007 criteria 18 and 19: the interactive-boundary token and its co
 
 describe("task 007 criterion 44: no any in the changed code", () => {
   const CHANGED = [
-    "components/TaskForm.tsx",
+    "components/TaskRowMenu.tsx",
+    "components/UndoToast.tsx",
     "components/StatsButton.tsx",
-    "components/FocusLengthInput.tsx",
+    "components/DurationField.tsx",
     "components/ModeSelector.tsx",
     "components/ui/mode-chip.tsx",
   ];

@@ -1,22 +1,25 @@
-import {
-  FOCUS_MINUTES_MAX,
-  FOCUS_MINUTES_MIN,
-  LONG_BREAK_MINUTES,
-  MS_PER_MINUTE,
-  SHORT_BREAK_MINUTES,
-} from "./constants";
+import { DURATION_LIMITS, MS_PER_MINUTE, type DurationKey } from "./constants";
 import type { TimerMode, TimerStatus } from "./types";
 
-/** The full duration of a mode, in ms. Focus uses the stored Focus length; both breaks are fixed. */
-export function fullDurationMs(mode: TimerMode, focusMinutes: number): number {
-  switch (mode) {
-    case "focus":
-      return focusMinutes * MS_PER_MINUTE;
-    case "shortBreak":
-      return SHORT_BREAK_MINUTES * MS_PER_MINUTE;
-    case "longBreak":
-      return LONG_BREAK_MINUTES * MS_PER_MINUTE;
-  }
+/** The three session lengths in whole minutes, as stored in preferences. */
+export type Durations = Readonly<Record<DurationKey, number>>;
+
+/** Which stored length each mode reads. */
+export const MODE_DURATION_KEY: Readonly<Record<TimerMode, DurationKey>> = {
+  focus: "focusMinutes",
+  shortBreak: "shortBreakMinutes",
+  longBreak: "longBreakMinutes",
+};
+
+/** The full duration of a mode, in ms. The only place minutes become milliseconds. */
+export function fullDurationMs(mode: TimerMode, durations: Durations): number {
+  return durations[MODE_DURATION_KEY[mode]] * MS_PER_MINUTE;
+}
+
+/** True for a whole number of minutes inside that field's own bounds. */
+export function isDurationMinutes(key: DurationKey, value: unknown): value is number {
+  const { min, max } = DURATION_LIMITS[key];
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -59,10 +62,11 @@ export function formatRemaining(remainingMs: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-export type FocusMinutesResult = { ok: true; value: number } | { ok: false; error: string };
+export type MinutesResult = { ok: true; value: number } | { ok: false; error: string };
 
-/** Validates raw Focus-length input: whole minutes, 1 to 180 inclusive. */
-export function parseFocusMinutes(raw: string): FocusMinutesResult {
+/** Validates raw input for one length field: whole minutes inside that field's own bounds. */
+export function parseMinutes(key: DurationKey, raw: string): MinutesResult {
+  const { min, max } = DURATION_LIMITS[key];
   const trimmed = raw.trim();
   if (trimmed === "") {
     return { ok: false, error: "Enter a duration in minutes." };
@@ -71,8 +75,8 @@ export function parseFocusMinutes(raw: string): FocusMinutesResult {
     return { ok: false, error: "Enter a whole number of minutes, with no decimals." };
   }
   const value = Number(trimmed);
-  if (value < FOCUS_MINUTES_MIN || value > FOCUS_MINUTES_MAX) {
-    return { ok: false, error: `Enter a number from ${FOCUS_MINUTES_MIN} to ${FOCUS_MINUTES_MAX}.` };
+  if (value < min || value > max) {
+    return { ok: false, error: `Enter a number from ${min} to ${max}.` };
   }
   return { ok: true, value };
 }

@@ -30,7 +30,7 @@ const VIEWPORTS = [
 const NO_TRANSITION = "*, *::before, *::after { transition: none !important; }";
 const TRIGGERS = [
   // Task 015 re-point: the "Your tasks" dialog trigger is deleted; the panel toggle is the Tasks control.
-  { name: "Task list (panel toggle)", selector: 'button[aria-label="Task list"]' },
+  { name: "Tasks (panel toggle)", selector: 'button[aria-label="Tasks"]' },
   { name: "Ambient sound", selector: 'button[aria-label="Ambient sound"]' },
   { name: "Focus stats", selector: 'a[aria-label="Focus stats"]' },
   { name: "Settings", selector: 'a[aria-label="Settings"]' },

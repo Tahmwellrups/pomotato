@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { BackgroundControl } from "@/components/BackgroundControl";
+import { ChimeSettings } from "@/components/ChimeSettings";
+import { SessionLengths } from "@/components/SessionLengths";
 import { GAUGE_STYLE_VALUES, DEFAULT_GAUGE_STYLE, usePreferencesStore, type GaugeStylePreference } from "@/lib/preferences";
 
 const linkClass =
@@ -41,6 +43,10 @@ export function SettingsPanel() {
         </Link>
         <h1 className="font-heading text-2xl font-semibold tracking-tight">Settings</h1>
       </header>
+
+      <SessionLengths />
+
+      <ChimeSettings />
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 font-heading text-lg font-semibold">Timer gauge</legend>

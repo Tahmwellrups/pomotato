@@ -63,8 +63,8 @@ measuring both twice).
       non-blocking findings. Build, typecheck, lint (0 errors), 1073 unit tests and the e2e suite all
       green. Committed as `bc5f4d2`. Finding 1 — `lib/db/database.ts:56` still pinned to
       `CURRENT_SCHEMA_VERSION` — **must be fixed by 014's 3 → 4 bump**, which its scope already covers.
-      Findings 2 and 3 are open: keyboard focus is dropped, and `isFocusedRef` can stick, when an
-      auto-advance disables the Focus length field mid-edit (`components/FocusLengthInput.tsx`).
+      Findings 2 and 3 are **closed by task 017**: both needed an auto-advance to disable the Focus
+      length field mid-edit, and that field is now always enabled and the component deleted.
 - [ ] **014. Visible task checklist.** ([docs/tasks/014-visible-task-checklist.md](tasks/014-visible-task-checklist.md))
       Owner's second priority. An always-visible panel, a `done` checkbox (Dexie 3 to 4), the pin retired
       in favour of "current = first not-done task", reordering kept. 60 criteria. Largest risk is that the
@@ -89,6 +89,58 @@ measuring both twice).
       silently at `!task.completed`, which is the line that decides which task a session is credited to.
       Approval rulings in [DECISIONS.md](DECISIONS.md): `eta` deleted with no conversion, the undo window five
       seconds flat, the visible heading kept.
+
+- [x] **017. Editable session lengths and a session-end chime.** ([docs/tasks/017-timer-settings-and-chime.md](tasks/017-timer-settings-and-chime.md))
+      Owner requirements, 2026-11-11, approved the same day. A refactor and extension of the milestone-1 timer
+      and the 013 cycle, not a rebuild. The three session lengths move into the existing `/settings` panel with
+      per-field validation, Reset to defaults and persistence; a **synthesized** chime (two sine oscillators,
+      no asset, no licence question) sounds at session end on both transitions. Preferences **2 → 3** for five
+      new keys, timer store **3 → 4** (`focusMinutes` leaves it, `plannedDurationMs` joins the run, with a
+      cross-store carry). 77 criteria. `backend` skipped — `plannedDurationMs` already existed on the Dexie row,
+      so the whole defect was `lib/timer/store.ts` recomputing it at completion time from current settings.
+      **Done.** qa FAIL on criterion 76 only (pre-existing red build, see below); reviewer APPROVE with ten
+      findings, none blocking; owner confirmed the eight by-ear audibility steps. Lint 0 errors, 0 typecheck
+      errors in non-test source, unit suite at the exact HEAD baseline with 1287 tests (+135). Uncommitted on
+      `feature/TaskPanel`. Seven rulings in [DECISIONS.md](DECISIONS.md), including the owner's mid-task ruling
+      that the chime fires on **every route** (a session ending on `/settings` was silent), and the reasoning
+      for the one sanctioned JS timer in the chime's path.
+
+- [ ] **Finish task 016: it shipped without ever running qa or reviewer, and the 41 type errors are its fallout.**
+      Corrected 2026-11-11, after task 017 forced a look at the cause. This was first logged as "clear the 41
+      pre-existing type errors" — that framing was wrong. The errors are not rot: 016's backend (schema **5 → 6**)
+      and frontend both landed, but **none of its tests were ever updated**, its task file is still
+      `status: in-progress`, and its QA Report and Review Findings are empty templates. `components/TaskForm.tsx`
+      was deleted while `components/TaskForm.test.tsx` still imports it; `setTaskDone` became `setTaskCompleted`;
+      `done` → `completed`, `position` → `order`, `eta` → `etaMinutes` (a unit change, pomodoros to minutes);
+      `InvalidDoneValueError` is gone; and `restoreTask`, `duplicateTask`, `normalizeTask`, `displayOrder`,
+      `firstNotCompleted` are new and untested.
+      **Why this is not a compile fix.** 016 changed `completed` from a count to a boolean — the field that
+      `lib/db/task-repository.ts:59` reads to decide which task a session is credited to — and `lib/db/database.ts:155`
+      carries the 5 → 6 migration. Both *look* correct and defensive, and nothing verifies either; `upgrade-v5.test.ts`,
+      the suite that would, is one of the broken ones. Making the suite compile without 016's 61 criteria in view
+      would produce a green build over an unverified schema migration, which is worse than red because red
+      advertises itself.
+      **Owner ruling, 2026-11-11:** finish it properly — qa against the 61 criteria, then reviewer. The 41 errors
+      and the red build clear as a by-product. While the build stays red, any e2e spec served from `out/` is
+      unrunnable (this already blocked `e2e/chime-audio-blocked.spec.ts` in 017) and every gate is ambiguous.
+
+- [ ] **23 stale e2e selectors for the deleted TaskForm modal, and one of them makes a coverage claim vacuous.**
+      (016 review B-3, owner parked it 2026-11-11 as debt.) Five specs still select `input[id*="-title"]`, the
+      modal input 016 deleted: `e2e/sessions.spec.ts` (14), `e2e/accessibility.spec.ts` (5), `e2e/dark-sweep.spec.ts`
+      (2), `e2e/dark-contrast.spec.ts` (1), `e2e/dark-a11y-console.spec.ts` (1). qa did not touch them because
+      **criterion 61 does not list `sessions.spec.ts`** — a scope gap in the criterion, not a qa omission.
+      **The part that matters:** `e2e/sessions.spec.ts:82` is the e2e half of session crediting. 016's retirement
+      ledger says crediting is "still covered by the session-repository unit test", which is true at unit level
+      (`lib/db/session-repository.test.ts:265-322`) — but **the e2e half is now vacuous**, and crediting is the
+      path the count-to-boolean `completed` rename put at risk in the first place. Do not read that ledger line
+      as meaning crediting is covered end to end. It is not.
+
+- [ ] **Two forced-disabled task-form field rows are measured nowhere.** (017 review finding 8, LOW.)
+      `e2e/dark-sweep.spec.ts` retired a test that measured three things, but only the duration-field rows were
+      in criterion 70's scope. The disabled submit survives in `e2e/dark-contrast.spec.ts:248`; the two
+      forced-disabled field rows do not. The shipped form never disables those fields, so no shipped state
+      reaches them — restoring the rows means editing and running a skipped test. The inaccurate "covered by the
+      task dialog sweep" comment has been corrected; this is the residue.
 
 ## Found by the 2026-11-10 re-point pass — three app defects, none of them test faults
 
@@ -555,13 +607,23 @@ The reviewer's other eight findings, none blocking:
 
 ### Found by task 013's review (reviewer APPROVE, none blocking)
 
-- [ ] **Keyboard focus is dropped when an auto-advance disables the Focus length field mid-edit.**
+- [x] **Keyboard focus is dropped when an auto-advance disables the Focus length field mid-edit.**
+      **Closed by task 017** (criterion 14, asserted by criterion 73). The field is now enabled in every
+      timer state, so no `disabled` ever flips on a focused input, and `components/FocusLengthInput.tsx`
+      is deleted. This is R-2's own second remedy — "keep the field enabled" — taken because edits now
+      apply to the next session of that type instead of being swallowed. Original finding below.
+- [ ] 
       (013 review R-2, LOW, covered by no criterion.) `components/FocusLengthInput.tsx:21` plus
       `components/PomotatoTimer.tsx:97`. Criterion 7 deliberately invites editing the Focus length during a
       break; when that break auto-completes, `disabled` flips on a possibly-focused input and the browser
       moves focus to `<body>` (WCAG 2.4.3). Either move focus to Start/Pause, or keep the field enabled and
       let the store's existing no-op (`lib/timer/store.ts:227-232`) swallow the write.
-- [ ] **`isFocusedRef` can stick `true` when the field is disabled out from under the cursor.**
+- [x] **`isFocusedRef` can stick `true` when the field is disabled out from under the cursor.**
+      **Closed by task 017** (criterion 14, asserted by criterion 73). Unreachable: the condition was a
+      focused input becoming `disabled`, which no longer happens, and the component is deleted. Its
+      replacements (`components/DurationField.tsx`, `SessionLengths.tsx`) carry no `disabled` state.
+      Original finding below.
+- [ ] 
       (013 review R-3, LOW.) `components/FocusLengthInput.tsx:15,25-30,63-65`. The component used to unmount
       on leaving Custom mode, which reset the ref; it is now always mounted. If a browser does not fire
       `blur` when a focused input becomes `disabled`, the store-to-field sync effect never runs again for

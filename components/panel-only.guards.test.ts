@@ -66,13 +66,13 @@ describe("task 015 criterion 5: the type carries no palette name and the emoji/c
     expect(read("lib/db/index.ts")).not.toMatch(/PALETTE|PaletteColorId|isPaletteColorId|DEFAULT_PALETTE_COLOR_ID/);
   });
 
-  it("the palette module and the two validators are deleted from lib/db", () => {
+  it("the palette module and the colour-id and grapheme validators stay deleted (016 re-points the emoji and colour validators back in)", () => {
     expect(existsSync(join(ROOT, "lib/db/palette.ts"))).toBe(false);
-    expect(read("lib/db/validation.ts")).not.toMatch(/validateEmoji|validateColorId|isEmojiGraphemeCluster/);
+    expect(read("lib/db/validation.ts")).not.toMatch(/validateColorId|isEmojiGraphemeCluster/);
   });
 
-  it("ValidationIssue's field is exactly title or eta", () => {
-    expect(read("lib/db/types.ts")).toMatch(/field:\s*"title"\s*\|\s*"eta"/);
+  it("ValidationIssue's field is exactly the task 016 set (no eta)", () => {
+    expect(read("lib/db/types.ts")).toMatch(/field:\s*"title" \| "emoji" \| "color" \| "etaMinutes" \| "parentId";/);
   });
 });
 
@@ -84,7 +84,7 @@ describe("task 015 criterion 18: no rendered copy names the tasks button or says
   });
 
   it("no rendered copy in the task flow says pin", () => {
-    for (const rel of ["widgets/TaskPanel.tsx", "components/TaskChecklist.tsx", "components/TaskChecklistRow.tsx", "components/TaskForm.tsx"]) {
+    for (const rel of ["widgets/TaskPanel.tsx", "components/TaskChecklist.tsx", "components/TaskChecklistRow.tsx", "components/UndoToast.tsx", "components/TaskRowMenu.tsx"]) {
       expect(read(rel), rel).not.toMatch(/>[^<]*\bpin\b[^<]*</i);
     }
   });
@@ -96,12 +96,13 @@ describe("task 015 criterion 42: no timer or frame source in the files this task
     "components/TaskChecklist.tsx",
     "components/TaskChecklistRow.tsx",
     "components/TaskPanelToggle.tsx",
-    "components/TaskForm.tsx",
     "widgets/BottomControls.tsx",
   ];
   for (const rel of TOUCHED) {
-    it(`${rel} has no setInterval, setTimeout or requestAnimationFrame`, () => {
-      expect(read(rel)).not.toMatch(/setInterval|setTimeout|requestAnimationFrame/);
+    it(`${rel} has no setInterval or requestAnimationFrame, and only the named undo-window setTimeout`, () => {
+      expect(read(rel)).not.toMatch(/setInterval|requestAnimationFrame/);
+      // Task 016 criterion 57 names the ONE setTimeout this task adds to the panel: the undo window, in TaskChecklist.tsx. The debounce lives in hooks/use-inline-title.ts, which is not in TOUCHED.
+      expect((read(rel).match(/setTimeout/g) ?? []).length).toBe(rel === "components/TaskChecklist.tsx" ? 1 : 0);
     });
   }
 });

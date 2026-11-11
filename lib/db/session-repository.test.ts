@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { logCompletedSession, listSessionsInRange } from "./session-repository";
 import { resetDatabaseForTests, seedSessionsForTests, clearSessionsForTests, listAllSessionsForTests, seedVersion1DatabaseForTests } from "./test-utils";
-import { createTask, listTasks, getCurrentTask, reorderTask, setTaskDone } from "./task-repository";
+import { createTask, listTasks, getCurrentTask, reorderTask, setTaskCompleted } from "./task-repository";
 import { openDatabase } from "./database";
 import { SessionValidationError } from "./errors";
 
@@ -268,12 +268,12 @@ describe("session-repository: logCompletedSession", () => {
      * a decoy is created before it and the target is moved to the top.
      */
     async function currentTaskWithCompleted(completed: number) {
-      await createTask({ title: "Decoy", eta: 1 });
-      const task = await createTask({ title: "Zephyrine", eta: 4 });
+      await createTask({ title: "Decoy" });
+      const task = await createTask({ title: "Zephyrine" });
       await reorderTask(task.id, 0);
       if (completed !== 0) {
         const db = await openDatabase();
-        await db.tasks.update(task.id, { completed });
+        await db.tasks.update(task.id, { completedPomodoros: completed });
       }
       return task;
     }
@@ -284,7 +284,7 @@ describe("session-repository: logCompletedSession", () => {
 
     async function completedFor(taskId: string) {
       const tasks = await listTasks();
-      return tasks.find((t) => t.id === taskId)?.completed;
+      return tasks.find((t) => t.id === taskId)?.completedPomodoros;
     }
 
     it("logs the row and increments the current task by exactly 1, not the decoy", async () => {
@@ -295,7 +295,7 @@ describe("session-repository: logCompletedSession", () => {
       expect(result.status).toBe("logged");
       expect(await listAllSessionsForTests()).toHaveLength(1);
       expect(await completedFor(task.id)).toBe(1);
-      expect((await listTasks()).find((t) => t.title === "Decoy")?.completed).toBe(0);
+      expect((await listTasks()).find((t) => t.title === "Decoy")?.completedPomodoros).toBe(0);
     });
 
     it("leaves exactly 1 row AND increments by exactly 1 when the same runId is logged 5 times", async () => {
@@ -321,8 +321,8 @@ describe("session-repository: logCompletedSession", () => {
     });
 
     it("changes no task's count when no task is current (every task done)", async () => {
-      const task = await createTask({ title: "Quokka", eta: 2 });
-      await setTaskDone(task.id, true);
+      const task = await createTask({ title: "Quokka" });
+      await setTaskCompleted(task.id, true);
 
       await logCompletedSession(focusRun("untagged-run"));
 
@@ -342,8 +342,8 @@ describe("session-repository: logCompletedSession", () => {
     });
 
     it("logs untagged without throwing when every task is done", async () => {
-      const task = await createTask({ title: "Only", eta: 1 });
-      await setTaskDone(task.id, true);
+      const task = await createTask({ title: "Only" });
+      await setTaskCompleted(task.id, true);
 
       const result = await logCompletedSession(focusRun("all-done-run"));
 
@@ -357,7 +357,7 @@ describe("session-repository: logCompletedSession", () => {
 
   describe("deleted task handling", () => {
     it("sessions persist even if their task is deleted", async () => {
-      const task = await createTask({ title: "Delete Me", eta: 1 });
+      const task = await createTask({ title: "Delete Me" });
 
       // Seed sessions for this task (bypassing the repository so no pin is needed)
       await seedSessionsForTests([
@@ -431,29 +431,25 @@ describe("session-repository: listSessionsInRange", () => {
   });
 });
 
-describe("session-repository: schema migration v1 -> v2", () => {
-  it("preserves tasks and the last-chosen current task through the version 4 upgrade", async () => {
-    const tasks = [
-      { title: "Task 1", eta: 1 },
-      { title: "Task 2", eta: 2 },
-      { title: "Task 3", eta: 3 },
-      { title: "Task 4", eta: 4 },
-      { title: "Task 5", eta: 5 },
-    ];
+describe("session-repository: schema migration v1 -> v6", () => {
+  it("preserves tasks and the last-chosen current task through the upgrade chain to version 6", async () => {
+    // Seeded as version-1 rows (legacy shape), so the whole chain 1 -> 6 runs.
+    const legacy = [1, 2, 3, 4, 5].map((n) => ({
+      id: `t${n}`,
+      title: `Task ${n}`,
+      eta: n,
+      completed: 0,
+      position: n - 1,
+      emoji: "🥔",
+      colorId: "tomato",
+    }));
 
-    await resetDatabaseForTests();
-    const created = await Promise.all(tasks.map((t) => createTask(t)));
-    const pinned = created[2]; // Third task
-
-    await seedVersion1DatabaseForTests({
-      tasks: created.map((t) => ({ ...t, emoji: "🥔", colorId: "tomato" })),
-      pinnedTaskId: pinned.id,
-    });
+    await seedVersion1DatabaseForTests({ tasks: legacy, pinnedTaskId: "t3" });
 
     const afterUpgrade = await listTasks();
     expect(afterUpgrade).toHaveLength(5);
-    // The v4 upgrade moves the last-chosen task to position 0 and keeps the rest in order.
+    // The v4 step moves the pinned task to the top and keeps the rest in order; v6 keeps that order.
     expect(afterUpgrade.map((t) => t.title)).toEqual(["Task 3", "Task 1", "Task 2", "Task 4", "Task 5"]);
-    expect((await getCurrentTask())?.id).toBe(pinned.id);
+    expect((await getCurrentTask())?.id).toBe("t3");
   });
 });

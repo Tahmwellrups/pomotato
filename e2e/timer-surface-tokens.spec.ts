@@ -184,7 +184,7 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
   });
 
   test("custom duration input: text on fill 4.5:1, error text on page 4.5:1, disabled text not worse than HEAD (2.37:1)", async ({ page }) => {
-    await page.getByText("Focus", { exact: true }).click();
+    await page.goto("/settings");
     const input = page.locator("input#focus-length");
     await expect(input).toBeVisible();
     await settle(page);
@@ -202,7 +202,8 @@ test.describe("task 006 timer surface: contrast and painted values", () => {
     expect(errorColor).toEqual(await resolveToken(page, "--destructive"));
   });
 
-  test("custom duration input, running: disabled text on disabled fill is not worse than HEAD (2.37:1)", async ({ page }) => {
+  // RETIRED by task 017 criterion 14: the field is never disabled now, so there is no disabled state to measure.
+  test.skip("RETIRED: custom duration input, running: disabled text on disabled fill is not worse than HEAD (2.37:1)", async ({ page }) => {
     await page.getByText("Focus", { exact: true }).click();
     await startButton(page).click();
     await expect(page.locator("input#focus-length")).toBeDisabled();
@@ -337,12 +338,12 @@ test.describe("task 006 axe-core on the timer surface (criterion 19)", () => {
         await scan();
       });
 
-      test("custom field focused, disabled while running, and in its error state", async ({ page }) => {
+      test("custom field focused and in its error state (task 017: on /settings, never disabled)", async ({ page }) => {
         const scan = async () => {
           const results = await new AxeBuilder({ page }).analyze();
           expect(seriousOrCritical(results.violations)).toEqual([]);
         };
-        await page.getByText("Focus", { exact: true }).click();
+        await page.goto("/settings");
         const input = page.locator("input#focus-length");
         await input.focus();
         await scan();
@@ -350,8 +351,7 @@ test.describe("task 006 axe-core on the timer surface (criterion 19)", () => {
         await expect(page.locator('p[role="alert"]')).toBeVisible();
         await scan();
         await input.fill("25");
-        await startButton(page).click();
-        await expect(input).toBeDisabled();
+        await expect(input).toBeEnabled();
         await scan();
       });
     });
@@ -392,8 +392,8 @@ test.describe("task 006 console and hydration (criteria 32 and 33)", () => {
       await page.reload();
       await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
 
-      await page.locator('label:has(input[value="shortBreak"])').click();
-      await page.getByText("Focus", { exact: true }).click();
+      // Task 017: the field is on /settings.
+      await page.goto("/settings");
       await page.locator("input#focus-length").fill("30");
       await page.locator("input#focus-length").fill("abc");
       await expect(page.locator('p[role="alert"]')).toBeVisible();

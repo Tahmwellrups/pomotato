@@ -48,6 +48,20 @@ const INITIAL_PLACEHOLDERS: Draft[] = [
   { key: "draft-start-3", parentTaskId: null, afterKey: "draft-start-2" },
 ];
 
+const PLACEHOLDER_PREFIX = "draft-start-";
+
+// Removes drafts by key. A draft that hung below a removed one moves up to hang
+// below whatever the removed one hung below, so the chain stays connected.
+function dropDrafts(drafts: Draft[], keys: ReadonlySet<string>): Draft[] {
+  const anchorOf = new Map(drafts.map((draft) => [draft.key, draft.afterKey] as const));
+  const resolve = (afterKey: string | null): string | null => {
+    let anchor = afterKey;
+    while (anchor !== null && keys.has(anchor) && anchorOf.has(anchor)) anchor = anchorOf.get(anchor) ?? null;
+    return anchor;
+  };
+  return drafts.filter((draft) => !keys.has(draft.key)).map((draft) => ({ ...draft, afterKey: resolve(draft.afterKey) }));
+}
+
 interface PendingFocus {
   key: string;
   expires: number;
@@ -145,10 +159,19 @@ export function TaskChecklist() {
   const deletedIdsRef = useRef(new Set<string>());
   const draftCounterRef = useRef(0);
   const flatRef = useRef<RowModel[]>([]);
+  // The one blank row opened after the last task was deleted, so Undo can take it back out.
+  const emptyStateDraftRef = useRef<string | null>(null);
 
   if (tasksQuery.status === "ready" && !seeded) {
     setSeeded(true);
     if (tasksQuery.tasks.length === 0) setDrafts(INITIAL_PLACEHOLDERS);
+  }
+
+  // The opening placeholders are for an empty list only. Once any task is
+  // stored the ones nobody typed into go, so one stored task is one row.
+  if (tasksQuery.status === "ready" && tasks.length > 0) {
+    const unused = drafts.filter((draft) => draft.key.startsWith(PLACEHOLDER_PREFIX) && !(draft.key in draftTaskIds));
+    if (unused.length > 0) setDrafts((current) => dropDrafts(current, new Set(unused.map((draft) => draft.key))));
   }
 
   const blocks = useMemo(
@@ -378,7 +401,16 @@ export function TaskChecklist() {
       if (landing) focusInput(landing.key);
       else addButtonRef.current?.focus();
     } else {
-      addButtonRef.current?.focus();
+      // Deleting the last row leaves one empty input, focused and ready to
+      // type in, rather than an empty panel or a row of placeholders.
+      const rest = flat.filter((candidate) => candidate.key !== row.key && candidate.parentKey !== row.key);
+      if (rest.length === 0) {
+        const key = nextDraftKey();
+        emptyStateDraftRef.current = key;
+        addDraft({ key, parentTaskId: null, afterKey: null });
+      } else {
+        addButtonRef.current?.focus();
+      }
     }
 
     if (taskId === null) {
@@ -394,6 +426,9 @@ export function TaskChecklist() {
     try {
       await enqueue(() => restoreTask(current.tree));
       for (const task of [current.tree.task, ...current.tree.children]) deletedIdsRef.current.delete(task.id);
+      const emptyStateKey = emptyStateDraftRef.current;
+      emptyStateDraftRef.current = null;
+      if (emptyStateKey !== null && !(emptyStateKey in draftTaskIds)) removeDraft(emptyStateKey);
       requestFocus(current.tree.task.id);
       setUndo(null);
       setWriteError(null);

@@ -193,7 +193,8 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
   const chipOffBox = await boxOf(chipOffEl);
   // Stats and Settings are two-tone edges (012 criterion 4): measured by twoToneEdge() below, not by the worst-of-ring rule.
   const edgeEls: Record<string, Locator> = {
-    duration: page.locator("#focus-length"),
+    // RETIRED (task 017 criterion 70): the duration field left / (criterion 2). Its edge is measured on /settings in
+    // e2e/settings-measure.spec.ts over the opaque token surface, which is image-independent.
     reset: page.getByRole("button", { name: "Reset", exact: true }),
   };
   const edgeData: Record<string, { box: Rect; border: Rgb; borderWidth: string } | null> = {};

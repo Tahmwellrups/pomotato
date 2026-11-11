@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { holdKey, holdPointer } from "./helpers/timer-hold";
+import { lengthField, setLengthThenReturn } from "./helpers/session-lengths";
 
 test.describe("Pomotato Focus Timer E2E", () => {
   test.beforeEach(async ({ page }) => {
@@ -122,59 +123,39 @@ test.describe("Pomotato Focus Timer E2E", () => {
     await expect(newStartButton).toBeVisible();
   });
 
-  test("custom duration input is visible in custom mode", async ({ page }) => {
+  // Task 017 ruling 1 and criteria 2, 14, 15: the Focus length field moved to /settings.
+  test("the Focus length field is not on / in any mode (task 017 criterion 2)", async ({ page }) => {
     const customLabel = page.locator('label:has(input[value="focus"])');
     await customLabel.click();
 
-    const customInput = page.locator('input[id="focus-length"]');
-    await expect(customInput).toBeVisible();
+    await expect(page.locator("input#focus-length")).toHaveCount(0);
+    await expect(page.getByText("Focus length", { exact: false })).toHaveCount(0);
   });
 
-  test("custom duration input accepts valid values", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
-
-    const customInput = page.locator('input[id="focus-length"]');
-    await customInput.fill("50");
+  test("a Focus length set on /settings shows on / when idle", async ({ page }) => {
+    await setLengthThenReturn(page, 50);
 
     const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
     await expect(timerDisplay).toContainText("50:00");
   });
 
-  test("custom duration input shows error for invalid values", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
-
-    const customInput = page.locator('input[id="focus-length"]');
-    await customInput.fill("abc");
+  test("the Focus length field shows an error for invalid values on /settings", async ({ page }) => {
+    await page.goto("/settings");
+    await lengthField(page).fill("abc");
 
     const errorMessage = page.locator("text=/Enter a whole number/");
     await expect(errorMessage).toBeVisible();
   });
 
-  test("custom duration input is disabled while running", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
-
+  test("the Focus length field is enabled while running and while paused (task 017 criterion 14)", async ({ page }) => {
     const startButton = page.getByRole("button", { name: "Start", exact: true });
     await startButton.click();
-
-    const customInput = page.locator('input[id="focus-length"]');
-    await expect(customInput).toBeDisabled();
-  });
-
-  test("custom duration input is disabled while paused", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
-
-    const startButton = page.getByRole("button", { name: "Start", exact: true });
-    await startButton.click();
-
-    const pauseButton = page.getByRole("button", { name: "Pause", exact: true });
-    await pauseButton.click();
-
-    const customInput = page.locator('input[id="focus-length"]');
-    await expect(customInput).toBeDisabled();
+    await page.goto("/settings");
+    await expect(lengthField(page)).toBeEnabled();
+    await page.goto("/");
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    await page.goto("/settings");
+    await expect(lengthField(page)).toBeEnabled();
   });
 
   test("jumping forward 10 minutes while running shows correct remaining time", async ({ page }) => {
@@ -320,24 +301,19 @@ test.describe("Pomotato Focus Timer E2E", () => {
     expect(focusStyle).toBeTruthy();
   });
 
-  test("persistence: custom duration persists across reload", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
+  test("persistence: a Focus length set on /settings persists across reload", async ({ page }) => {
+    await page.goto("/settings");
+    await lengthField(page).fill("60");
+    await expect(lengthField(page)).toHaveValue("60");
 
-    const customInput = page.locator('input[id="focus-length"]');
-    await customInput.fill("60");
-
-    const timerDisplay = page.locator("text=/\\d+:\\d+/").first();
-    await expect(timerDisplay).toContainText("60:00");
-
-    // Reload
+    // Reload the settings route: the stored value is what the field shows.
     await page.reload();
+    await expect(lengthField(page)).toHaveValue("60");
 
-    // Custom duration should still be 60
-    await expect(timerDisplay).toContainText("60:00");
-    const customRadio = page.locator('input[type="radio"][value="focus"]');
-    await expect(customRadio).toBeChecked();
-    await expect(customInput).toHaveValue("60");
+    await page.goto("/");
+    await expect(page.locator("text=/\\d+:\\d+/").first()).toContainText("60:00");
+    const focusRadio = page.locator('input[type="radio"][value="focus"]');
+    await expect(focusRadio).toBeChecked();
   });
 
   test("no hydration mismatch on reload", async ({ page }) => {

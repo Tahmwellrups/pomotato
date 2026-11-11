@@ -4,6 +4,119 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-11-11 — Task 017 approved: the session lengths live on `/settings`, and the chime is synthesized rather than licensed
+
+Approval rulings on [tasks/017-timer-settings-and-chime.md](tasks/017-timer-settings-and-chime.md).
+
+**The three session lengths go into the existing `/settings` panel, not a modal** (owner). The task's own
+accessibility criteria described a focus-trapping dialog, but an entry point already existed —
+`app/settings/page.tsx` rendering `components/SettingsPanel.tsx`. Extending it won over a second settings
+surface. The dialog criteria (focus trap, Escape to close, focus restored to the opener) were therefore
+**dropped, not failed**, and replaced by route-level criteria 4, 5, 6, 61, 62. `components/FocusLengthInput.tsx`
+was deleted and the Focus length left `/` with it, which supersedes task 013's criterion 7.
+**How to apply:** a later reader finding no focus-trap test for these controls should not add one. There is no
+dialog to trap. Task 013's criterion 7 is history, not a regression.
+
+**The chime is synthesized through the existing `AudioContext`, not a bundled file** (owner). Two sine
+oscillators at 880 Hz and 1318.51 Hz with scheduled gain ramps, in `lib/audio/chime.ts`, leased from the one
+engine in `lib/audio/engine.ts`. Nothing was added to `public/`; the only audio asset in the repo is still the
+CC0 `rain-865572.m4a` whose provenance is in the 2026-10-27 entry.
+**Why:** it removes the licensing question rather than answering it, and it keeps `lib/audio/no-audio-asset.test.ts`
+passing with its three rule lists unchanged — the cheapest available proof that nothing was copied. The
+alternative needed the owner to supply a licensed file, which would have blocked implementation.
+**How to apply:** that guard is the originality proof. Adding an audio file later means amending its allowed
+set deliberately and recording provenance here, not loosening the rule to "any audio file is fine".
+
+### 2026-11-11 — The session-end chime fires on every route, and its guard is deliberately not the announcement's
+
+Implemented first as an effect inside `components/PomotatoTimer.tsx`, which mounts only on `/`. A session
+ending while the person sat on `/settings` or `/stats` made no sound and was advanced silently on their next
+visit — including, absurdly, while they were adjusting the timer's own settings. The owner ruled it fixed.
+`components/TimerClockProvider.tsx` now mounts in `app/layout.tsx` and owns the clock, `completeIfExpired`
+and the chime; `PomotatoTimer` reads `useTimerNow()` for its display only, so the clock still runs once.
+
+**The chime guard and the announcement guard are intentionally different, and must stay different.**
+`chimedAdvanceRef` lives in the provider, which never unmounts, so a `/` → `/settings` → `/` round trip around
+a completion cannot replay the sound. `announcedAdvanceRef` stays in `PomotatoTimer` and is seeded on mount
+from the existing `lastAdvance`, so returning to `/` long after an advance that happened elsewhere does not
+announce stale news to a screen reader. Both still key on `lastAdvance.endedAt`, and `onRehydrateStorage`
+still clears `lastAdvance`, which is what makes "no chime on refresh" true.
+**How to apply:** the asymmetry reads like an inconsistency and is not one. The chime is for an advance observed
+anywhere; the live region is for one observed on `/`. There is a comment saying so next to the ref — do not
+"align" them.
+
+### 2026-11-11 — Three task 017 criteria ruled by the orchestrator: a legend is a section heading, a fixture seed is not a shipped duration, and a refused chime may be stopped
+
+qa read all three strictly and asked rather than assuming. Reviewer agreed all three independently.
+
+**Criterion 1's heading-level clause is satisfied by `fieldset`/`legend`.** Both new sections use a legend,
+matching the existing "Timer gauge" section, so `/settings` has one `h1` and no `h2` at all. A `<legend>` is
+the correct element for a group of form controls and supplies the group's accessible name; no level is skipped
+because there are no section headings. Adding `h2`s would have left headings and legends doing the same job on
+the same groups.
+
+**Criterion 9's single-source rule governs shipped source, so `lib/db/test-utils.ts:45` is exempt.** Its
+`25 * 60 * 1000` is a pre-existing Dexie fixture seed, untouched by this task, and not a duration the app
+reads. The guard carries the exclusion with a comment. Reviewer's addendum: `e2e/helpers/timer-hold.ts` was a
+third home for a hard-coded `5` and `15` and has been pointed at the constants.
+
+**Criterion 38's "no stop before the scheduled end" is not absolute — `abandon()` may stop a refused chime.**
+It runs only on `blocked` or `failed`, when the context never started, so nothing audible is truncated, and it
+nulls `onended` first so teardown cannot double-fire. Leaving the oscillators scheduled on a dead context is
+the actual defect, since that was the leak.
+**How to apply:** keep that qualifier attached. The criterion protects a *playing* chime from being cut by the
+mode transition; it says nothing about tearing down one that never sounded.
+
+### 2026-11-11 — A JS timer bounds a blocked `AudioContext` resume, because a suspended context's clock cannot
+
+Under Chrome's autoplay policy `context.resume()` neither resolves nor rejects until a gesture arrives. The
+first implementation did `await lease.ready` with no bound, so `play()` never settled: the required
+`console.warn` never fired (qa's criterion 53 failure), teardown never ran, and — the part the failure
+report missed — `chimesInFlight` was incremented at `engine.ts:286` but only decremented in `release`, so it
+stuck above zero permanently and the gates at `engine.ts:190` and `:269` could never suspend the context
+again. **One blocked chime disabled suspension for the life of the page.**
+
+The fix bounds the wait at 500 ms via `settleWithin` and classifies a pending resume as `blocked`. The timer
+lives in `lib/settle-within.ts`, **outside** `lib/audio`, because putting it in `engine.ts` tripped two existing
+timer-ban guards.
+**Why this is not guard evasion, which was checked rather than assumed:** criterion 46's intent is that no JS
+timer drives the sound and teardown runs on the audio clock. On the audible path the context is already
+running, the timer is created and cleared in the same microtask and never fires, and teardown still comes from
+`oscillator.onended`. On the blocked path the audio clock is frozen *by definition*, so it cannot measure the
+wait. Reviewer checked the alternatives: a synchronous `state !== "running"` verdict misclassifies the engine's
+own idle-suspend, where `resume()` does settle in tens of milliseconds, and `statechange` can tell you a context
+started but never that it never will. A bounded wait is the only available answer.
+**How to apply:** the defence is a module boundary, so the boundary is now guarded — `lib/settle-within.ts` is in
+the criterion 46/74 scan with one exact-text exemption, so a second timer there, or widening `settleWithin` into
+something that schedules sound, fails a gate. Do not remove that scan entry; without it the argument above is
+unenforced.
+
+### 2026-11-11 — A second writer stamps the preferences version without migrating, and is only correct by coincidence
+
+`lib/timer/carry-focus.ts` writes `pomotato-preferences` directly when carrying a v3 timer entry's Focus length
+across, stamping `version: PREFERENCES_VERSION` onto state it only ran through `sanitizePreferences`. That is
+correct **today** solely because `migratePreferences` is literally `sanitizePreferences`.
+**Why it was left in place:** reviewer rated it low and non-blocking; it is a latent hazard, not a current bug,
+and the migration code around it had just been verified correct by reading. Changing it would have meant editing
+freshly-verified migration logic to fix nothing presently broken.
+**How to apply:** the day a preferences migration does more than sanitise, this writer would stamp the new version
+onto un-migrated data and the real `migrate` would then be skipped on the version match. A `HAZARD` comment at the
+write site names that condition. Anyone adding such a migration must route this write through it.
+
+### 2026-11-11 — The pre-existing red build stopped being cosmetic and started blocking verification
+
+`npm run build` has been red since before task 017, failing its type-check step on 41 errors in
+`lib/db/*.test.ts` and `components/TaskForm.test.tsx` — both untouched by this task, with zero errors in
+non-test source. Task 017 is the first time that cost something concrete rather than just looking untidy:
+`e2e/chime-audio-blocked.spec.ts` serves the static `out/` build, `build` cannot regenerate `out/`, so the one
+spec that would independently confirm the chime's blocked path **cannot run at all**. Criterion 53 therefore
+passes on unit evidence with real-browser confirmation recorded as BLOCKED, and criterion 76 is the single
+FAIL in the QA report — for a cause that is not this task's.
+**How to apply:** clear those 41 errors as their own small task. While the build is red, every future task's gate
+is ambiguous: a new breakage cannot be told from the standing noise, and any e2e spec served from `out/` is
+unrunnable. This is also why the pipeline's practice of measuring the baseline *before* implementation (the
+2026-10-07 entry on re-running suites) mattered here — without it, 95 type errors would have looked like 017's.
+
 ### 2026-11-10 — Task 016 approved: `eta` is deleted outright, the undo window is five seconds flat, and the panel's visible heading comes back as "Tasks"
 
 Approval rulings on [tasks/016-inline-editable-task-panel.md](tasks/016-inline-editable-task-panel.md). Three

@@ -3,12 +3,12 @@ import { PREFERENCES_STORAGE_KEY } from "../../lib/preferences/schema";
 
 /**
  * Task 015 re-point (criterion 43). The "Your tasks" dialog is deleted. Every task action now lives in
- * the always-visible panel, a `<section>` named by its "Task list" heading. The bottom-right toggle is the
+ * the always-visible panel, a `<section>` named by its "Tasks" heading. The bottom-right toggle is the
  * only way to hide or show it. The file keeps its name so the fifteen specs that import it need no
  * import-path change; the exports are the panel's, not the dialog's.
  */
 
-export const TASK_PANEL_NAME = "Task list";
+export const TASK_PANEL_NAME = "Tasks";
 
 /** The panel region on `/`. Resolves nothing while the panel is hidden. */
 export function taskPanel(page: Page) {
