@@ -1,7 +1,7 @@
 ---
 id: 016
 slug: inline-editable-task-panel
-status: in-progress # draft | in-progress | qa | review | done | blocked
+status: done # draft | in-progress | qa | review | done | blocked
 ---
 
 # The task panel becomes an inline-editable list: type in the row, a kebab per row, one level of subtasks, and an undo toast instead of a confirm

@@ -3,13 +3,12 @@
 //  - The outline variant's boundary is --control-border, not --border. --border
 //    is a 1.36:1 hairline by design and every outline consumer (dialog Close,
 //    Reload, ...) is an interactive boundary that needs 3:1.
-//  - Every `dark:` utility shadcn generated here was removed. They were written
-//    for shadcn's neutral dark palette and had never rendered (no `.dark` class
-//    existed); the first `.dark` class would have switched them all on, and
-//    tailwind-merge does not dedupe across variant prefixes, so
-//    `dark:bg-input/30` on outline survived a caller's `bg-primary` and turned
-//    the Tasks pill translucent. ghost, destructive and aria-invalid have no
-//    consumer to measure them against; add `dark:` back only with a measurement.
+//  - The dark-variant utilities shadcn generated here were removed: they were
+//    written for shadcn's neutral dark palette, and tailwind-merge does not
+//    dedupe across variant prefixes, so one on outline survived a caller's
+//    `bg-primary` and turned the Tasks pill translucent. The app has one
+//    palette (task 019), so state a colour here once, unprefixed, with a
+//    measurement.
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"

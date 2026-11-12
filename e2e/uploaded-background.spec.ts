@@ -1,3 +1,4 @@
+import { rootRgb } from "./helpers/task-019-tokens";
 import { expect, test, type Page } from "@playwright/test";
 import {
   DESKTOP,
@@ -165,13 +166,13 @@ test.describe("criterion 9 and 10: one native picker, named, sized, focus-ringed
           const s = getComputedStyle(el);
           return { style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset, color: s.outlineColor };
         });
-      await expect.poll(async () => (await ringOf()).color).toBe("rgb(180, 83, 9)");
+      await expect.poll(async () => (await ringOf()).color).toBe(rootRgb("--ring"));
       const ring = await ringOf();
       test.info().annotations.push({ type: "measure", description: `criterion 9 focus ring at ${label}: ${JSON.stringify(ring)}` });
       expect(ring.style).toBe("solid");
       expect(ring.width).toBe("2px");
       expect(ring.offset).toBe("2px");
-      expect(ring.color).toBe("rgb(180, 83, 9)");
+      expect(ring.color).toBe(rootRgb("--ring"));
     });
   }
 
@@ -189,13 +190,14 @@ test.describe("criterion 9 and 10: one native picker, named, sized, focus-ringed
 });
 
 test.describe("criterion 11 and 12: /settings holds no theme control; every control on it acts", () => {
+  // Task 018: the theme-lock region is an empty, non-interactive role=status <p>; it has no name by design and is not a control.
   test("no input[name=theme] on /settings; every interactive element has an accessible name and none is disabled", async ({ page }) => {
     await setPrefs(page, { theme: "dark" });
     await chooseOnSettings(page, WHITE(), "a.png");
     await page.goto("/settings");
     await expect(page.locator('input[name="theme"]')).toHaveCount(0);
     const controls = await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [role]")].map((el) => ({
+      [...document.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [role]:not([data-testid=\"theme-lock-status\"])")].map((el) => ({
         tag: el.tagName.toLowerCase(),
         type: el.getAttribute("type"),
         name: (el.getAttribute("aria-label") ?? (el as HTMLInputElement).labels?.[0]?.textContent ?? el.textContent ?? "").trim().replace(/\s+/g, " "),

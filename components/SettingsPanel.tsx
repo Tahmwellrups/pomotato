@@ -22,7 +22,7 @@ const GAUGE_COPY: Record<GaugeStylePreference, { name: string; detail: string }>
   },
 };
 
-// Native radios in a fieldset, the ThemeControl shape. Checked is carried by a
+// Native radios in a fieldset. Checked is carried by a
 // bold name and a 2px primary edge against the 1px control edge, never by fill.
 // That holds in greyscale. Forced colours repaints every border in one system
 // colour and drops box-shadow, so there the checked card gets a 3px border

@@ -2,8 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
 @theme inline {
   --font-comfortaa: var(--font-comfortaa);
   --font-geist: var(--font-geist);
@@ -11,168 +9,30 @@
   --font-space-grotesk: var(--font-space-grotesk);
 }
 
+/* Dark is the only palette (task 019). Warm umber, not neutral black. The
+   grounds are pinned near L 0.008-0.009 on purpose: the eight task swatches
+   (components/task-palette-colors.ts, owner data, never remapped) must stay
+   >= 3:1 on --card and --popover, and the weakest swatch (potato #8a5a2b,
+   slate #5b6672) only clears 3:1 on a ground at or below L 0.0096. Every other
+   surface therefore sits within a hair of the page, and separation comes from
+   edges (--control-border, --dialog-edge), not fills. Foreground/ground pairs
+   are all >= 4.5:1; figures were read from painted pixels and are in
+   docs/tasks/009-dark-mode-toggle.md. A second palette later means redefining
+   these variables, not editing components. */
 :root {
-  /* Light theme: warm, cozy palette (potato-skin amber accent, cream ground).
-     The values below are the same literal colors milestone 1-2 components
-     already reference via Tailwind utility classes (bg-amber-700,
-     border-stone-300, etc.) so any shadcn/ui component added from milestone
-     3 onward renders in the same palette instead of shadcn's default
-     blue/slate theme. See docs/DECISIONS.md for the mapping rationale. The
-     dark theme is the .dark block below; the class goes on <html>. */
-  color-scheme: light;
-  --background: #fbf4ea;
-  /* Paper grain (DESIGN.md "Mood & motion"). Purpose (R-07): the cream ground
-     is the app's only large flat area, and flat cream reads as a screen; a
-     faint fibre grain makes it read as the paper of a planner, which is the
-     warm, analogue mood the potato mascot and Comfortaa headers already
-     carry. The ink is the text brown, so the grain darkens the cream the way
-     pencil dust would, never a new hue. 0.07 is the lowest value that is still
-     visible on a 1x laptop panel; it sits behind all content (see body::before)
-     so no text, control or swatch is composited over. It paints only where the
-     page ground is plain paper: over an uploaded photograph it is switched off
-     (see body::before), because the grain exists to make flat cream read as
-     paper and a photograph is not flat cream. */
-  --grain-ink: #2b2017;
-  --grain-opacity: 0.07;
-  --foreground: #2b2017;
-  --card: #fbf4ea;
-  --card-foreground: #2b2017;
-  /* A touch lighter than --background (1.05:1, so the dialog never relies on
-     this alone): with the scrim, border and shadow it lifts the task dialog
-     off the cream page, where a --popover identical to --background read as
-     no surface at all. */
-  --popover: #fffaf3;
-  --popover-foreground: #2b2017;
-  --primary: #b45309; /* amber-700, same as the existing primary button fill */
-  --primary-foreground: #ffffff;
-  --secondary: #f5f5f4; /* stone-100 */
-  --secondary-foreground: #44403c; /* stone-700 */
-  --muted: #f5f5f4; /* stone-100 */
-  /* stone-600: 6.99:1 on --background and on --muted, 7.35:1 on --popover.
-     The earlier stone-500 (#78716c) measured 4.39:1 on --background and failed
-     AA. The .dark value was re-checked on all four grounds it is painted on
-     (--background, --card, --popover, --muted); figures are in the .dark block. */
-  --muted-foreground: #57534e;
-  --accent: #fef3c7; /* amber-100, same as the existing selected/pinned highlight */
-  --accent-foreground: #78350f; /* amber-900 */
-  /* Liquid in the timer gauge: a deeper amber (owner answer, task 009) that
-     reads as a level against the --popover glass at 3.07:1 and keeps the
-     mm:ss readout above 4.5:1 (4.99:1) at every fill level. --accent
-     (amber-100) is too close to --popover to read as a level, and --primary
-     is too dark under the text. */
-  --gauge-liquid: #d97706;
-  --destructive: #b91c1c; /* red-700, same as the existing destructive actions */
-  --destructive-foreground: #ffffff;
-  --border: #d6d3d1; /* stone-300, the existing default border color */
-  --input: #d6d3d1;
-  /* Boundary of a control, or of a control's state (custom-duration input,
-     task form fields, row action buttons, the Stats button, the outline
-     Button variant, Reset, the Reload button, the unchecked stats view chips,
-     the unchecked /settings radio cards). WCAG 1.4.11 asks 3:1 of exactly
-     those boundaries. It is painted on FIVE grounds, and the figures are
-     PAINTED ones, not flat-token ones. On the plain page ground (/settings,
-     /stats, and the dialogs, which never show the uploaded image) only
-     --background carries the paper grain, so its figure is taken on the
-     darkest grained pixel, 236,229,218: #7a756f is 3.65:1 on that grained --background, 4.18:1 on
-     --card, 4.39:1 on --popover, 4.18:1 on --muted (disabled fields, where
-     disabled:bg-muted carries no disabled:border override), 3.79:1 on the
-     delete-confirm panel tint. The previous #88837e was 3.00:1 on the grained
-     --background, so its floor was spent before any image existed.
-     Beyond those five, on "/" the uploaded image paints at full opacity (task 012), so the 3.36:1
-     "over a dimmed uploaded background" figure task 010 recorded described a
-     97% scrim that no longer exists and is gone. The "/" grounds are now: the
-     solid surface (--popover, flat, no image dependency): 4.39:1, the outline
-     buttons' own --background fill on it: 4.18:1; and the frosted panel
-     (--surface-glass, image-dependent): 3.51:1 at worst, the fill over a black
-     image, 4.40:1 over white. Those two frosted figures are computed from the
-     fill composite, not yet read from painted pixels (task 012 group D replaces
-     them).
-     The .dark value carries its own five figures.
-     Why not an existing token: --border (and --input, which equals it) is
-     1.36:1 on --background and 1.43:1 on --popover, and it is shared
-     app-wide including by every `shadcn add`, so darkening it would restyle
-     everything. Decorative dividers and container hairlines keep --border. */
-  --control-border: #7a756f;
-  /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so the
-     .dark block can pick its own scrim instead of inheriting a light one from
-     the inverted foreground (a cream veil would lift the page, not dim it). */
-  --scrim: rgb(43 32 23 / 0.45);
-  --ring: #b45309; /* amber-700, matches the existing :focus-visible outline below */
-  /* Edge of the task dialog. Role: the line that separates the dialog from the
-     page behind it. Why not an existing token: in dark the dialog fill is
-     capped near the page's luminance (the task swatches need 3:1 on it), so
-     the fill cannot separate the dialog from the page and the edge has to,
-     which --border (a 1.4:1 hairline by design) cannot do. :root = --border,
-     so light is unchanged. .dark = #80705d against --scrim at 0.90: 3.469:1
-     over a white image and 4.266:1 over a black image, and 3.731:1 against
-     the dialog fill (image-independent). All three are arithmetic sRGB
-     composites of the token values, not sampled pixels.
-     Why the edge and not the fill carries the delineation: the dark fill
-     #1e1610 is only 1.154:1 against its scrimmed ground over a black image,
-     and its luminance sits inside the band of grounds the image can produce,
-     so no scrim alpha makes the fill work at both extremes. Light is a known
-     sub-floor at 2.00:1 against the scrim and 1.43:1 against the fill,
-     pre-existing and deferred out of 010, see docs/PLAN.md. */
-  --dialog-edge: var(--border);
-  /* Fill of the one frosted surface, the timer panel (app/globals.css
-     .surface-frosted). Role: the ground under the timer panel's text, so the
-     fill carries legibility and the blur only carries the look; with the blur
-     unavailable the panel is unchanged in contrast. Why not an existing
-     token: every opaque token hides the picture (criterion 9 asks for at least
-     8 per channel of it), and none carries an alpha. :root = --popover at 0.90,
-     the highest translucency that keeps --control-border (the tightest pair)
-     at 3:1 over a black image. Computed from the fill composite over flat
-     white and flat black, the two ends that bound it: mm:ss and task title
-     #2b2017 12.2:1 at worst; chip text #44403c 7.90:1, checked chip
-     #78350f 6.98:1, muted text 5.87:1, error text 4.98:1; --control-border
-     3.51:1; --ring 3.86:1. Worst end for all of them is black. Not yet read
-     from painted pixels (task 012 group D). */
-  --surface-glass: rgb(255 250 243 / 0.9);
-  /* Fill of a disabled solid button (the task form's submit). Role: a surface,
-     not a boundary. Why not an existing token: it used to be --border, which
-     is a boundary token whose dark value is chosen for a boundary job (007
-     R-6), and --muted would drop the white label to 1.08:1. :root #d6d3d1
-     (white label 1.49:1, 1.36:1 on the card); .dark #4a3d32 (label #1c140e
-     1.73:1, and 1.73:1 on the card). */
-  --disabled-surface: #d6d3d1;
-  /* Reuse the already-approved, contrast-checked task color swatches
-     (components/task-palette-colors.ts) rather than inventing a separate
-     chart palette ahead of milestone 3 deciding it needs one. */
-  --chart-1: #8a5a2b; /* potato */
-  --chart-2: #c23b22; /* tomato */
-  --chart-3: #3f9b6c; /* mint */
-  --chart-4: #2f7fb8; /* sky */
-  --chart-5: #7a5fb0; /* lavender */
-  --radius: 0.5rem; /* matches the existing rounded-lg used on buttons/inputs */
-  /* No sidebar nav exists yet; alias to the tokens above instead of
-     inventing unused colors. */
-  --sidebar: var(--background);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
-  --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
-}
-
-/* Dark theme: PROPOSED, not owner-approved (task 009, owner answer 2). Warm
-   umber, not neutral black. The grounds are pinned near L 0.008-0.009 on
-   purpose: the eight task swatches (components/task-palette-colors.ts, owner
-   data, never remapped) must stay >= 3:1 on --card and --popover, and the
-   weakest swatch (potato #8a5a2b, slate #5b6672) only clears 3:1 on a ground
-   at or below L 0.0096. Every other surface therefore sits within a hair of
-   the page, and separation comes from edges (--control-border, --dialog-edge),
-   not fills. Foreground/ground pairs are all >= 4.5:1; figures were read from
-   painted pixels and are in docs/tasks/009-dark-mode-toggle.md. --sidebar-*
-   keeps aliasing the tokens above and gets no literal here. */
-.dark {
   color-scheme: dark;
   --background: #1c140e;
-  /* Dark ground: a dark-ink grain would vanish, so the grain flips to the
-     cream text colour and lightens the ground like dust on a dark board. Noise
-     reads louder against dark, so opacity is lower than light (0.05 vs 0.07)
-     to land at a similar perceived strength. */
+  /* Paper grain (DESIGN.md "Mood & motion"). Purpose (R-07): the ground is the
+     app's only large flat area, and flat dark reads as a screen; a faint fibre
+     grain makes it read as the board of a planner, which is the warm, analogue
+     mood the potato mascot and Comfortaa headers already carry. The ink is the
+     cream text colour, so the grain lightens the ground like dust on a dark
+     board, never a new hue. Noise reads loud against dark, so 0.05 is the
+     lowest value that is still visible on a 1x laptop panel; it sits behind all
+     content (see body::before) so no text, control or swatch is composited
+     over. It paints only where the page ground is plain: over an uploaded
+     photograph it is switched off (see body::before), because the grain exists
+     to make a flat ground read as paper and a photograph is not flat. */
   --grain-ink: #f5ebdc;
   --grain-opacity: 0.05;
   --foreground: #f5ebdc;
@@ -189,25 +49,35 @@
   --secondary: #2b2118;
   --secondary-foreground: #e2d5c2;
   --muted: #251c14;
+  /* Checked on all four grounds it is painted on (--background, --card,
+     --popover, --muted), all >= 4.5:1. */
   --muted-foreground: #c2b19b;
   /* --accent-foreground is painted on --accent (pinned Pin button, checked
      stats chip) and on --background (selected mode chip): both >= 4.5:1. */
   --accent: #3d2b14;
   --accent-foreground: #fbd592;
-  /* Deep amber: the mm:ss readout is light cream here, so the liquid has to be
-     dark enough for 4.5:1 under it and light enough for 3:1 over the glass. */
+  /* Liquid in the timer gauge. The mm:ss readout is light cream, so the liquid
+     has to be dark enough for 4.5:1 under it and light enough for 3:1 over the
+     glass. */
   --gauge-liquid: #9d570d;
   /* Light salmon: it is text (form errors, the delete prompt) on dark. */
   --destructive: #f58b79;
   --destructive-foreground: #1c140e;
   --border: #3b2f25;
   --input: #3b2f25;
-  /* Same grounds as :root, and these are PAINTED figures: on the plain page
-     ground (/settings, /stats, dialogs) only --background carries the paper
-     grain, which lightens it here, so its figure is taken on the lightest
-     grained pixel, 40,31,25. #8a7968 is: 3.86:1 on that grained --background,
-     4.34:1 on --card, 4.26:1 on --popover, 4.00:1 on --muted, 3.98:1 on the
-     delete-confirm tint (and 3.76:1 on --secondary under the Stats button).
+  /* Boundary of a control, or of a control's state (custom-duration input,
+     task form fields, row action buttons, the Stats button, the outline
+     Button variant, Reset, the Reload button, the unchecked stats view chips,
+     the unchecked /settings radio cards). WCAG 1.4.11 asks 3:1 of exactly
+     those boundaries. It is painted on FIVE grounds, and the figures are
+     PAINTED ones, not flat-token ones. On the plain page ground (/settings,
+     /stats, and the dialogs, which never show the uploaded image) only
+     --background carries the paper grain, which lightens it, so its figure is
+     taken on the lightest grained pixel, 40,31,25. #8a7968 is: 3.86:1 on that
+     grained --background, 4.34:1 on --card, 4.26:1 on --popover, 4.00:1 on
+     --muted (disabled fields, where disabled:bg-muted carries no
+     disabled:border override), 3.98:1 on the delete-confirm tint (and 3.76:1
+     on --secondary under the Stats button).
      On "/" the image paints at full opacity (task 012), so the 3.55:1 "over a
      dimmed uploaded background" figure from task 010, which described a 97%
      scrim that no longer exists, is gone. The "/" grounds are now: the solid
@@ -216,25 +86,58 @@
      fill over a white image, 4.35:1 over black. The frosted figures are
      computed from the fill composite, not yet read from painted pixels (task
      012 group D replaces them). It was lightened from #80705d in task 010 so
-     dark holds more edge than light. The light value is separate. */
+     the edge holds more contrast.
+     Why not an existing token: --border (and --input, which equals it) is a
+     1.4:1 hairline by design and is shared app-wide including by every
+     `shadcn add`, so darkening it would restyle everything. Decorative
+     dividers and container hairlines keep --border. */
   --control-border: #8a7968;
-  /* Black-brown veil: it must dim the page. An inverted --foreground would be
-     a cream veil that lifts it and makes the dialog look darker than the page. */
+  /* Backdrop behind modal dialogs. A token rather than bg-foreground/NN so the
+     scrim is chosen, not inherited from an inverted foreground. Black-brown
+     veil: it must dim the page, and a cream veil would lift it and make the
+     dialog look darker than the page. */
   --scrim: rgb(8 5 3 / 0.90);
-  --dialog-edge: #80705d;
-  /* Same role as :root, --popover at 0.90. Worst end is a white image for the
-     light-on-dark text: #f5ebdc text 11.5:1, chip text #e2d5c2 9.36:1, checked
-     chip #fbd592 9.69:1, muted text 6.48:1, error text 5.70:1; --control-border
-     3.23:1 (the tightest pair, and the reason the alpha is not lower); --ring
-     6.57:1. Computed, not yet read from painted pixels (task 012 group D). */
-  --surface-glass: rgb(30 22 16 / 0.9);
-  --disabled-surface: #4a3d32;
   --ring: #f0a550;
+  /* Edge of the task dialog. Role: the line that separates the dialog from the
+     page behind it. Why not an existing token: the dialog fill is capped near
+     the page's luminance (the task swatches need 3:1 on it), so the fill
+     cannot separate the dialog from the page and the edge has to, which
+     --border (a 1.4:1 hairline by design) cannot do. #80705d against --scrim
+     at 0.90: 3.469:1 over a white image and 4.266:1 over a black image, and
+     3.731:1 against the dialog fill (image-independent). All three are
+     arithmetic sRGB composites of the token values, not sampled pixels.
+     Why the edge and not the fill carries the delineation: the fill #1e1610 is
+     only 1.154:1 against its scrimmed ground over a black image, and its
+     luminance sits inside the band of grounds the image can produce, so no
+     scrim alpha makes the fill work at both extremes. */
+  --dialog-edge: #80705d;
+  /* Fill of the one frosted surface, the timer panel (app/globals.css
+     .surface-frosted). Role: the ground under the timer panel's text, so the
+     fill carries legibility and the blur only carries the look; with the blur
+     unavailable the panel is unchanged in contrast. Why not an existing
+     token: every opaque token hides the picture (criterion 9 asks for at least
+     8 per channel of it), and none carries an alpha. --popover at 0.90. Worst
+     end is a white image for the light-on-dark text: #f5ebdc text 11.5:1, chip
+     text #e2d5c2 9.36:1, checked chip #fbd592 9.69:1, muted text 6.48:1, error
+     text 5.70:1; --control-border 3.23:1 (the tightest pair, and the reason
+     the alpha is not lower); --ring 6.57:1. Computed, not yet read from
+     painted pixels (task 012 group D). */
+  --surface-glass: rgb(30 22 16 / 0.9);
+  /* Fill of a disabled solid button (the task form's submit). Role: a surface,
+     not a boundary. Why not an existing token: it used to be --border, which
+     is a boundary token chosen for a boundary job (007 R-6), and --muted would
+     drop the label to a near-invisible contrast. #4a3d32: label #1c140e
+     1.73:1, and 1.73:1 on the card. */
+  --disabled-surface: #4a3d32;
+  /* Reuse the already-approved, contrast-checked task color swatches
+     (components/task-palette-colors.ts) rather than inventing a separate
+     chart palette ahead of milestone 3 deciding it needs one. */
   --chart-1: #c4915a; /* potato */
   --chart-2: #f0705a; /* tomato */
   --chart-3: #5fc08c; /* mint */
   --chart-4: #5fa8dc; /* sky */
   --chart-5: #a58fd8; /* lavender */
+  --radius: 0.5rem; /* matches the existing rounded-lg used on buttons/inputs */
 }
 
 @theme inline {
@@ -269,14 +172,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -294,7 +189,7 @@ body {
 
 /* Paper grain, painted procedurally (no texture asset, so nothing to license).
    The SVG is fractal noise folded into its alpha channel and used as a mask,
-   so the colour comes from --grain-ink and flips with the theme. z-index -1
+   so the colour comes from --grain-ink. z-index -1
    inside the root stacking context puts it above the canvas background and
    below every element, and pointer-events: none keeps it inert. Fixed, so it
    adds no height or overflow. */
@@ -313,9 +208,9 @@ body::before {
 }
 
 /* Grain ruling (task 012): it is switched off while an uploaded image shows.
-   Reason: at 7% (5% dark) of --grain-ink over a photograph it is dirt on the
-   owner's picture, and it has no job there, since it exists to make flat cream
-   read as paper (R-07). The fade runs on the image layer's own 500 ms so the
+   Reason: at 5% of --grain-ink over a photograph it is dirt on the
+   owner's picture, and it has no job there, since it exists to make a flat
+   ground read as paper (R-07). The fade runs on the image layer's own 500 ms so the
    two cross as one arrival; nothing else here moves. Under forced colours the
    image layer is hidden, so the grain stays. :has() is the only link between
    the layer's data-background state and body::before; where it is unsupported
@@ -401,23 +296,20 @@ body::before {
    utilities, including the tasks trigger's border-none.
    Purpose: no single border colour holds 3:1 against an arbitrary photograph,
    because a photograph can be any luminance. Two rings of opposite luminance
-   cover the whole range: the 1 px border is --foreground (ink in light, cream
-   in dark) and a 1 px halo outside it is --popover (cream in light, umber in
-   dark). Whichever side the photograph lands on, one ring contrasts with it
+   cover the whole range: the 1 px border is --foreground (cream) and a 1 px
+   halo outside it is --popover (umber). Whichever side the photograph lands on, one ring contrasts with it
    and the other contrasts with that ring. Both are existing tokens, so no
-   colour is added and both themes flip with the class.
-   Computed with the sRGB formula (ink/halo vs flat ground; the figure to read
-   is the larger of the two, the other is allowed to vanish):
-   light, ink #2b2017 / halo #fffaf3: white 15.89 / 1.04, black 1.32 / 20.22,
-   50% grey #808080 4.02 / 3.80. dark, cream #f5ebdc / halo #1e1610: white
-   1.18 / 17.84, black 17.80 / 1.18, 50% grey 3.35 / 4.52. Swept over every
-   grey from 0 to 255 the larger figure never drops below 3.91 (light, at grey
-   126) or 3.90 (dark, at grey 117). The old #7a756f border was 1.14:1 at 50%
+   colour is added.
+   Computed with the sRGB formula (cream/halo vs flat ground; the figure to
+   read is the larger of the two, the other is allowed to vanish): cream
+   #f5ebdc / halo #1e1610: white 1.18 / 17.84, black 17.80 / 1.18, 50% grey
+   #808080 3.35 / 4.52. Swept over every grey from 0 to 255 the larger figure
+   never drops below 3.90 (at grey 117). The old #7a756f border was 1.14:1 at 50%
    grey, where it sits between the two ends it was chosen for.
    Focus: the 2 px --ring outline sits 2 px off the border, and --ring is only
-   2.06:1 against a white photograph in dark. The halo widens to 5 px on focus,
+   2.06:1 against a white photograph. The halo widens to 5 px on focus,
    so the outline is flanked by --popover on both sides: --ring on --popover is
-   4.84:1 light and 8.67:1 dark, whatever the photograph does behind it.
+   8.67:1, whatever the photograph does behind it.
    Painted only while an uploaded image shows, like the surfaces, so a page with
    no image keeps the grey --control-border edge it was measured with; the
    border is already 1 px on three of the four triggers and the tasks trigger's
@@ -443,14 +335,14 @@ body::before {
   }
 }
 
-/* Two-tone glyph halo for the header wordmark and the three theme chips. The
-   header carries no panel (owner ruling, 2026-11-06), so these glyphs sit on the
+/* Two-tone glyph halo for the header wordmark. The
+   header carries no panel (owner ruling, 2026-11-06), so the glyphs sit on the
    photograph, and no single text colour holds 3:1 against an arbitrary one. The
    same two-tone logic as .control-edge, applied to letterforms: the glyph keeps
-   its own token and a --popover halo (cream in light, umber in dark) hugs it.
+   its own token and a --popover halo (umber) hugs it.
    One of the two always clears the ground and the two clear each other, so the
    glyph-vs-halo figure does not depend on the image: wordmark --primary on
-   --popover is 4.84:1 light and 8.67:1 dark.
+   --popover is 8.67:1.
    Drawn as a text stroke painted behind the fill (paint-order), 4 px wide so 2 px
    shows outside the glyph: tight, uniform on every side, and no box, fill or
    panel. A directional text-shadow was rejected because it defends one side.
@@ -460,9 +352,9 @@ body::before {
    Forced colours: stroke colours are not guaranteed to follow system colours, so
    the halo is switched off and the system Canvas/CanvasText pair carries it.
    Focus: the 2 px --ring outline sits on the photograph with no fill behind it
-   (1.27:1 measured). The chip gets the control-edge answer, a 5 px --popover
+   (1.27:1 measured). A glyph's focus target gets the control-edge answer, a 5 px --popover
    flank, so the outline sits between two --popover bands: --ring on --popover is
-   4.84:1 light and 8.67:1 dark whatever the photograph does. The flank draws
+   8.67:1 whatever the photograph does. The flank draws
    under the outline (outline paints over box-shadow) and only on keyboard focus. */
 @media not (forced-colors: active) {
   .glyph-halo {
@@ -499,7 +391,7 @@ body::before {
 
 /* HoldButton is vendored ReactBits and frozen, and its own reduced-motion
    rule keeps a 160ms background-color and a box-shadow transition. Both
-   read themed tokens (--hb-bg), so a theme flip fades the Reset button
+   read tokens (--hb-bg), so a token change would fade the Reset button
    even with reduced motion on. The vendored rule is !important and sits
    in a runtime <style> tag, so source order cannot win; `html .hb-root`
    outranks the bare class. */

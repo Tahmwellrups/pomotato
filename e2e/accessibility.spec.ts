@@ -130,7 +130,8 @@ test.describe("Accessibility - axe-core checks", () => {
     // '[role="status"]' locator is ambiguous once the task list's and
     // current-task card's own "Loading…" text (also role="status") are in
     // the DOM — a strict-mode violation that's timing-dependent on a cold load.
-    const liveRegion = page.locator('p.sr-only[role="status"]');
+    // Task 018's theme-lock region is also p.sr-only[role=status]; exclude it so this stays the timer's region.
+    const liveRegion = page.locator('p.sr-only[role="status"]:not([data-testid="theme-lock-status"])');
     await expect(liveRegion).toBeVisible();
     await expect(liveRegion).toHaveAttribute("aria-live", "polite");
   });
@@ -140,7 +141,8 @@ test.describe("Accessibility - axe-core checks", () => {
     // '[role="status"]' locator is ambiguous once the task list's and
     // current-task card's own "Loading…" text (also role="status") are in
     // the DOM — a strict-mode violation that's timing-dependent on a cold load.
-    const liveRegion = page.locator('p.sr-only[role="status"]');
+    // Task 018's theme-lock region is also p.sr-only[role=status]; exclude it so this stays the timer's region.
+    const liveRegion = page.locator('p.sr-only[role="status"]:not([data-testid="theme-lock-status"])');
     const startButton = page.getByRole("button", { name: "Start", exact: true });
 
     // Start the timer
@@ -160,7 +162,8 @@ test.describe("Accessibility - axe-core checks", () => {
     // '[role="status"]' locator is ambiguous once the task list's and
     // current-task card's own "Loading…" text (also role="status") are in
     // the DOM — a strict-mode violation that's timing-dependent on a cold load.
-    const liveRegion = page.locator('p.sr-only[role="status"]');
+    // Task 018's theme-lock region is also p.sr-only[role=status]; exclude it so this stays the timer's region.
+    const liveRegion = page.locator('p.sr-only[role="status"]:not([data-testid="theme-lock-status"])');
     const startButton = page.getByRole("button", { name: "Start", exact: true });
 
     // Start the timer
@@ -212,7 +215,8 @@ test.describe("Accessibility - axe-core checks", () => {
     // '[role="status"]' locator is ambiguous once the task list's and
     // current-task card's own "Loading…" text (also role="status") are in
     // the DOM — a strict-mode violation that's timing-dependent on a cold load.
-    const liveRegion = page.locator('p.sr-only[role="status"]');
+    // Task 018's theme-lock region is also p.sr-only[role=status]; exclude it so this stays the timer's region.
+    const liveRegion = page.locator('p.sr-only[role="status"]:not([data-testid="theme-lock-status"])');
     const liveRegionText = await liveRegion.textContent();
     expect(liveRegionText).toBe("");
   });

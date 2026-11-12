@@ -22,7 +22,8 @@ async function seed(page: Page, timer: Parameters<typeof seedTimerState>[1]) {
 const focusIdle = { mode: "focus", status: "idle", focusMinutes: 1, cyclePosition: 0, endTimestamp: null, pausedRemainingMs: null, runId: null, startedAt: null } as const;
 
 function announcer(page: Page) {
-  return page.locator('p.sr-only[role="status"][aria-live="polite"]');
+  // Task 018 added a second polite region in the root layout (data-testid="theme-lock-status"); exclude it so this stays the timer's announcer.
+  return page.locator('p.sr-only[role="status"][aria-live="polite"]:not([data-testid="theme-lock-status"])');
 }
 
 test.describe("013 criteria 13-15: auto-advance is already counting, end exact to the stored end", () => {

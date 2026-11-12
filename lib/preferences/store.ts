@@ -5,7 +5,6 @@ import type { DurationKey } from "../timer/constants";
 import { isDurationMinutes } from "../timer/time";
 import { readLegacyTimerFocusMinutes } from "./legacy-focus";
 import {
-  isPreferences,
   migratePreferences,
   PREFERENCE_DEFAULTS,
   PREFERENCES_STORAGE_KEY,
@@ -14,7 +13,6 @@ import {
   type BackgroundPreference,
   type GaugeStylePreference,
   type Preferences,
-  type ThemePreference,
 } from "./schema";
 
 interface PreferencesState extends Preferences {
@@ -23,7 +21,6 @@ interface PreferencesState extends Preferences {
 }
 
 interface PreferencesActions {
-  setTheme: (theme: ThemePreference) => void;
   setGaugeStyle: (gaugeStyle: GaugeStylePreference) => void;
   setBackground: (background: BackgroundPreference) => void;
   setMix: (mix: Mix) => void;
@@ -45,7 +42,6 @@ export const usePreferencesStore = create<PreferencesStore>()(
     (set) => ({
       ...PREFERENCE_DEFAULTS,
       hasHydrated: false,
-      setTheme: (theme) => set({ theme: sanitizePreferences({ theme }).theme }),
       setGaugeStyle: (gaugeStyle) =>
         set({ gaugeStyle: sanitizePreferences({ gaugeStyle }).gaugeStyle }),
       setBackground: (background) => set({ background: sanitizePreferences({ background }).background }),
@@ -73,11 +69,9 @@ export const usePreferencesStore = create<PreferencesStore>()(
       name: PREFERENCES_STORAGE_KEY,
       version: PREFERENCES_VERSION,
       // Same reason as lib/timer/store.ts: rehydrate manually after mount so the
-      // first client render matches the server-rendered default. The painted
-      // theme does not wait for this, the boot script has already set the class.
+      // first client render matches the server-rendered default.
       skipHydration: true,
       partialize: (state): Preferences => ({
-        theme: state.theme,
         gaugeStyle: state.gaugeStyle,
         background: state.background,
         mix: state.mix,
@@ -109,8 +103,10 @@ export const usePreferencesStore = create<PreferencesStore>()(
           const fresh = sanitizePreferences(persisted);
           return { ...current, ...fresh, focusMinutes: carried ?? fresh.focusMinutes };
         }
-        const next = isPreferences(persisted) ? persisted : sanitizePreferences(persisted);
-        return { ...current, ...next };
+        // Always sanitised, never spread as stored: an unknown key left in the
+        // envelope by an older version (task 019's `theme`) must not reach the
+        // state, or it would be written back. Valid keys pass through unchanged.
+        return { ...current, ...sanitizePreferences(persisted) };
       },
       onRehydrateStorage: () => () => {
         usePreferencesStore.getState().setHasHydrated(true);

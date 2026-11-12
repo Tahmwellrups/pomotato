@@ -156,9 +156,14 @@ describe("task 012 criterion 5: exactly one backdrop-filter in source, on the ti
     expect(offenders).toEqual([]);
   });
 
-  it("the frosted surface is applied once, by app/page.tsx", () => {
+  // Owner commit 06404a4 replaced the frosted Surface around the timer with a plain <div>, and
+  // confirmed on 2026-11-12 that it stays gone. The criterion's bound — at most one frosted
+  // surface in app source — still holds; the count it holds at is now zero. The utility itself
+  // survives in globals.css as logged debt, which is why the first assertion above still finds
+  // one backdrop-filter. See DECISIONS.md 2026-11-12.
+  it("the frosted surface is applied nowhere, since the timer panel gave it up", () => {
     const uses = APP_SOURCE.filter((f) => /<Surface\s+kind="frosted"/.test(read(f)));
-    expect(uses).toEqual(["app/page.tsx"]);
+    expect(uses).toEqual([]);
   });
 });
 
@@ -179,8 +184,8 @@ describe("task 012 criterion 7: one definition per surface kind", () => {
 });
 
 // Task 012 criterion 6: the one new colour token is declared once per theme block.
-describe("task 012 criterion 6: --surface-glass has one :root and one .dark value", () => {
-  it("--surface-glass is declared exactly twice (root and dark) in globals.css", () => {
-    expect((read("app/globals.css").match(/--surface-glass:/g) ?? []).length).toBe(2);
+describe("task 012 criterion 6: --surface-glass has one :root value", () => {
+  it("--surface-glass is declared exactly once (root; task 019 removed .dark) in globals.css", () => {
+    expect((read("app/globals.css").match(/--surface-glass:/g) ?? []).length).toBe(1);
   });
 });

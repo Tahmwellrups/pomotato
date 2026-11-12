@@ -62,7 +62,16 @@ const ALLOWED_RAW_UTILITIES: Record<string, string[]> = {};
 // Task 015 criterion 45: empty on purpose. The only entry was components/task-palette-colors.ts,
 // the task swatch data, and that file is deleted with the colour dot. Any later exemption is added
 // here in the same diff with a reason, where review can see it.
-const ALLOWED_LITERALS: Record<string, string> = {};
+// Task 019 ruling (criterion 26 vs 47): exactly one literal site is exempt. Next metadata cannot read a
+// CSS variable, so viewport.themeColor must carry the --background hex. The exemption is one site, one
+// value, and a static test below pins that value to :root's --background. Its runtime equality is
+// e2e/task-019-dark.spec.ts (criterion 26).
+const ALLOWED_LITERALS: Record<string, { site: RegExp; reason: string }> = {
+  "app/layout.tsx": {
+    site: /themeColor:\s*"#1c140e"/g,
+    reason: "viewport.themeColor mirrors --background; metadata cannot read a CSS variable (task 019 ruling)",
+  },
+};
 
 const TASK_007_FILES = [
   "components/TaskChecklistRow.tsx",
@@ -161,14 +170,24 @@ describe("task 007 no raw palette utility anywhere in app code", () => {
 });
 
 describe("task 007 no colour literal in app code outside the pinned data and probe files", () => {
-  it("task 015 criterion 45: no file is exempt from the literal check", () => {
-    expect(ALLOWED_LITERALS).toEqual({});
+  it("task 019 ruling: exactly one exempt file, app/layout.tsx, with one themeColor site", () => {
+    expect(Object.keys(ALLOWED_LITERALS)).toEqual(["app/layout.tsx"]);
+    expect(read("app/layout.tsx").match(ALLOWED_LITERALS["app/layout.tsx"].site)?.length ?? 0).toBe(1);
+  });
+
+  it("task 019: the exempt themeColor hex equals --background in :root of app/globals.css", () => {
+    const root = read("app/globals.css").match(/:root\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    const background = root.match(/--background:\s*(#[0-9a-fA-F]{6});/)?.[1]?.toLowerCase();
+    const themeColor = read("app/layout.tsx").match(/themeColor:\s*"(#[0-9a-fA-F]{6})"/)?.[1]?.toLowerCase();
+    expect(themeColor).toBeDefined();
+    expect(themeColor).toBe(background);
   });
 
   for (const file of FILES) {
-    if (file in ALLOWED_LITERALS) continue;
     it(`${file} has no hex literal or colour function`, () => {
-      const source = read(file);
+      // The one exempt site is removed before the check; every other literal in the file still fails.
+      const exempt = ALLOWED_LITERALS[file];
+      const source = exempt ? read(file).replace(exempt.site, "") : read(file);
       expect(source).not.toMatch(HEX_LITERAL);
       expect(source).not.toMatch(COLOR_FUNCTION);
     });
@@ -280,7 +299,7 @@ describe("task 010 criterion 31: the new files are covered and the allowlists di
     expect(ALLOWED_RAW_UTILITIES).toEqual({});
   });
 
-  it("ALLOWED_LITERALS is empty (task 015 criterion 45)", () => {
-    expect(ALLOWED_LITERALS).toEqual({});
+  it("ALLOWED_LITERALS holds only the task 019 themeColor site (task 015 criterion 45, amended)", () => {
+    expect(Object.keys(ALLOWED_LITERALS)).toEqual(["app/layout.tsx"]);
   });
 });

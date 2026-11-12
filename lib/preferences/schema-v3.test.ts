@@ -7,7 +7,7 @@ import { usePreferencesStore } from "./store";
 // Task 017 criteria 24, 25, 26 (unit half). The five new keys, the version-2
 // upgrade, and per-key fallback that never clamps a corrupt level.
 
-const EXISTING = { theme: "dark", gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: false };
+const EXISTING = { gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: false };
 
 describe("criterion 24: the five keys are in the schema at version 3", () => {
   it("PREFERENCES_VERSION is 3 and the defaults are 25, 5, 15, sound on, level 50", () => {
@@ -27,7 +27,7 @@ describe("criterion 25: a version-2 entry loads with the five new keys at their 
     localStorage.clear();
   });
 
-  it("rehydrating a version 2 payload keeps theme, gaugeStyle, background, mix and taskPanelVisible", async () => {
+  it("rehydrating a version 2 payload keeps gaugeStyle, background, mix and taskPanelVisible", async () => {
     localStorage.setItem(
       PREFERENCES_STORAGE_KEY,
       JSON.stringify({ state: EXISTING, version: 2 })
@@ -37,7 +37,7 @@ describe("criterion 25: a version-2 entry loads with the five new keys at their 
     expect(state).toMatchObject({ ...EXISTING, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
     const written = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY)!);
     expect(written.version).toBe(3);
-    expect(written.state).toMatchObject({ theme: "dark", gaugeStyle: "glyph", taskPanelVisible: false, focusMinutes: 25 });
+    expect(written.state).toMatchObject({ gaugeStyle: "glyph", taskPanelVisible: false, focusMinutes: 25 });
   });
 });
 
@@ -70,7 +70,7 @@ describe("criterion 26: per-key fallback, each new key independently, never disc
       if (other === key) continue;
       expect(result[other as keyof typeof result]).toBe(value);
     }
-    expect(result).toMatchObject({ theme: "dark", gaugeStyle: "glyph", taskPanelVisible: false });
+    expect(result).toMatchObject({ gaugeStyle: "glyph", taskPanelVisible: false });
   });
 
   it("a missing key takes its own default and nothing else changes", () => {

@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.mocked(removeBackground).mockReset();
   vi.mocked(canDecodeFile).mockReset();
   vi.mocked(canDecodeFile).mockResolvedValue(true);
-  usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", background: null, hasHydrated: true });
+  usePreferencesStore.setState({ gaugeStyle: "vessel", background: null, hasHydrated: true });
 });
 
 afterEach(() => {

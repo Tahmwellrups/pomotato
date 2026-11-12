@@ -58,11 +58,10 @@ describe("task 007 criterion 22 and ModeSelector: the cue moved off the containe
 describe("task 007 criteria 18 and 19: the interactive-boundary token and its comment", () => {
   const css = () => read("app/globals.css");
 
-  // Task 009 criterion 11/14: one declaration per theme block, in order.
-  // :root is the light value this task keeps; .dark is the dark value.
-  it("defines --control-border once in :root (#7a756f) and once in .dark (#8a7968)", () => {
+  // Task 019: the palette is dark only, so the one declaration is the dark value.
+  it("defines --control-border once, in :root, as #8a7968", () => {
     const matches = css().match(/--control-border:\s*[^;]+;/g) ?? [];
-    expect(matches).toEqual(["--control-border: #7a756f;", "--control-border: #8a7968;"]);
+    expect(matches).toEqual(["--control-border: #8a7968;"]);
   });
 
   it("maps --color-control-border inside the existing @theme inline block", () => {
@@ -74,18 +73,14 @@ describe("task 007 criteria 18 and 19: the interactive-boundary token and its co
     expect(block).not.toBeNull();
     const comment = block![0];
     expect(comment).toMatch(/identifies a control|boundary of a control/i);
-    expect(comment).toMatch(/1\.36:1/);
-    expect(comment).toMatch(/1\.43:1/);
     expect(comment).toMatch(/shared\s+app-wide/);
-    // Task 009 criterion 14: the milestone 4 obligation is now discharged, so the
-    // comment states the dark figures instead of deferring them.
-    expect(comment).toMatch(/FIVE\s+grounds/);
-    expect(comment).toMatch(/The \.dark value carries its own five figures/);
+    // Task 019: the dark figures are the only figures the comment carries.
+    expect(comment).toMatch(/3\.86:1/);
   });
 
-  it("--border and --input keep their original value #d6d3d1", () => {
-    expect(css()).toMatch(/--border:\s*#d6d3d1;/);
-    expect(css()).toMatch(/--input:\s*#d6d3d1;/);
+  it("--border and --input carry the dark hairline #3b2f25", () => {
+    expect(css()).toMatch(/--border:\s*#3b2f25;/);
+    expect(css()).toMatch(/--input:\s*#3b2f25;/);
   });
 });
 

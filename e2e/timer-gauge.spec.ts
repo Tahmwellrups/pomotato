@@ -1,3 +1,4 @@
+import { rootHex } from "./helpers/task-019-tokens";
 import { setLengthThenReturn } from "./helpers/session-lengths";
 import { test, expect, type Page } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
@@ -291,9 +292,9 @@ test.describe("Canvas colours re-read from tokens at runtime", () => {
   });
 
   test("liquid and glass colours are resolved strings, not var() references, at load", async ({ page }) => {
-    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#d97706");
+    await expect(gauge(page)).toHaveAttribute("data-liquid-color", rootHex("--gauge-liquid"));
     // The resolved value of --popover, as the token is written in globals.css.
-    expect(await gauge(page).getAttribute("data-glass-color")).toBe("#fffaf3");
+    expect(await gauge(page).getAttribute("data-glass-color")).toBe(rootHex("--popover"));
     expect(await gauge(page).getAttribute("data-liquid-color")).not.toContain("var(");
   });
 
@@ -307,19 +308,6 @@ test.describe("Canvas colours re-read from tokens at runtime", () => {
     await page.evaluate(() => document.documentElement.style.setProperty("--popover", "#00ff00"));
     await expect(gauge(page)).toHaveAttribute("data-glass-color", "#00ff00");
     await expect(meter(page)).toHaveCSS("background-color", "rgb(0, 255, 0)");
-  });
-
-  test("adding a .dark class to <html> with a dark token override re-reads the colour (milestone 4 signal)", async ({ page }) => {
-    await page.evaluate(() => {
-      const style = document.createElement("style");
-      style.id = "qa-theme";
-      style.textContent = ":root.dark { --gauge-liquid: #ff0000; }";
-      document.head.appendChild(style);
-    });
-    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#d97706");
-    await page.evaluate(() => document.documentElement.classList.add("dark"));
-    await expect(gauge(page)).toHaveAttribute("data-liquid-color", "#ff0000");
-    await expect(liquid(page)).toHaveCSS("background-color", "rgb(255, 0, 0)");
   });
 
   test("the Reset hold colours re-read from --primary at runtime", async ({ page }) => {

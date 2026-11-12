@@ -105,7 +105,64 @@ measuring both twice).
       that the chime fires on **every route** (a session ending on `/settings` was silent), and the reasoning
       for the one sanctioned JS timer in the chime's path.
 
-- [ ] **Finish task 016: it shipped without ever running qa or reviewer, and the 41 type errors are its fallout.**
+- [x] **019. Dark mode only: light, system and the theme selector are retired.** ([docs/tasks/019-dark-mode-only.md](tasks/019-dark-mode-only.md))
+      Custom backgrounds looked poor in light mode and one palette is cheaper to maintain, so dark became the
+      only theme. The dark values moved into `:root` unchanged, `.dark` and `@custom-variant dark` are gone,
+      and the selector, provider, store field and boot-script branch are deleted; a stale stored `theme` is
+      dropped as a field, never by clearing the shared preferences key. Supersedes 018, whose theme-lock code
+      and background-provider apparatus were removed with it. QA PASS, review APPROVE.
+      The contrast ground this task measured was built, rejected on its look by the owner, and deferred to
+      [020](tasks/020-contrast-ground-over-backgrounds.md).
+      Close-out in [logs/019-dark-mode-only-log.md](tasks/logs/019-dark-mode-only-log.md).
+- [x] **~~018. Theme locks to dark while a custom background is active.~~ SUPERSEDED by 019.** ([docs/tasks/018-theme-lock-with-custom-background.md](tasks/018-theme-lock-with-custom-background.md))
+      Owner requirements, 2026-11-12, approved the same day. Light mode is unreadable over an uploaded image,
+      so the effective theme becomes derived — `hasCustomBackground ? "dark" : userPreference` — and the
+      LIGHT / DARK / SYSTEM selector hides while a background is on, returning with the untouched stored
+      preference when it is removed. One shared rule behind the boot script, the provider and the selector;
+      the boot-script parity contract extends to the background dimension. No schema change and no `backend`
+      run: `state.background` is already in the envelope the boot script parses. Overlay opacity
+      (`opacity-50`) and both palettes are explicitly out of scope. 44 criteria, the last five a manual
+      contrast group over a bright and a busy test image. **Two orchestrator rulings before implementation**
+      (in the log): the background read moves to one layout-level owner exposing `pending`/`present`/`absent`,
+      because `useBackgroundImage` collapses "loading" into the same `null` as "dead blob" and criteria 23, 26
+      and 28 need them apart; `/settings` and `/stats` pay one Dexie read and one decode for that, which is
+      the named price of the lock and the self-heal agreeing on every route.
+      **Done, 2026-11-12.** qa FAIL on one adversarial race (a settled result outliving the URL it was
+      revoked with), fixed in one line; reviewer APPROVE with eight findings, none blocking. Gates: lint 0
+      errors, typecheck 0, build compiled, 1342/1342 unit across 48 files, 40/40 on both 018 e2e specs.
+      **Deliberately not absorbed:** the contrast figures are below floor and routed to the owner under
+      criterion 43 — digits 3.02-3.62 and wordmark 1.73-1.87 over a bright and a busy image in dark. Per
+      reviewer, those ratios are a property of the `opacity-50` overlay rather than of 018, which *raises*
+      contrast over an image because the state it replaces is light ink on the same ground. **Two criteria
+      are gaps, not passes:** 13 (no flash) is an automated proxy only, and 37 (focus on lock) is unit-only.
+      Close-out in [logs/018-theme-lock-with-custom-background-log.md](tasks/logs/018-theme-lock-with-custom-background-log.md).
+
+- [ ] **Decide whether the timer text needs a ground under it again, now that dark-over-image is measured.**
+      Raised by task 018's measurement, 2026-11-12, owner's call. In dark with the `opacity-50` overlay the
+      timer digits read **3.02-3.62** and the wordmark **1.73-1.87** over a bright and a busy test image —
+      below the 4.5 text floor, and the wordmark below even the 3:1 large-text threshold. Figures and their
+      ground pixels are in 018's QA Report. **Read these two things before reaching for the overlay:**
+      (a) the only figure that clears the floor is 4.68, and it clears it because the *vessel* gauge puts its
+      own liquid fill under the digits — glyph gauge puts them straight on the image, so the defect is
+      gauge-style-dependent; (b) these ratios predate 018, which improved them. The overlay is frozen at
+      `opacity-50` by owner ruling and a change to it is not the default fix. The option the codebase already
+      had is a surface under the timer text — the retired `surface-frosted` utility is still on disk (see the
+      frosted debt above), so restoring a ground is cheaper than it looks.
+
+- [ ] **Three bounded notes from 018's review, none reachable through the UI today.** (reviewer findings 5, 6,
+      7 and the residual half of 2, 2026-11-12.) Each is recorded with why it is currently unreachable, so a
+      future change that makes it reachable is the trigger to fix it, not a fresh discovery.
+      `components/BackgroundControl.tsx:114` declares `id="background-theme-note"` that nothing references —
+      criterion 32 passes on document order, but a screen-reader user focusing the picker is not told why the
+      theme is locked; composing `aria-describedby` must not leave a dangling reference while the note is
+      unrendered. `components/ThemeControl.tsx:52-54` leaves `hadFocus` true after a blur to nothing, which
+      only matters if the background ever becomes settable from `/`. `components/ThemeLockAnnouncer.tsx:28-29`
+      keys on the stored id while the lock keys on status, so an id stored for bytes that then fail to decode
+      would announce a lock and silently unlock — unreachable because `canDecodeFile` gates the upload.
+      And the new first-paint assertion pins the hide class to its constants but **does not prove Tailwind
+      compiled the rule**, so a content-scan change can still regress the selector flash with tests green.
+
+- [x] **Finish task 016: it shipped without ever running qa or reviewer, and the 41 type errors are its fallout.**
       Corrected 2026-11-11, after task 017 forced a look at the cause. This was first logged as "clear the 41
       pre-existing type errors" — that framing was wrong. The errors are not rot: 016's backend (schema **5 → 6**)
       and frontend both landed, but **none of its tests were ever updated**, its task file is still
@@ -123,6 +180,16 @@ measuring both twice).
       **Owner ruling, 2026-11-11:** finish it properly — qa against the 61 criteria, then reviewer. The 41 errors
       and the red build clear as a by-product. While the build stays red, any e2e spec served from `out/` is
       unrunnable (this already blocked `e2e/chime-audio-blocked.spec.ts` in 017) and every gate is ambiguous.
+      **Done, 2026-11-11.** qa ran against the 61 criteria and reviewer returned CHANGES REQUESTED with four
+      blocking findings, all since fixed: the title input was 24 px not 44 (`min-h-11`), its font was 14 px so
+      iOS Safari zoomed on focus (`text-base`), the checkbox focus ring was 1 px not 2, and
+      `components/panel-only.guards.test.ts` had silently dropped `TaskPanelToggle.tsx` from task 015
+      criterion 42's no-timer list. Group P was re-measured rather than assumed and did not move: the row is
+      46 px at both widths either way, because the 44 px checkbox cell was already setting the height.
+      Typecheck 0, build green, 1253/1253 unit, drag 40/40 at `--repeat-each=5`. Outstanding and deliberate:
+      the owner's manual checklist, the 17 PARTIALs, and B-3 below. Close-out in
+      [logs/016-inline-editable-task-panel-log.md](tasks/logs/016-inline-editable-task-panel-log.md),
+      "Orchestrator close-out".
 
 - [ ] **23 stale e2e selectors for the deleted TaskForm modal, and one of them makes a coverage claim vacuous.**
       (016 review B-3, owner parked it 2026-11-11 as debt.) Five specs still select `input[id*="-title"]`, the
@@ -167,7 +234,7 @@ be re-pointed until the reason is gone.**
       every `onDragOver`, or to re-measure between keyboard steps — **confirm with a probe before changing
       it**, per the 2026-11-06 `liveQuery` entry, where reading the source "confirmed" a mechanism only a
       probe actually established.
-- [ ] **The wordmark's halo paints over the theme chip's focus ring at 320 px in dark
+- [~] **OBSOLETE (task 019, 2026-11-12): there is no theme chip.** The selector is deleted, so this item has no subject; `.glyph-halo` itself now has no reader either (019 review F4) and task 020 decides whether the wordmark regains it or the rule goes. ~~The wordmark's halo paints over the theme chip's focus ring at 320 px in dark
       (`control-edge-measure.spec.ts`, 3 failures).** The probe reads `142,98,50` where the computed outline
       colour is `240,165,80` — a blend, not a different colour. **The orchestrator diagnosed this as an
       antialiasing fringe and was wrong**: `qa` switched the sampling to `ceil`, asserted row alignment, and
@@ -180,8 +247,8 @@ be re-pointed until the reason is gone.**
       decision (spacing between the wordmark line and the chip row at 320), not a token move and not a test
       change. **Do not re-point the probe to dodge it** — it is measuring the right thing and reporting a
       true overlap.
-- [ ] **`--dialog-edge`'s light sub-floor may have moved to the soundscape dialog, and nobody has measured
-      it there.** `e2e/uploaded-background-dialog-edge.spec.ts` is retired because the task dialog it
+- [~] **OBSOLETE (task 019, 2026-11-12): there is no light palette, so there is no light sub-floor.** `--dialog-edge` keeps only its dark figures (3.469 / 4.266 / 3.731), verified in place by 019's review. ~~`--dialog-edge`'s light sub-floor may have moved to the soundscape dialog, and nobody has measured
+      it there.~~ `e2e/uploaded-background-dialog-edge.spec.ts` is retired because the task dialog it
       measured was deleted in `4ca861e`, so the PLAN item above about light dialogs is in neither of its two
       expected states: the fix did not land, and the surface it was recorded against is gone. The token is
       still `var(--border)` in light (`app/globals.css:116`) and is still consumed by
@@ -206,6 +273,47 @@ be re-pointed until the reason is gone.**
 
 Work no milestone asked for: refactors of already-shipped milestones, and visual polish.
 Tracked here so it stops appearing in the git log as if it were milestone progress.
+
+### Left behind by the frosted panel's retirement (owner commit 06404a4, parked 2026-11-12)
+
+- [ ] **The `surface-frosted` utility and its tokens are dead code, and two comment blocks describe a panel
+      that no longer exists.** Owner commit `06404a4` replaced the frosted `Surface` around the timer with a
+      plain `<div>` and confirmed on 2026-11-12 that it stays gone. A retirement task was drafted and then
+      cancelled in favour of task 018 (theme lock), which addresses the legibility half differently. What is
+      still on disk: `surface-frosted` at `app/globals.css:370-389` with `--surface-blur` and `--surface-glass`,
+      the `frosted` variant at `components/Surface.tsx:14` and its comments at `:5-10`, and an unused `Surface`
+      import at `app/page.tsx:4` (the one remaining lint warning in app source). The comment blocks at
+      `app/globals.css:85-87` and `:215-216` quote frosted contrast figures — those figures are not wrong, they
+      describe nothing. **Check before deleting `Surface` itself:** it still has `kind="solid"` callers, so the
+      component stays and only the variant goes.
+      **Already handled, do not redo:** `components/focus-cycle.guards.test.ts` was re-pointed the same day —
+      task 012 criterion 5's bound (at most one frosted surface in app source) still holds, at zero. It was
+      re-pointed rather than left red because a red build blocks every e2e gate.
+
+- [ ] **Six e2e specs still measure contrast over the frosted ground, and several will pass while measuring the
+      wrong element.** `e2e/focus-cycle.spec.ts:197,222-269`, `e2e/focus-surface-sweep.spec.ts:36,234-249,302,338-339,377,752-784`,
+      `e2e/focus-surface-behaviour.spec.ts:34,87,142`, `e2e/uploaded-background-legibility.spec.ts:169`,
+      `e2e/task-016-surface.spec.ts:260-264`, `e2e/dark-theme-control.spec.ts:493`.
+      **The part that matters:** the ones selecting `[data-surface]` generically now resolve to a *solid*
+      surface instead of failing, so they keep reporting a figure that no longer describes the timer panel.
+      A silently-weakened assertion is worse than a red one. Whoever picks this up should say, per spec, which
+      are red and which are quietly wrong, and write a retirement ledger that does not overclaim what still
+      covers each one.
+
+- [ ] **Stale `opacity-1` expectations in the e2e background helper, plus 30 other residual e2e failures that
+      predate 018.** Catalogued by task 018's qa (2026-11-12) during a regression run: 91 passed, 35 failed, one
+      of which was 018's own and is fixed. The remaining 34 are **attributed by mechanism, not by a HEAD baseline
+      run** — nobody has confirmed them against the pre-018 tree, so treat the attribution as a lead, not a
+      finding. By mechanism: `waitActive` expects layer opacity `1` while HEAD has `opacity-50` (owner commit
+      `06404a4`), in `uploaded-background-layer`, `uploaded-background` and `focus-cycle` — this is the e2e half
+      of the opacity re-point, which only had its unit half fixed; task-list title `fill` timeouts from 016's
+      inline list in `accessibility` and `uploaded-background`; `dark-theme-control` criteria 3, 38 and 47 (017
+      schema v3 keys, wordmark y, reduced-motion transition); `focus-cycle`'s 012 surface counts, which overlap
+      the frosted debt above; and `uploaded-background` criterion 3 counting an extra `pomotato*` key written by
+      `lib/timer/carry-focus.ts`, which is not a preference write.
+      **First step for whoever takes this: run the eight specs against the pre-018 commit** and split the list
+      into genuinely pre-existing and not. The mechanism attribution is plausible and was cheap; a baseline run
+      is what makes it a fact.
 
 ### Found by task 012's verification
 

@@ -10,7 +10,7 @@ import { defaultMix, isMix, sanitizeMix, type Mix } from "./mix";
 // three neighbouring keys survive. Per-layer checks loop over LAYERS.
 
 const ID = "123e4567-e89b-42d3-a456-426614174000";
-const VALID_THEME = { theme: "dark", gaugeStyle: "glyph", background: ID };
+const VALID_THEME = { gaugeStyle: "glyph", background: ID };
 
 function validMix(): Mix {
   return Object.fromEntries(LAYERS.map((layer, index) => [layer.id, { on: index % 2 === 0, level: 10 + index * 20 }]));
@@ -20,8 +20,7 @@ function defaultMixFor(): Mix {
   return Object.fromEntries(LAYERS.map((layer) => [layer.id, { on: false, level: DEFAULT_LEVEL }]));
 }
 
-function expectNeighboursIntact(result: { theme: string; gaugeStyle: string; background: string | null }) {
-  expect(result.theme).toBe("dark");
+function expectNeighboursIntact(result: { gaugeStyle: string; background: string | null }) {
   expect(result.gaugeStyle).toBe("glyph");
   expect(result.background).toBe(ID);
 }
@@ -50,7 +49,7 @@ describe("criterion 5: every malformed mix yields a valid mix and leaves the oth
   ];
 
   for (const [label, mix] of rows) {
-    it(`mix ${label}: sanitises to a valid mix, keeps theme, gaugeStyle and background`, () => {
+    it(`mix ${label}: sanitises to a valid mix, keeps gaugeStyle and background`, () => {
       let result: ReturnType<typeof sanitizePreferences> | undefined;
       expect(() => {
         result = sanitizePreferences(withMix(mix));
@@ -83,7 +82,7 @@ describe("criterion 5: every malformed mix yields a valid mix and leaves the oth
 describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, version skew", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ ...PREFERENCE_DEFAULTS, theme: "dark", gaugeStyle: "glyph", background: ID, mix: defaultMix(), hasHydrated: false });
+    usePreferencesStore.setState({ ...PREFERENCE_DEFAULTS, gaugeStyle: "glyph", background: ID, mix: defaultMix(), hasHydrated: false });
   });
 
   const envelopes: [string, string][] = [
@@ -100,7 +99,6 @@ describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, ve
         usePreferencesStore.setState({ ...PREFERENCE_DEFAULTS, hasHydrated: false });
         window.localStorage.setItem(PREFERENCES_STORAGE_KEY, raw);
         await expect(usePreferencesStore.persist.rehydrate()).resolves.not.toThrow();
-        expect(usePreferencesStore.getState().theme).toBe("system");
         expect(usePreferencesStore.getState().mix).toEqual(defaultMixFor());
         return;
       }
@@ -108,7 +106,6 @@ describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, ve
       await usePreferencesStore.persist.rehydrate();
       const state = usePreferencesStore.getState();
       expect(isMix(state.mix)).toBe(true);
-      expect(state.theme).toBe("dark");
       expect(state.gaugeStyle).toBe("glyph");
       expect(state.background).toBe(ID);
     });
@@ -125,8 +122,8 @@ describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, ve
       version: number;
     };
     expect(stored.version).toBe(PREFERENCES_VERSION);
-    expect(Object.keys(stored.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible", "theme"]);
-    expect(stored.state).toMatchObject({ theme: "dark", gaugeStyle: "glyph", background: null });
+    expect(Object.keys(stored.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
+    expect(stored.state).toMatchObject({ gaugeStyle: "glyph", background: null });
     expect(stored.state.mix).toEqual(defaultMixFor());
   });
 
@@ -154,7 +151,7 @@ describe("criterion 4: the mix is one key, and levels outlive mute, across a rel
     usePreferencesStore.getState().setMix(validMix());
     const parsed = JSON.parse(window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "null") as { state: Record<string, unknown>; version: number };
     expect(parsed.version).toBe(PREFERENCES_VERSION);
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible", "theme"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
     expect(isPreferences({ ...parsed.state })).toBe(true);
   });
 

@@ -1,6 +1,7 @@
 import { test, expect, type Page, type TestInfo } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
-import { DESKTOP, NARROW, THEME_KEY, record } from "./helpers/dark";
+import { DESKTOP, NARROW, record } from "./helpers/dark";
+import { PREFS_KEY } from "./helpers/background";
 import { contrast, readPainted, tokenRgb, type Rgb } from "./helpers/painted";
 import { readTimerState, seedTimerState, TIMER_STORAGE_KEY, holdResetWithPointer } from "./helpers/timer-hold";
 
@@ -59,7 +60,7 @@ async function open(
   await page.goto("/");
   await page.evaluate(
     ([key, value]) => window.localStorage.setItem(key, value),
-    [THEME_KEY, opts.raw ?? JSON.stringify({ state: { theme, gaugeStyle: style }, version: 1 })] as const,
+    [PREFS_KEY, opts.raw ?? JSON.stringify({ state: { gaugeStyle: style }, version: 1 })] as const,
   );
   if (opts.timer) await seedTimerState(page, timerOverrides(opts.timer));
   await page.goto(opts.path ?? "/");
@@ -396,15 +397,15 @@ test.describe("criterion 24: a chosen option reaches the real timer and survives
     await tab.close();
   });
 
-  test("the stored entry is one key whose state holds exactly theme, gaugeStyle and the background reference", async ({ page }) => {
+  test("the stored entry is one key whose state holds exactly gaugeStyle and the background reference (task 019: no theme field)", async ({ page }) => {
     await open(page, { path: "/settings", style: "vessel" });
     await optionLabel(page, "glyph").click();
-    const raw = await page.evaluate((key) => window.localStorage.getItem(key), THEME_KEY);
+    const raw = await page.evaluate((key) => window.localStorage.getItem(key), PREFS_KEY);
     const parsed = JSON.parse(raw ?? "null") as { state: Record<string, unknown>; version: number };
     expect(Object.keys(parsed).sort()).toEqual(["state", "version"]);
     // Task 011 adds the mix key; the pinned key list gains it. Task 015 adds
     // taskPanelVisible and moves the envelope to version 2 (lib/preferences/schema.ts).
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible", "theme"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
     expect(parsed.state.gaugeStyle).toBe("glyph");
     expect(parsed.version).toBe(3);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class/i);
