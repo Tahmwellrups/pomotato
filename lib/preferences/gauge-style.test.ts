@@ -50,24 +50,23 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
   ];
 
   for (const [label, value] of badGaugeValues) {
-    it(`gaugeStyle as ${label} falls back to the vessel and keeps the theme`, () => {
+    it(`gaugeStyle as ${label} falls back to the vessel and keeps the other keys`, () => {
       let result: ReturnType<typeof sanitizePreferences> | undefined;
       expect(() => {
-        result = sanitizePreferences({ theme: "dark", gaugeStyle: value });
+        result = sanitizePreferences({ gaugeStyle: value });
       }).not.toThrow();
-      expect(result).toEqual({ theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
-      expect(isPreferences({ theme: "dark", gaugeStyle: value })).toBe(false);
+      expect(result).toEqual({ gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
+      expect(isPreferences({ gaugeStyle: value })).toBe(false);
     });
   }
 
-  it("a missing gaugeStyle key falls back to the vessel and keeps the theme", () => {
-    expect(sanitizePreferences({ theme: "light" })).toEqual({ theme: "light", gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
+  it("a missing gaugeStyle key falls back to the vessel and keeps the other keys", () => {
+    expect(sanitizePreferences({ theme: "light" })).toEqual({ gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
   });
 
-  it("a valid gaugeStyle survives sanitising next to a bad theme", () => {
-    expect(sanitizePreferences({ theme: "Dark", gaugeStyle: "glyph" })).toEqual({
-      theme: "system",
-      gaugeStyle: "glyph",
+  it("a valid gaugeStyle survives sanitising", () => {
+    expect(sanitizePreferences({ gaugeStyle: "glyph" })).toEqual({
+            gaugeStyle: "glyph",
       background: null,
     mix: defaultMix(),
     taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50,
@@ -92,49 +91,49 @@ describe("criterion 7: malformed persisted data falls back per key and never thr
 describe("criterion 7 against the storage entry: the store rehydrates bad data and writes the sanitised payload back", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
+    usePreferencesStore.setState({ gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
   });
 
   // Each raw entry is rehydrated. Pass means no throw, the bad key defaults, the good key
   // survives, and the stored entry is rewritten as the valid envelope.
-  const storedCases: [string, string, { theme: string; gaugeStyle: string }][] = [
+  const storedCases: [string, string, { gaugeStyle: string }][] = [
     [
       "an unknown gauge identifier",
       JSON.stringify({ state: { theme: "dark", gaugeStyle: "variant2" }, version: PREFERENCES_VERSION }),
-      { theme: "dark", gaugeStyle: "vessel" },
+      { gaugeStyle: "vessel" },
     ],
     [
       "a wrong-typed gauge value",
       JSON.stringify({ state: { theme: "light", gaugeStyle: 1 }, version: PREFERENCES_VERSION }),
-      { theme: "light", gaugeStyle: "vessel" },
+      { gaugeStyle: "vessel" },
     ],
     [
       "a missing gauge key",
       JSON.stringify({ state: { theme: "dark" }, version: PREFERENCES_VERSION }),
-      { theme: "dark", gaugeStyle: "vessel" },
+      { gaugeStyle: "vessel" },
     ],
     [
       "an older version with a valid gauge value",
       JSON.stringify({ state: { theme: "dark", gaugeStyle: "glyph" }, version: 0 }),
-      { theme: "dark", gaugeStyle: "glyph" },
+      { gaugeStyle: "glyph" },
     ],
     [
       "an older version with no gauge key",
       JSON.stringify({ state: { theme: "light" }, version: 0 }),
-      { theme: "light", gaugeStyle: "vessel" },
+      { gaugeStyle: "vessel" },
     ],
     [
       "a newer version with a bad gauge value",
       JSON.stringify({ state: { theme: "dark", gaugeStyle: "glyph2" }, version: 2 }),
-      { theme: "dark", gaugeStyle: "vessel" },
+      { gaugeStyle: "vessel" },
     ],
     [
       "a non-object state",
       JSON.stringify({ state: 42, version: PREFERENCES_VERSION }),
-      { theme: "system", gaugeStyle: "vessel" },
+      { gaugeStyle: "vessel" },
     ],
-    ["unparseable JSON", "{", { theme: "system", gaugeStyle: "vessel" }],
-    ["a non-object payload", "[]", { theme: "system", gaugeStyle: "vessel" }],
+    ["unparseable JSON", "{", { gaugeStyle: "vessel" }],
+    ["a non-object payload", "[]", { gaugeStyle: "vessel" }],
   ];
 
   for (const [label, raw, expected] of storedCases) {
@@ -142,10 +141,9 @@ describe("criterion 7 against the storage entry: the store rehydrates bad data a
       window.localStorage.setItem(PREFERENCES_STORAGE_KEY, raw);
       await expect(usePreferencesStore.persist.rehydrate()).resolves.not.toThrow();
       const state = usePreferencesStore.getState();
-      expect(state.theme).toBe(expected.theme);
       expect(state.gaugeStyle).toBe(expected.gaugeStyle);
       expect(storedEntry()).toEqual({
-        state: { theme: expected.theme, gaugeStyle: expected.gaugeStyle, background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 },
+        state: { gaugeStyle: expected.gaugeStyle, background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 },
         version: PREFERENCES_VERSION,
       });
     });
@@ -160,10 +158,10 @@ describe("criterion 7 against the storage entry: the store rehydrates bad data a
   });
 });
 
-describe("the upgrade path: every existing user's payload rehydrates to theme plus the gauge default", () => {
+describe("the upgrade path: every existing user's payload rehydrates to the gauge default", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
+    usePreferencesStore.setState({ gaugeStyle: "vessel", mix: defaultMix(), hasHydrated: false });
   });
 
   it("the literal {\"state\":{\"theme\":\"dark\"},\"version\":1} keeps theme dark and gains gaugeStyle vessel", async () => {
@@ -174,12 +172,11 @@ describe("the upgrade path: every existing user's payload rehydrates to theme pl
     await usePreferencesStore.persist.rehydrate();
     const state = usePreferencesStore.getState();
     // Not a discarded payload, and not theme reset to system.
-    expect(state.theme).toBe("dark");
     expect(state.gaugeStyle).toBe("vessel");
     expect(state.hasHydrated).toBe(true);
     // Persist widens the envelope on write-back; the theme is preserved in it.
     expect(storedEntry()).toEqual({
-      state: { theme: "dark", gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 },
+      state: { gaugeStyle: "vessel", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 },
       version: 3,
     });
   });

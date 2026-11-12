@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DESKTOP, openThemed, pixelsAt, ratio, record, settle } from "./helpers/dark";
+import { DESKTOP, openPage, pixelsAt, ratio, record, settle } from "./helpers/dark";
 
 // Task 014 criterion 50, unchecked checkbox edge, DARK theme only. Measurement spec (cost rule 4).
 // Ground: the painted pixel 6 CSS px left of the checkbox's own 24 px box, inside its 44 px label
@@ -8,7 +8,7 @@ import { DESKTOP, openThemed, pixelsAt, ratio, record, settle } from "./helpers/
 const TITLE = "Measure unchecked edge";
 
 test("dark theme: unchecked checkbox edge is >= 3:1 against the panel surface", async ({ page }, testInfo) => {
-  await openThemed(page, { stored: "dark", osDark: true, viewport: DESKTOP });
+  await openPage(page, { viewport: DESKTOP });
   await page.evaluate(async (title) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open("pomotato");

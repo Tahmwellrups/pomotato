@@ -5,26 +5,20 @@ import { useMemo, useSyncExternalStore } from "react";
 const SEPARATOR = "|";
 
 function subscribe(onChange: () => void): () => void {
-  // Any of these can change what a token resolves to: a `.dark` class or
-  // `data-theme` attribute on <html>, an inline custom-property override, or
-  // the OS colour scheme.
+  // An inline custom-property override on <html> is the one thing that can
+  // change what a token resolves to now that the palette is fixed.
   const observer = new MutationObserver(onChange);
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["class", "style", "data-theme"],
+    attributeFilter: ["style"],
   });
-  const scheme = window.matchMedia("(prefers-color-scheme: dark)");
-  scheme.addEventListener("change", onChange);
-  return () => {
-    observer.disconnect();
-    scheme.removeEventListener("change", onChange);
-  };
+  return () => observer.disconnect();
 }
 
 /**
  * Resolves CSS custom properties (e.g. "--primary") to the concrete colour
  * strings they currently compute to, for props that cannot take `var(...)`.
- * Re-reads on every theme signal in `subscribe`, never cached across them.
+ * Re-reads on every change `subscribe` reports, never cached across them.
  * Server and hydration render return empty strings, so markup matches.
  *
  * Pass a module-level `tokens` object; its keys name the returned values.

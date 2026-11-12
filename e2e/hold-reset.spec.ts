@@ -1,3 +1,4 @@
+import { rootRgb } from "./helpers/task-019-tokens";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import {
   holdKey,
@@ -321,7 +322,7 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
       const s = getComputedStyle(el);
       return { style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset, colour: s.outlineColor };
     });
-    expect(startRing).toEqual({ style: "solid", width: "2px", offset: "2px", colour: "rgb(180, 83, 9)" });
+    expect(startRing).toEqual({ style: "solid", width: "2px", offset: "2px", colour: rootRgb("--ring") });
 
     await page.keyboard.press("Tab");
     const reset = resetControl(page);
@@ -331,7 +332,7 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
       const s = getComputedStyle(el);
       return { style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset, colour: s.outlineColor, surface: s.backgroundColor };
     });
-    expect(ring).toMatchObject({ style: "solid", width: "2px", offset: "2px", colour: "rgb(180, 83, 9)" });
+    expect(ring).toMatchObject({ style: "solid", width: "2px", offset: "2px", colour: rootRgb("--ring") });
 
     const pageBackground = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--background").trim());
     const pageRgb = `rgb(${hexToRgb(pageBackground).join(", ")})`;
@@ -398,9 +399,9 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
       probe.remove();
       return resolved;
     });
-    expect(primaryFill).toBe("rgb(180, 83, 9)");
+    expect(primaryFill).toBe(rootRgb("--primary"));
     await expect(startButton(page)).toHaveCSS("background-color", primaryFill);
-    await expect(startButton(page)).toHaveCSS("color", "rgb(255, 255, 255)");
+    await expect(startButton(page)).toHaveCSS("color", rootRgb("--primary-foreground"));
     await startButton(page).click();
     await expect(pauseButton(page)).toBeVisible();
     await pauseButton(page).click();
@@ -411,7 +412,7 @@ test.describe("Hold-to-confirm Reset: look and availability", () => {
     // hover mix. Move away to read the resting primary fill.
     await page.mouse.move(0, 0);
     await expect(pauseButton(page)).toHaveCSS("background-color", primaryFill);
-    await expect(pauseButton(page)).toHaveCSS("color", "rgb(255, 255, 255)");
+    await expect(pauseButton(page)).toHaveCSS("color", rootRgb("--primary-foreground"));
   });
 });
 

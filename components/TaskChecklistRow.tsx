@@ -206,7 +206,7 @@ export function TaskChecklistRow({
           onFocus={title.onFocus}
           onBlur={title.onBlur}
           onKeyDown={handleKeyDown}
-          className={`min-h-11 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-2 text-base text-ellipsis outline-none! placeholder:text-base placeholder:text-muted-foreground ${
+          className={`min-h-11 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-2 text-base text-ellipsis outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring placeholder:text-base placeholder:text-muted-foreground ${
             checked ? 'text-muted-foreground line-through' : 'text-foreground'
           } ${isCurrent ? 'font-semibold' : 'font-medium'}`}
         />

@@ -6,37 +6,18 @@ import { compositeOver, contrast, readPainted, rgbString, type PaintedReading, t
 // token strings. Probes are real DOM nodes inside a ground that is itself a
 // real element, so they go through the same compositing as the app.
 
-export const THEME_KEY = "pomotato-preferences";
 export const TIMER_KEY = "pomotato-timer";
 export const DESKTOP = { width: 1280, height: 800 };
 export const NARROW = { width: 320, height: 720 };
 
-export type Preference = "light" | "dark" | "system";
-
-/** Stored value written in the zustand envelope, or a raw string for a malformed case. */
-export function envelope(theme: Preference): string {
-  return JSON.stringify({ state: { theme }, version: 1 });
-}
-
 /**
- * Opens `path` with the OS colour scheme set and the preference seeded before the
- * app reads it. `stored` null clears the entry. `raw` writes an arbitrary string.
+ * Opens `path` at an optional viewport. Dark is the only palette (task 019): nothing is
+ * seeded into storage and no OS colour scheme is emulated, so the page paints dark whatever
+ * the machine says. One entry point, so every measuring spec opens a route the same way.
  */
-export async function openThemed(
-  page: Page,
-  opts: { stored: Preference | null; raw?: string; osDark: boolean; path?: string; viewport?: { width: number; height: number } },
-) {
-  await page.emulateMedia({ colorScheme: opts.osDark ? "dark" : "light" });
+export async function openPage(page: Page, opts: { path?: string; viewport?: { width: number; height: number } } = {}) {
   if (opts.viewport) await page.setViewportSize(opts.viewport);
   await page.goto(opts.path ?? "/");
-  await page.evaluate(
-    ([key, value]) => {
-      if (value === null) window.localStorage.removeItem(key);
-      else window.localStorage.setItem(key, value);
-    },
-    [THEME_KEY, opts.raw !== undefined ? opts.raw : opts.stored === null ? null : envelope(opts.stored)] as const,
-  );
-  await page.reload();
   await page.waitForLoadState("networkidle");
 }
 
@@ -44,20 +25,6 @@ export async function openThemed(
 export async function settle(page: Page) {
   await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   await page.waitForTimeout(400);
-}
-
-export function themeRadio(page: Page, label: "Light" | "Dark" | "System"): Locator {
-  return page.getByRole("radio", { name: label, exact: true });
-}
-
-/** The visible label is the hit target; the radio is sr-only (criterion 37, R-2 precedent). */
-export function themeLabel(page: Page, label: "Light" | "Dark" | "System"): Locator {
-  const value = label.toLowerCase();
-  return page.locator(`label:has(input[name="theme"][value="${value}"])`);
-}
-
-export async function htmlHasDark(page: Page): Promise<boolean> {
-  return page.evaluate(() => document.documentElement.classList.contains("dark"));
 }
 
 /**

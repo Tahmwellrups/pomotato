@@ -16,7 +16,7 @@ let created: string[] = [];
 let revoked: string[] = [];
 
 function setPrefs(background: string | null, hasHydrated = true) {
-  usePreferencesStore.setState({ theme: "dark", gaugeStyle: "glyph", background, hasHydrated });
+  usePreferencesStore.setState({ gaugeStyle: "glyph", background, hasHydrated });
 }
 
 function found(id: string) {
@@ -65,7 +65,7 @@ describe("task 010 criterion 5: every unresolvable reference paints no backgroun
     ["a dangling reference (row missing)", { status: "missing" }],
     ["an unavailable database (no IndexedDB, blocked upgrade)", { status: "unavailable" }],
   ];
-  it.each(degraded)("%s returns null and leaves theme and gaugeStyle intact", async (_name, outcome) => {
+  it.each(degraded)("%s returns null and leaves gaugeStyle intact", async (_name, outcome) => {
     vi.mocked(loadBackground).mockResolvedValueOnce(outcome);
     setPrefs(ID);
     const { result } = renderHook(() => useBackgroundImage());
@@ -76,7 +76,7 @@ describe("task 010 criterion 5: every unresolvable reference paints no backgroun
     expect(result.current).toBeNull();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     const state = usePreferencesStore.getState();
-    expect([state.theme, state.gaugeStyle]).toEqual(["dark", "glyph"]);
+    expect(state.gaugeStyle).toBe("glyph");
   });
 
   it("bytes that pass the structural check but will not decode return null and revoke the URL", async () => {
@@ -144,24 +144,25 @@ describe("task 010 criterion 5 and 28: a decodable image returns one URL, read o
 describe("task 010 criterion 5: the persisted payload degrades per key", () => {
   const entry = (state: unknown, version: unknown) => JSON.stringify({ state, version });
 
-  const cases: [string, string, { theme: string; gaugeStyle: string; background: string | null }][] = [
-    ["a non-string background object", entry({ theme: "dark", gaugeStyle: "glyph", background: { x: 1 } }, PREFERENCES_VERSION), { theme: "dark", gaugeStyle: "glyph", background: null }],
-    ["a background that fails the id shape", entry({ theme: "light", gaugeStyle: "vessel", background: "has space" }, PREFERENCES_VERSION), { theme: "light", gaugeStyle: "vessel", background: null }],
-    ["a newer PREFERENCES_VERSION", entry({ theme: "dark", gaugeStyle: "glyph", background: ID }, PREFERENCES_VERSION + 1), { theme: "dark", gaugeStyle: "glyph", background: ID }],
-    ["an older PREFERENCES_VERSION", entry({ theme: "dark", gaugeStyle: "glyph" }, 0), { theme: "dark", gaugeStyle: "glyph", background: null }],
-    ["a non-object state", entry(42, PREFERENCES_VERSION), { theme: "system", gaugeStyle: "vessel", background: null }],
-    ["unparseable JSON", "{", { theme: "system", gaugeStyle: "vessel", background: null }],
+  const cases: [string, string, { gaugeStyle: string; background: string | null }][] = [
+    ["a non-string background object", entry({ gaugeStyle: "glyph", background: { x: 1 } }, PREFERENCES_VERSION), { gaugeStyle: "glyph", background: null }],
+    ["a background that fails the id shape", entry({ gaugeStyle: "vessel", background: "has space" }, PREFERENCES_VERSION), { gaugeStyle: "vessel", background: null }],
+    ["a newer PREFERENCES_VERSION", entry({ gaugeStyle: "glyph", background: ID }, PREFERENCES_VERSION + 1), { gaugeStyle: "glyph", background: ID }],
+    ["an older PREFERENCES_VERSION", entry({ gaugeStyle: "glyph" }, 0), { gaugeStyle: "glyph", background: null }],
+    ["a non-object state", entry(42, PREFERENCES_VERSION), { gaugeStyle: "vessel", background: null }],
+    ["unparseable JSON", "{", { gaugeStyle: "vessel", background: null }],
   ];
 
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ theme: "system", gaugeStyle: "vessel", background: null, hasHydrated: false });
+    usePreferencesStore.setState({ gaugeStyle: "vessel", background: null, hasHydrated: false });
   });
 
-  it.each(cases)("%s rehydrates without throwing and keeps the theme and gauge keys", async (_name, raw, expected) => {
+  it.each(cases)("%s rehydrates without throwing and keeps the other keys and gauge keys", async (_name, raw, expected) => {
     window.localStorage.setItem(PREFERENCES_STORAGE_KEY, raw);
     await expect(usePreferencesStore.persist.rehydrate()).resolves.not.toThrow();
     const state = usePreferencesStore.getState();
-    expect([state.theme, state.gaugeStyle, state.background]).toEqual([expected.theme, expected.gaugeStyle, expected.background]);
+    expect(state.gaugeStyle).toBe(expected.gaugeStyle);
+    expect(state.background).toBe(expected.background);
   });
 });

@@ -21,11 +21,42 @@ Given a goal (usually the next unchecked item in `docs/PLAN.md`, or a direct ask
 - Never pick an implementation approach for frontend/backend — describe the requirement, not the solution.
 - Don't start a task for work PLAN.md marks as a later milestone unless explicitly asked.
 
-## Inputs
-`docs/PLAN.md`, `docs/DECISIONS.md`, existing files under `docs/tasks/`, the current repo structure (read-only).
+## Read budget — stay under ~20k tokens
+Read narrowly and deliberately. Every file you open, three later agents pay for again.
+
+- **`docs/PLAN.md` — never read whole** (63 KB). Grep it: `grep -n "^\s*- \[ \]" docs/PLAN.md`, then
+  read only the ±10 lines around the item you were given.
+- **`docs/DECISIONS.md` — read the index only** (one line per ruling). Open
+  `docs/decisions/<month>.md` for a *specific* ruling you need the reasoning of, never the whole archive.
+- **`docs/tasks/*.md` — the brief only.** The matching `docs/tasks/logs/*-log.md` holds QA reports,
+  implementation notes and review findings. Those are history. Do not read them to write a new task.
+- Repo structure via `Glob`/`Grep`. Do not read source files to decide scope — name the paths and let
+  frontend/backend open them.
 
 ## Outputs
-One new file: `docs/tasks/<id>-<slug>.md`. Increment `<id>` from the highest existing task number. If asked to revise scope on an existing task, edit that file's Goal/Scope/Acceptance Criteria sections only — never its QA Report or Review Findings.
+Two new files: `docs/tasks/<id>-<slug>.md` — the **brief**, from `docs/tasks/_template.md` — and an
+empty `docs/tasks/logs/<id>-<slug>-log.md`, from `docs/tasks/logs/_template-log.md`, for the other agents
+to append to. Increment `<id>` from the highest existing task number. If asked to revise scope on an existing task, edit that file's Goal/Scope/Acceptance
+Criteria sections only — never anything in its log file.
+
+### The brief has a hard cap: 400 lines — and Acceptance Criteria are exempt
+Three agents read the brief in full, so every line costs four times. Task 016's brief was 1,574 lines
+(~40k tokens per read) and over half of it was narrative.
+
+**The cap applies to the prose sections, not to the criteria.** Criteria are the contract; squeezing them
+is how you get a cheap brief and an expensive task. In particular, CLAUDE.md's "Measurement ordering" rule
+stands above the cap: **a criterion that names a figure must still say where the figure came from** —
+painted pixel, which theme, which ground. Task 010 carried three wrong numbers for want of that line and
+each one cost a full round. A provenance line is never the line you cut.
+
+- **One criterion, one line** — where one line suffices. A measured criterion gets the lines its
+  provenance needs.
+- **Reasoning goes in `docs/DECISIONS.md`,** not the brief. The brief may link to a ruling; it must not
+  restate it.
+- **No section that exists to be read once.** Provenance, prior-art notes and "what this invalidates"
+  earn at most three lines each.
+- If the criteria genuinely need more than 400 lines, the task is too big — **split it into two tasks**
+  and say so, rather than writing a longer brief.
 
 ## Definition of done
 File exists, every acceptance criterion is independently checkable, scope boundaries are explicit, and `status: draft` is set in the frontmatter.

@@ -9,6 +9,9 @@ beforeEach(() => {
   vi.mocked(useBackgroundImage).mockReset();
 });
 
+// 010 criteria 22 and 26 said the loaded layer paints at opacity 100. Owner re-pointed
+// the active opacity to 50 on 2026-11-12 (commit 06404a4); the state machine the criteria
+// describe is unchanged, only the value it lands on. See DECISIONS.md 2026-11-12.
 describe("task 010 criteria 22 and 26: the layer's markup maps the image state onto data-background", () => {
   it("renders nothing with no background, so there is no dim without an image", () => {
     vi.mocked(useBackgroundImage).mockReturnValue(null);
@@ -22,10 +25,10 @@ describe("task 010 criteria 22 and 26: the layer's markup maps the image state o
     const layer = container.firstElementChild as HTMLElement;
     expect(layer).toHaveAttribute("data-background", "pending");
     expect(layer.className).toContain("opacity-0");
-    expect(layer.className).not.toContain("opacity-100");
+    expect(layer.className).not.toContain("opacity-50");
   });
 
-  it("becomes active (opacity 100) only once the <img> fires load", () => {
+  it("becomes active (opacity 50) only once the <img> fires load", () => {
     vi.mocked(useBackgroundImage).mockReturnValue("blob:qa-1");
     const { container } = render(<BackgroundLayer />);
     const layer = container.firstElementChild as HTMLElement;
@@ -33,7 +36,7 @@ describe("task 010 criteria 22 and 26: the layer's markup maps the image state o
     expect(img.getAttribute("src")).toBe("blob:qa-1");
     fireEvent.load(img);
     expect(layer).toHaveAttribute("data-background", "active");
-    expect(layer.className).toContain("opacity-100");
+    expect(layer.className).toContain("opacity-50");
   });
 
   it("is inert and hidden from assistive tech, with no alt text to read", () => {

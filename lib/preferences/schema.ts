@@ -26,12 +26,6 @@ import { defaultMix, isLevel, isMix, sanitizeMix, type Mix } from "../audio/mix"
 import { DURATION_KEYS, DURATION_LIMITS } from "../timer/constants";
 import { isDurationMinutes } from "../timer/time";
 
-export const THEME_VALUES = ["light", "dark", "system"] as const;
-export type ThemePreference = (typeof THEME_VALUES)[number];
-
-/** The concrete theme that gets painted. `system` is never a painted value. */
-export type ResolvedTheme = "light" | "dark";
-
 /**
  * Stable identifiers, never colours or component names. `vessel` is the liquid
  * behind the digits (what ships today); `glyph` is the two-tone fill inside
@@ -53,7 +47,9 @@ export type BackgroundPreference = string | null;
 export const BACKGROUND_ID_MAX_LENGTH = 64;
 const BACKGROUND_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
-/** True for a plausible row id (a UUID in practice). Shape only: it does not look the row up. */
+/**
+ * True for a plausible row id (a UUID in practice). Shape only: it does not look the row up.
+ */
 export function isBackgroundId(raw: unknown): raw is string {
   return (
     typeof raw === "string" &&
@@ -64,7 +60,6 @@ export function isBackgroundId(raw: unknown): raw is string {
 }
 
 export interface Preferences {
-  theme: ThemePreference;
   gaugeStyle: GaugeStylePreference;
   background: BackgroundPreference;
   /**
@@ -89,13 +84,10 @@ export interface Preferences {
 export const PREFERENCES_STORAGE_KEY = "pomotato-preferences";
 export const PREFERENCES_VERSION = 3;
 
-export const DEFAULT_THEME: ThemePreference = "system";
-
 // The vessel, so no existing screen changes until someone picks otherwise.
 export const DEFAULT_GAUGE_STYLE: GaugeStylePreference = "vessel";
 
 export const PREFERENCE_DEFAULTS: Preferences = {
-  theme: DEFAULT_THEME,
   gaugeStyle: DEFAULT_GAUGE_STYLE,
   background: null,
   mix: defaultMix(),
@@ -122,7 +114,6 @@ type FreeFormKey =
 export const PREFERENCE_VALUES: {
   readonly [K in Exclude<keyof Preferences, FreeFormKey>]: readonly Preferences[K][];
 } = {
-  theme: THEME_VALUES,
   gaugeStyle: GAUGE_STYLE_VALUES,
 };
 
@@ -144,7 +135,6 @@ export function sanitizePreferences(raw: unknown): Preferences {
   const record: Record<string, unknown> =
     typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
-    theme: pick("theme", record.theme),
     gaugeStyle: pick("gaugeStyle", record.gaugeStyle),
     background: isBackgroundId(record.background) ? record.background : PREFERENCE_DEFAULTS.background,
     mix: sanitizeMix(record.mix),
@@ -183,21 +173,16 @@ export function isPreferences(raw: unknown): raw is Preferences {
  * back per key. That per-key fallback is also why `gaugeStyle`, `background`
  * and `mix` each needed no version bump. The one thing sanitising cannot do is
  * carry the Focus length out of the old timer store; `store.ts` does that.
+ *
+ * Task 019 removed the `theme` key (the app is dark only) without a version
+ * bump: no remaining key changed meaning. A stored `theme` is dropped as a
+ * field, not mapped into anything and not by clearing the key: sanitising
+ * builds the result from the known keys only, so an unknown key, whatever its
+ * value, never reaches the store or the written-back envelope.
  */
 export function migratePreferences(persisted: unknown): Preferences {
   return sanitizePreferences(persisted);
 }
-
-/**
- * The one resolver. Stored preference plus the OS signal gives the concrete
- * theme. `light` and `dark` ignore the OS entirely.
- */
-export function resolveTheme(preference: ThemePreference, osPrefersDark: boolean): ResolvedTheme {
-  if (preference === "system") return osPrefersDark ? "dark" : "light";
-  return preference;
-}
-
-export const DARK_CLASS = "dark";
 
 /**
  * Pre-hydration contract for the task panel (task 015): the boot script sets
@@ -207,11 +192,3 @@ export const DARK_CLASS = "dark";
  */
 export const TASK_PANEL_ATTRIBUTE = "data-task-panel";
 export const TASK_PANEL_HIDDEN_VALUE = "hidden";
-
-/**
- * Idempotent: `toggle` with an explicit force can never leave a duplicated or
- * missing `dark` class, however many times it runs.
- */
-export function applyResolvedTheme(root: Element, resolved: ResolvedTheme): void {
-  root.classList.toggle(DARK_CLASS, resolved === "dark");
-}
