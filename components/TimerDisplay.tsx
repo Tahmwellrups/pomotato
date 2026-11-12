@@ -59,13 +59,6 @@ export function TimerDisplay({
       ref={frame}
       className="relative flex min-h-32 w-full items-center justify-center px-6 py-4 sm:min-h-44 lg:min-h-1/2"
     >
-      <TimerGauge
-        remainingMs={remainingMs}
-        fullMs={fullMs}
-        ready={hasHydrated}
-        style={style}
-        onPaint={onPaint}
-      />
       <p
         className={
           glyph
