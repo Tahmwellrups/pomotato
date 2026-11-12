@@ -345,9 +345,13 @@ body::before {
    panel is the page, the solid bars are chrome. Shadow (R-12) is the elevation
    marker for both and has one reason: they sit on a photograph, where a 1.4:1
    --border hairline alone does not hold an edge. Forced colours zero the shadow
-   and force the border to a system colour, so neither surface depends on it. */
+   and force the border to a system colour, so neither surface depends on it.
+   The shadow is declared transparent in the no-image state: a shadow enlarges the
+   element's painted rect, and the layout-shift metric measures that rect, so a
+   shadow that appears with the image registered as 0.0012 of shift at 320 px. */
 @utility surface-solid {
   border: 1px solid transparent;
+  box-shadow: 0 1px 2px 0 transparent;
   border-radius: var(--radius-xl);
   @media (forced-colors: active) {
     border-color: Canvas;
@@ -365,6 +369,7 @@ body::before {
 
 @utility surface-frosted {
   border: 1px solid transparent;
+  box-shadow: 0 1px 2px 0 transparent;
   border-radius: var(--radius-2xl);
   @media (forced-colors: active) {
     border-color: Canvas;
@@ -449,7 +454,9 @@ body::before {
    Drawn as a text stroke painted behind the fill (paint-order), 4 px wide so 2 px
    shows outside the glyph: tight, uniform on every side, and no box, fill or
    panel. A directional text-shadow was rejected because it defends one side.
-   Painted only while an image shows, so the no-image header is unchanged.
+   The stroke width is always set and only its colour flips (transparent with no
+   image), so the painted extent of the glyphs is the same in both states; the
+   no-image header paints the same pixels as before.
    Forced colours: stroke colours are not guaranteed to follow system colours, so
    the halo is switched off and the system Canvas/CanvasText pair carries it.
    Focus: the 2 px --ring outline sits on the photograph with no fill behind it
@@ -458,10 +465,14 @@ body::before {
    4.84:1 light and 8.67:1 dark whatever the photograph does. The flank draws
    under the outline (outline paints over box-shadow) and only on keyboard focus. */
 @media not (forced-colors: active) {
-  body:has([data-background="active"]) .glyph-halo {
-    -webkit-text-stroke: 4px var(--popover);
+  .glyph-halo {
+    -webkit-text-stroke-width: 4px;
+    -webkit-text-stroke-color: transparent;
     paint-order: stroke fill;
     stroke-linejoin: round;
+  }
+  body:has([data-background="active"]) .glyph-halo {
+    -webkit-text-stroke-color: var(--popover);
   }
   body:has([data-background="active"]) input:focus-visible + .glyph-halo {
     box-shadow: 0 0 0 5px var(--popover);

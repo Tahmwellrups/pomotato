@@ -309,8 +309,21 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
         (el) => `${el.tagName.toLowerCase()}:${(el as HTMLInputElement).type ?? ""}:${el.textContent?.trim() ?? el.getAttribute("aria-label") ?? ""}`,
       ),
     );
+    // Task 017 added the session-length fields, Reset, the sound toggle, the volume slider and Preview.
     expect(names.sort()).toEqual(
-      ["a::Back to the timer", "input:radio:", "input:radio:", "input:file:"].sort(),
+      [
+        "a::Back to the timer",
+        "input:radio:",
+        "input:radio:",
+        "input:file:",
+        "input:text:",
+        "input:text:",
+        "input:text:",
+        "button:button:Reset to defaults",
+        "input:checkbox:",
+        "input:range:",
+        "button:button:Preview chime",
+      ].sort(),
     );
     await backLink(page).click();
     await expect(page).toHaveURL(/\/$/);
@@ -319,7 +332,12 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
   test("keyboard only: Tab enters the group once on the checked radio, arrows change it, the back link returns", async ({ page }) => {
     await open(page, { path: "/settings", style: "vessel" });
     await backLink(page).focus();
-    await page.keyboard.press("Tab");
+    // Task 017: the session-length fields, Reset and the sound controls now come before the gauge group in tab order,
+    // so Tab walks to the checked radio rather than landing on it at once.
+    for (let i = 0; i < 12; i += 1) {
+      if (await optionRadio(page, "vessel").evaluate((el) => el === document.activeElement)) break;
+      await page.keyboard.press("Tab");
+    }
     await expect(optionRadio(page, "vessel")).toBeFocused();
     await expect(optionRadio(page, "vessel")).toBeChecked();
     await page.keyboard.press("ArrowDown");
@@ -384,10 +402,11 @@ test.describe("criterion 24: a chosen option reaches the real timer and survives
     const raw = await page.evaluate((key) => window.localStorage.getItem(key), THEME_KEY);
     const parsed = JSON.parse(raw ?? "null") as { state: Record<string, unknown>; version: number };
     expect(Object.keys(parsed).sort()).toEqual(["state", "version"]);
-    // Task 011 adds the mix key; the pinned key list gains it.
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "theme"]);
+    // Task 011 adds the mix key; the pinned key list gains it. Task 015 adds
+    // taskPanelVisible and moves the envelope to version 2 (lib/preferences/schema.ts).
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible", "theme"]);
     expect(parsed.state.gaugeStyle).toBe("glyph");
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(3);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class/i);
   });
 });

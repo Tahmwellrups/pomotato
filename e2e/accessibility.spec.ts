@@ -55,9 +55,10 @@ test.describe("Accessibility - axe-core checks", () => {
     expect(seriousViolations).toHaveLength(0);
   });
 
-  test("no axe violations with the Focus length field shown", async ({ page }) => {
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
+  // Task 017: the Focus length field moved to /settings (ruling 1), so the axe check with the field shown runs there.
+  test("no axe violations on /settings with the Focus length field shown", async ({ page }) => {
+    await page.goto("/settings");
+    await expect(page.locator("input#focus-length")).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();
 
@@ -115,12 +116,10 @@ test.describe("Accessibility - axe-core checks", () => {
       expect(await label.count()).toBeGreaterThan(0);
     }
 
-    // Custom input should have a label
-    const customLabel = page.locator('label:has(input[value="focus"])');
-    await customLabel.click();
-
-    const customLabelText = page.locator("label:has-text('Focus length')");
-    await expect(customLabelText).toBeVisible();
+    // Task 017: the duration field has a programmatic label on /settings.
+    await page.goto("/settings");
+    const customLabelText = page.locator("label[for='focus-length']");
+    await expect(customLabelText).toHaveText(/Focus length/);
 
     const customInput = page.locator('input[id="focus-length"]');
     await expect(customInput).toHaveAttribute("id", "focus-length");
@@ -255,7 +254,9 @@ test.describe("Accessibility - axe-core checks", () => {
       expect(seriousViolations).toHaveLength(0);
     });
 
-    test("no axe violations: 3 tasks, one pinned", async ({ page }) => {
+    // Re-pointed (task 015, commit 4ca861e): this was "3 tasks, one pinned". The Pin button was deleted; the
+    // current task is now the first open row, so the state under test is that row's aria-current.
+    test("no axe violations: 3 tasks, the first open one is the current task", async ({ page }) => {
       await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
 
@@ -269,11 +270,9 @@ test.describe("Accessibility - axe-core checks", () => {
       await titleInput.press("Enter");
       await page.waitForTimeout(100);
 
-      // Pin one task
+      // No pin step: the first open row is the current task (commit 4ca861e deleted the Pin button).
       const taskRow = page.locator("ul li").filter({ hasText: "Alpha" }).first();
-      const pinButton = taskRow.getByRole("button", { name: /^(Pin|Unpin)\b/ });
-      await pinButton.click();
-      await page.waitForTimeout(200);
+      await expect(taskRow).toHaveAttribute("aria-current", "true");
 
       const results = await new AxeBuilder({ page }).analyze();
 
@@ -307,15 +306,16 @@ test.describe("Accessibility - axe-core checks", () => {
       expect(seriousViolations).toHaveLength(0);
     });
 
+    // Re-pointed (task 015, commit 4ca861e): the emoji field was deleted, so the validation error is the
+    // empty-title one from the panel's add form.
     test("no axe violations: validation errors showing", async ({ page }) => {
       await openTaskList(page);
       const titleInput = page.locator('input[id*="-title"]').first();
-      const emojiInput = page.locator('input[id*="-emoji"]').first();
-      const submitButton = page.getByRole("button", { name: "Add" }).first();
+      const submitButton = page.getByRole("button", { name: "Add task", exact: true });
 
-      // Try to submit with invalid data
-      await emojiInput.fill("invalid-emoji");
+      // Submit an empty title to raise the field error.
       await submitButton.click();
+      await expect(titleInput).toHaveAttribute("aria-invalid", "true");
       await page.waitForTimeout(200);
 
       const results = await new AxeBuilder({ page }).analyze();

@@ -37,6 +37,20 @@ export interface SoundscapeSnapshot {
 
 export type StartResult = "running" | "idle" | "blocked" | "unsupported";
 
+/**
+ * One chime's claim on the shared context, from `SoundscapeEngine.lease`.
+ * While a lease is open the engine will not suspend the context under it.
+ */
+export interface ChimeLease {
+  readonly context: AudioContext;
+  /** Settles `true` once the context is running, `false` if the browser refused or the resume failed. Never rejects. */
+  readonly ready: Promise<boolean>;
+  /** Counts nodes the chime added to the graph, so the engine's node total stays honest. */
+  retain(nodes: number): void;
+  /** The chime's last node has ended: forgets `nodes` and lets an idle context suspend again. Call once. */
+  release(nodes: number): void;
+}
+
 export interface SoundscapeEngine {
   /**
    * Brings the graph in line with `mix` and `playing`. Call it from the event
@@ -44,6 +58,14 @@ export interface SoundscapeEngine {
    * synchronously, before the first await, which is what autoplay policy needs.
    */
   apply(mix: Mix, playing: boolean): Promise<StartResult>;
+  /**
+   * Opens the one context if needed and starts its resume, synchronously. Call
+   * it from the click that should unlock audio. Does nothing audible and never
+   * throws; a browser without Web Audio is a silent no-op.
+   */
+  prime(): void;
+  /** For the chime: the shared context, woken if the soundscape left it suspended. Null when unsupported. */
+  lease(): ChimeLease | null;
   getSnapshot(): SoundscapeSnapshot;
   getServerSnapshot(): SoundscapeSnapshot;
   subscribe(listener: () => void): () => void;
@@ -88,8 +110,10 @@ function createEngine(): SoundscapeEngine {
   // A resume that has been asked for and has not settled. While one is pending
   // the sound is on its way, so the layers read as audible and the button as Stop.
   let resumesInFlight = 0;
-  // Bumped on every apply, so a pending suspend knows it has been overtaken.
+  // Bumped on every apply and every lease, so a pending suspend knows it has been overtaken.
   let generation = 0;
+  // Open chime leases. The context is never suspended while one is open.
+  let chimesInFlight = 0;
 
   function entryFor(id: string) {
     return mix[id] ?? DEFAULT_LAYER_MIX;
@@ -163,7 +187,7 @@ function createEngine(): SoundscapeEngine {
     const mine = generation;
     const marker = context.createConstantSource();
     marker.onended = () => {
-      if (mine === generation && context.state === "running") void context.suspend();
+      if (mine === generation && chimesInFlight === 0 && context.state === "running") void context.suspend();
     };
     marker.start();
     marker.stop(context.currentTime + SUSPEND_AFTER_SECONDS);
@@ -230,8 +254,75 @@ function createEngine(): SoundscapeEngine {
     return wanted ? "running" : "idle";
   }
 
+  function prime(): void {
+    try {
+      if (ctx === null) {
+        ctx = open();
+        if (ctx === null) return;
+        publish();
+      }
+      if (ctx.state !== "running") {
+        const context = ctx;
+        // Nothing is playing, so let it go back to sleep once the unlock has landed.
+        Promise.resolve(context.resume()).then(
+          () => {
+            if (!soundWanted() && chimesInFlight === 0) suspendWhenSilent(context);
+          },
+          () => undefined
+        );
+      }
+    } catch {
+      // Priming is best effort. The chime that follows reports its own failure.
+    }
+  }
+
+  function lease(): ChimeLease | null {
+    if (ctx === null) {
+      ctx = open();
+      if (ctx === null) return null;
+    }
+    const context = ctx;
+    generation += 1;
+    chimesInFlight += 1;
+    // Under autoplay policy `resume()` neither resolves nor rejects, so this
+    // can stay pending. The caller bounds the wait (see `lib/audio/chime.ts`);
+    // the engine holds no JS timer.
+    let ready: Promise<boolean>;
+    try {
+      ready =
+        context.state === "running"
+          ? Promise.resolve(true)
+          : Promise.resolve(context.resume()).then(
+              () => context.state === "running",
+              () => false
+            );
+    } catch {
+      ready = Promise.resolve(false);
+    }
+    let released = false;
+    publish();
+    return {
+      context,
+      ready,
+      retain(nodes) {
+        liveNodes += nodes;
+        publish();
+      },
+      release(nodes) {
+        if (released) return;
+        released = true;
+        liveNodes -= nodes;
+        chimesInFlight -= 1;
+        if (!soundWanted()) suspendWhenSilent(context);
+        publish();
+      },
+    };
+  }
+
   return {
     apply,
+    prime,
+    lease,
     getSnapshot: () => snapshot,
     getServerSnapshot: () => serverSnapshot,
     subscribe(listener) {

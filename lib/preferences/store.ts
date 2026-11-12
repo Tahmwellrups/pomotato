@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Mix } from "../audio/mix";
+import { isLevel, type Mix } from "../audio/mix";
+import type { DurationKey } from "../timer/constants";
+import { isDurationMinutes } from "../timer/time";
+import { readLegacyTimerFocusMinutes } from "./legacy-focus";
 import {
   isPreferences,
   migratePreferences,
@@ -25,6 +28,13 @@ interface PreferencesActions {
   setBackground: (background: BackgroundPreference) => void;
   setMix: (mix: Mix) => void;
   setTaskPanelVisible: (visible: boolean) => void;
+  /** Ignores a value outside that length's own bounds, so the stored value keeps its last valid entry. */
+  setDuration: (key: DurationKey, minutes: number) => void;
+  /** Puts the three session lengths back to their defaults. Nothing else changes. */
+  resetDurations: () => void;
+  setChimeEnabled: (enabled: boolean) => void;
+  /** Ignores anything that is not an integer 0 to 100. */
+  setChimeLevel: (level: number) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -42,6 +52,21 @@ export const usePreferencesStore = create<PreferencesStore>()(
       setMix: (mix) => set({ mix: sanitizePreferences({ mix }).mix }),
       setTaskPanelVisible: (visible) =>
         set({ taskPanelVisible: sanitizePreferences({ taskPanelVisible: visible }).taskPanelVisible }),
+      setDuration: (key, minutes) => {
+        if (!isDurationMinutes(key, minutes)) return;
+        set({ [key]: minutes });
+      },
+      resetDurations: () =>
+        set({
+          focusMinutes: PREFERENCE_DEFAULTS.focusMinutes,
+          shortBreakMinutes: PREFERENCE_DEFAULTS.shortBreakMinutes,
+          longBreakMinutes: PREFERENCE_DEFAULTS.longBreakMinutes,
+        }),
+      setChimeEnabled: (enabled) => set({ chimeEnabled: typeof enabled === "boolean" ? enabled : PREFERENCE_DEFAULTS.chimeEnabled }),
+      setChimeLevel: (level) => {
+        if (!isLevel(level)) return;
+        set({ chimeLevel: level });
+      },
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -57,13 +82,33 @@ export const usePreferencesStore = create<PreferencesStore>()(
         background: state.background,
         mix: state.mix,
         taskPanelVisible: state.taskPanelVisible,
+        focusMinutes: state.focusMinutes,
+        shortBreakMinutes: state.shortBreakMinutes,
+        longBreakMinutes: state.longBreakMinutes,
+        chimeEnabled: state.chimeEnabled,
+        chimeLevel: state.chimeLevel,
       }),
-      migrate: (persisted): Preferences => migratePreferences(persisted),
+      // A version-2 entry has no Focus length of its own, so the one the old
+      // timer store holds (if any) becomes it. An entry already at version 3
+      // is never touched: a stored Focus length beats a stale timer entry.
+      migrate: (persisted, version): Preferences => {
+        const migrated = migratePreferences(persisted);
+        if (version >= 3) return migrated;
+        const carried = readLegacyTimerFocusMinutes();
+        return carried === null ? migrated : { ...migrated, focusMinutes: carried };
+      },
       // migrate is skipped when the stored version matches, so validate on every
       // rehydration. A bad value falls back to its default, and persist then
       // writes the sanitised state back over the bad entry (QA's 009 probe;
       // DECISIONS 2026-10-23), so malformed bytes do not survive a load.
       merge: (persisted, current) => {
+        if (persisted === undefined || persisted === null) {
+          // No preferences entry at all: the only place an old timer entry's
+          // Focus length can still come from.
+          const carried = readLegacyTimerFocusMinutes();
+          const fresh = sanitizePreferences(persisted);
+          return { ...current, ...fresh, focusMinutes: carried ?? fresh.focusMinutes };
+        }
         const next = isPreferences(persisted) ? persisted : sanitizePreferences(persisted);
         return { ...current, ...next };
       },

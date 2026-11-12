@@ -905,3 +905,73 @@ Scope was the owner's narrow brief: re-point the e2e suite to green, take no new
 ### Not verified, open
 - Group G, 40, 41, 25, 36, 42, 44, 47 red-proofs, the 32 shown-half flash, the 014 touch and pointer drag and `aria-expanded` pre-hydration items: not run, as the brief directed.
 - **Red-proofs for the re-pointed guards: none run in this loop.** The re-points are assertion-for-assertion moves, so no break-and-restore was done.
+
+## QA Report (re-point pass, 2026-11-10, qa)
+
+**Verdict: FAIL on the current tree.** The re-point work is done for every file the brief listed, but the final full run is 504 passed / 167 failed / 1 skipped (672). About 157 of the 167 come from one uncommitted app change (see "needs an app fix", item 1), not from the re-points. Re-pointed tests that were green on the build in place when each was run are listed per file below.
+
+### Measured figures (same command, one build, `serve-out` on :3100)
+
+- Build: `npm run build` (run once before the baseline, and once more before the final run, so the final run includes the current `widgets/TaskPanel.tsx`).
+- Baseline, re-measured this session: `npx playwright test -c e2e/scratch-3100.config.ts --reporter=line` gave **614 passed / 62 failed / 1 skipped (677)**. The brief's 613/63 was an earlier figure; this is the one I ran.
+- Final, current tree: **504 passed / 167 failed / 1 skipped (672)**. The 5-test drop is retirements (3 in token-task-surface, 2 in uploaded-background-dialog-edge).
+- The coordinator's 649 / 22 figure was not reproduced. It predates the `widgets/TaskPanel.tsx` change, which is in the tree at 10:07 and was included in my 10:32 build.
+- `npm run test`: **1150 passed / 41 files**. `npm run typecheck`: exit 0. `npm run lint`: 0 errors, 20 warnings, all in test files and none added by this pass.
+
+### Per-file table (before = baseline 614/62; after = final run, current tree)
+
+| File | Before | After | What was done |
+|---|---|---|---|
+| token-task-surface.spec.ts | 16 | 12 | Dialog and `addTask` scoped to the panel (the timer card repeats the title). Pin-state, swatch and pin-contrast tests retired. Criterion 31 re-pointed to the current row's `aria-current` and "Current task" label. Trigger re-pointed to the `Task list` toggle. Console/hydration/axe kept on the panel. 3 tests retired. Remaining 12 are the region-name regression. |
+| dark-sweep.spec.ts | 9 | 7 | Ring list: `Your tasks` re-pointed to the panel toggle; dialog Close, emoji field, swatches, colour dot retired. Card test: pin removed, empty copy updated. Criterion 28 offset expectation changed to 2 px for every control, per e9380df. Current figures passed. |
+| dark-a11y-console.spec.ts | 4 | 8 | Criterion 60 flow: Pin step removed, title scoped to the panel. Before this pass its two flows passed (12/12 on a run before the TaskPanel change). Remaining 8 are the region-name regression. |
+| accessibility.spec.ts | 2 | 6 | "one pinned" → first open row is the current task (`aria-current`); "validation errors" → empty title (emoji field gone). Both passed (17/17) on a run before the TaskPanel change. Remaining 6 are the region regression. |
+| dark-contrast.spec.ts | 2 | 6 | Criterion 29 pinned hover border retired. Rest border re-pointed to the current row (`--primary`), passed 2/2 before the TaskPanel change. Other 6 are the region regression. |
+| focus-surface-behaviour.spec.ts | 2 | 2 | Criterion 30 "task dialog" step → panel toggle hide/show. Passed 8/8 before the TaskPanel change. Remaining 2 are the region regression. |
+| uploaded-background-dialog-edge.spec.ts | 2 | 0 | Whole file retired (see below). |
+| control-edge-measure.spec.ts | 3 | 3 | Header containment assertions retired. Chip and Stats rows now read `max(ring, flank)` against the photograph beyond the flank, plus ring-vs-flank (half 2). Triggers gained border-vs-halo (half 2). Ring row is `ceil`, with alignment asserted. 1280 px and 320 px light pass; 320 px dark fails for an app reason (item 3). |
+| uploaded-background-legibility.spec.ts | 4 | 4 | Wordmark: halo read via computed `-webkit-text-stroke-color`; per-pixel `max(ink, halo)` against the photograph; ink-vs-halo asserted (half 2). Ground is the top and left wordmark rings. Swatch interior retired. Passed 20/20 before the TaskPanel change. Remaining 4 are the criterion 20 axe scans (light and dark, 320 and 1280); they passed before the TaskPanel change and were not individually re-checked against the regression. |
+| focus-cycle.spec.ts | 1 | 0 | Criterion 21 asserts outcome (no painted shadow or border: alpha 0 or `none`), not `box-shadow: none`. Passed 23/23. |
+| task-panel-behaviour.spec.ts | 0 | 21 | Not in baseline. Checkbox write-failure step uses `click` and asserts the revert. Passed 21/21 before the TaskPanel change. Current failures are the region regression. |
+| task-list.spec.ts | 4 | 51 | `:119` and `:133` (add race) fixed: `addTitle` waits on the row. Both pass 3/3 repeats. `:383` and `:911` are deterministic app defects, not flakes (item 2). The rest of the 51 are the region regression. |
+| settings-gauge-style, soundscape-mixer, uploaded-background, dark-theme-control:174 | 4 | 0 | Group 2 re-pointed to version 2 and the `taskPanelVisible` key. Passed 4/4 (targeted). |
+| task-panel.spec.ts | 1 | 20 | `:277` is out of scope (not touched). The 19 new failures are the region regression. |
+| dark-theme-control.spec.ts | 4 | 4 | 174 re-pointed (above). 38 (2) and 47 (1) out of scope. Remaining one is criterion 6, IndexedDB, likely the region regression (not individually re-checked). |
+| focus-surface-sweep.spec.ts | 5 | 5 | Not touched (out of scope). 4 painted sweeps and `:634` (item 4 below). |
+| sessions.spec.ts, task-panel-measure.spec.ts, dark-native-ui.spec.ts | 0 | 18 | Not in baseline. sessions.spec.ts was checked in isolation: 14 failed, 4 passed, all on the region-name error. The other two files were not individually checked, and are assumed to share the cause. |
+| **Total** | **62** | **167** | |
+
+Note on attribution: 157 failures carry the exact error `getByRole('region', { name: 'Task list' ...}) element(s) not found`. The other 10 are listed under "deferred" and "app fix" below. The per-file "after" column is therefore mostly the regression, and it is not a measure of the re-points.
+
+### Retired, with reason
+
+- **Task dialog and pin (commit 4ca861e, "Panel-only task surface")**: `token-task-surface` pinned-paint test, pinned aria-pressed test (replaced by the current-row test), swatch checked-ring test, swatch contrast sweep. `dark-sweep` dialog Close, emoji field, swatch loop, TaskColorDot section. `dark-contrast` pinned hover border (the rest border was re-pointed). `dark-a11y-console` and `focus-surface-behaviour` pin and dialog steps. `accessibility` "one pinned" pin click.
+- **Colour swatches and emoji (commit 4ca861e)**: `uploaded-background-legibility` swatch interior (criterion 14). `dark-sweep` swatch loop and emoji field. `token-task-surface` swatch sweep.
+- **Dialog-edge file, `uploaded-background-dialog-edge.spec.ts` (commit 4ca861e)**: both tests retired. The file no longer uses `test.fail`; it pins bounds, which the brief did not describe. The situation is neither "fix landed" nor "deferral still applies to a live surface", because the task dialog it measured is gone. The header of the file records the open question. See "needs an app fix", item 5.
+- **Chip `-5px` offset (commit e9380df)**: `dark-sweep` and `dark-contrast` expected `-5px` for the theme chip; e9380df deleted the inset on purpose. Re-pointed to 2 px for every control.
+- **Chip inside header border box (owner ruling 2026-11-06)**: `control-edge-measure` containment assertions. Their premise died with the header panel.
+- **Header fill probe (owner ruling 2026-11-06)**: already retired in the spec. Its PLAN re-point is now done through the halo flank.
+
+### Deferred to the measurement pass
+
+- `focus-surface-sweep.spec.ts` painted sweeps (lines 565, 608): 4 failures, the wordmark "ring side has no pixel inside its surface". Out of scope per the owner.
+- `focus-surface-sweep.spec.ts:634` (criterion 14 theme focus, dark white): **the block's mechanism does not do what its title says.** The describe is titled "recorded as expected failures (the suite stays green; each flips when healed)". Only the criterion 17 test inside it uses `test.fail`. The 634 test is a plain `test()`, so it is a hard red at 2.058:1. Its premise ("the chip's ring sits inside the header, so its ground is the header fill") is stale. The block has been misreporting its own status. Not edited (out of scope).
+- `dark-theme-control.spec.ts` criterion 38 (2) and criterion 47 (1): out of scope.
+- `task-panel.spec.ts:277`: out of scope. The 2026-11-06 section-vs-Surface question stays for the sweep.
+- `task-panel-measure.spec.ts` (2): panel bounds measured on the Surface. Figures unverified on the current tree because of the region regression.
+- Wordmark ground definition (`uploaded-background-legibility`): the ground is now the top and left photograph rings only, because the bottom ring touches the theme chips' flanks and the right ring touches the Settings and Stats links. The figure passes, but choosing that ground is a measurement call and should be confirmed in the sweep.
+
+### Needs an app fix, not a test fix
+
+1. **Uncommitted `widgets/TaskPanel.tsx` removes the panel heading but not its reference (~157 failures).** The diff deletes `<h2 id={TASK_PANEL_HEADING_ID}>Task list</h2>`. The `<section aria-labelledby={TASK_PANEL_HEADING_ID}>` still points at that id, so the region has no accessible name, and `getByRole('region', { name: 'Task list', exact: true })` finds nothing. Repro: `npx playwright test -c e2e/scratch-3100.config.ts e2e/sessions.spec.ts --reporter=line`. Expected: 4 passed. Actual: 14 failed, error "element(s) not found" on the Task list region. Fix options for the frontend: restore the visible heading, or give the section an accessible name another way. Also a likely axe `aria-valid-attr-value` violation, not checked.
+2. **Keyboard reorder moves only one position per drag (task 002 criterion: "Up/Down arrow keys move it one position at a time").** Deterministic, not a timing race. Repro: `npx playwright test -c e2e/scratch-3100.config.ts e2e/task-list.spec.ts -g "moves task with arrow keys" --repeat-each=3` (fails 3/3 on a fixed-tree run, before the region regression). Observed: after one ArrowDown the order is `[Cipher, Seraph, Whisper]`; a second ArrowDown changes nothing, at 0, 300, 800 and 1500 ms, and the live region stays at "position 2 of 3". `task-list.spec.ts:911` ("persists task order after reload") depends on the same behaviour. Both tests are correct and stay red.
+3. **Theme chip focus ring at 320 x 720 dark is overlapped by the wordmark's glyph halo.** Cause (diagnosed, not guessed): at 320 px the wordmark `h1` (`.glyph-halo`, a 2 px `--popover` stroke) paints over the chip's outer ring row and its flank band. The ring row reads 142,98,50 (a 59% blend with the halo colour 30,22,16). The rows above are also contaminated, so there is no fully covered ground row. This is not a sampling fringe, so the `ceil` change could not fix it. Three `control-edge-measure` failures remain (dark, white, black, grey 50%, 320 px). Their assertion is the painted-ring integrity check, and it stays red. The 1280 px and 320 light runs pass. Layout decision needed (wordmark or chip spacing at 320).
+4. **The `focus-surface-sweep.spec.ts:634` block** (see deferred). Test-file label fix, not an app fix, but it needs a decision on whether the block should use `test.fail`.
+5. **`--dialog-edge` and `SoundscapeDialog` (owner question).** The token is still `var(--border)` in light (`app/globals.css:116`), so the light sub-floor PLAN records has not been fixed. The token is still consumed by `components/ui/dialog.tsx`, which `components/SoundscapeDialog.tsx` renders, so the sub-floor may still stand on the soundscape dialog. The task dialog it was recorded against is deleted. Decision needed: re-point the file to the soundscape dialog (new painted figures, measurement pass), or close the PLAN item as moot for the task dialog. Routed to the owner per the coordinator.
+
+### Verification notes
+
+- Red-proofs: not performed in this pass. The re-points are selector and subject changes, proved by green runs of each live subject. The new half-2 assertions (control-edge rows, legibility wordmark) are new guards and were not red-proofed by breaking the halo; that is a gap to close in the measurement pass.
+- Targeted runs before the region regression: token-task-surface 17/17, dark-sweep 13/13 (+6 criterion 28 after the offset fix), dark-a11y-console 12/12, accessibility 17/17, dark-contrast targeted 2/2, focus-surface-behaviour 8/8, legibility 20/20, focus-cycle 23/23, task-panel-behaviour 21/21, task-list `:119` and `:133` 3/3 repeats. Settings, soundscape and uploaded-background Group 2: 4/4.
+- Unit 1150/1150, typecheck exit 0, lint 0 errors.
+- Scratch-only diagnostic specs (`e2e/zz-*.spec.ts`) were created and deleted during the pass. None are committed.

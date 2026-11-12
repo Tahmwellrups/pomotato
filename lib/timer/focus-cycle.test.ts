@@ -3,6 +3,7 @@ import { useTimerStore } from "./store";
 import { DEFAULT_FOCUS_MINUTES, MS_PER_MINUTE } from "./constants";
 import { logRunCompletion } from "./log-completion";
 import type { PersistedTimerState } from "./types";
+import { usePreferencesStore } from "@/lib/preferences";
 
 // Task 013 store behaviour (criteria 6, 13-22, 26, 28-30, 36-42). Driven with
 // an explicit `now` through completeIfExpired, the same call the clock hook
@@ -14,10 +15,12 @@ const T0 = 1_700_000_000_000;
 const s = () => useTimerStore.getState();
 const stored = () => JSON.parse(localStorage.getItem("pomotato-timer") ?? "null");
 
-function reset(extra: Partial<ReturnType<typeof s>> = {}) {
+// Task 017: the Focus length lives in preferences. `reset` seeds it there.
+function reset(extra: Partial<ReturnType<typeof s>> & { focusMinutes?: number } = {}) {
+  const { focusMinutes = DEFAULT_FOCUS_MINUTES, ...timer } = extra;
+  usePreferencesStore.setState({ focusMinutes, shortBreakMinutes: 5, longBreakMinutes: 15 });
   useTimerStore.setState({
     mode: "focus",
-    focusMinutes: DEFAULT_FOCUS_MINUTES,
     cyclePosition: 0,
     status: "idle",
     endTimestamp: null,
@@ -26,7 +29,7 @@ function reset(extra: Partial<ReturnType<typeof s>> = {}) {
     startedAt: null,
     lastAdvance: null,
     hasHydrated: false,
-    ...extra,
+    ...timer,
   });
 }
 
@@ -134,7 +137,8 @@ describe("criteria 20-22, 26, 29, 30: cycle position", () => {
     s().completeIfExpired(s().endTimestamp!);
     expect(s().status).toBe("running");
     s().reset();
-    expect(s()).toMatchObject({ mode: "shortBreak", status: "idle", endTimestamp: null, cyclePosition: 1, focusMinutes: 40 });
+    expect(s()).toMatchObject({ mode: "shortBreak", status: "idle", endTimestamp: null, cyclePosition: 1 });
+    expect(usePreferencesStore.getState().focusMinutes).toBe(40);
   });
 
   it("criterion 22: pausing an auto-started break freezes it, a paused break does not advance, and resume continues from the frozen value", () => {
@@ -164,7 +168,7 @@ describe("criteria 20-22, 26, 29, 30: cycle position", () => {
     s().reset();
     s().selectMode("longBreak");
     expect(s().cyclePosition).toBe(2);
-    s().setFocusMinutes(50);
+    usePreferencesStore.getState().setDuration("focusMinutes", 50);
     s().start();
     s().pause();
     s().resume();
@@ -195,13 +199,13 @@ describe("criteria 20-22, 26, 29, 30: cycle position", () => {
       expect(stored().state.cyclePosition).toBeGreaterThanOrEqual(0);
       expect(stored().state.cyclePosition).toBeLessThanOrEqual(4);
     }
-    expect(stored().version).toBe(3);
+    expect(stored().version).toBe(4);
   });
 });
 
 describe("criteria 36-38: a reload into an expired run advances exactly one step", () => {
-  function seedV3(state: Partial<PersistedTimerState>) {
-    const base: PersistedTimerState = {
+  function seedV3(state: Record<string, unknown>) {
+    const base = {
       mode: "focus",
       focusMinutes: 1,
       cyclePosition: 1,
@@ -210,7 +214,7 @@ describe("criteria 36-38: a reload into an expired run advances exactly one step
       pausedRemainingMs: null,
       runId: "stale-run",
       startedAt: T0 - 2 * 60 * MS_PER_MINUTE - MS_PER_MINUTE,
-    };
+    } satisfies Record<string, unknown>;
     localStorage.setItem("pomotato-timer", JSON.stringify({ state: { ...base, ...state }, version: 3 }));
   }
 
@@ -241,32 +245,40 @@ describe("criteria 39-42: persistence, migration and the two validation paths", 
   const migrate = (state: unknown, version: number) => useTimerStore.persist.getOptions().migrate!(state, version) as PersistedTimerState;
   const merge = (persisted: unknown, current: ReturnType<typeof s>) => useTimerStore.persist.getOptions().merge!(persisted, current) as ReturnType<typeof s>;
 
-  it("criterion 39: the persist version is 3", () => {
+  it("criterion 27 and 39: the persist version is 4 and focusMinutes is gone from the timer's stored slice", () => {
     s().selectMode("shortBreak");
-    expect(stored().version).toBe(3);
+    expect(stored().version).toBe(4);
+    expect(stored().state).not.toHaveProperty("focusMinutes");
   });
 
   it("criterion 39: v2 custom becomes focus with the stored customMinutes as the Focus length, and the run carries over", () => {
+    // No stored preference yet, so the timer end of the carry writes the 45 into preferences (criterion 28/29).
+    localStorage.removeItem("pomotato-preferences");
     const migrated = migrate({ mode: "custom", customMinutes: 45, status: "running", endTimestamp: T0 + 1000, pausedRemainingMs: null, runId: "r-c", startedAt: T0 }, 2);
-    expect(migrated).toEqual({ mode: "focus", focusMinutes: 45, cyclePosition: 0, status: "running", endTimestamp: T0 + 1000, pausedRemainingMs: null, runId: "r-c", startedAt: T0 });
+    // The v3 run is counted against its own stored 45-minute Focus length (criterion 30).
+    expect(migrated).toEqual({ mode: "focus", cyclePosition: 0, status: "running", endTimestamp: T0 + 1000, pausedRemainingMs: null, runId: "r-c", startedAt: T0, plannedDurationMs: 45 * MS_PER_MINUTE });
+    expect(JSON.parse(localStorage.getItem("pomotato-preferences") ?? "null")?.state?.focusMinutes).toBe(45);
   });
 
   it("criterion 39: any other v2 mode keeps its mode and takes the default 25, not the stored customMinutes", () => {
     const migrated = migrate({ mode: "shortBreak", customMinutes: 60, status: "idle", endTimestamp: null, pausedRemainingMs: null, runId: null, startedAt: null }, 2);
     expect(migrated.mode).toBe("shortBreak");
-    expect(migrated.focusMinutes).toBe(DEFAULT_FOCUS_MINUTES);
+    expect(migrated).not.toHaveProperty("focusMinutes");
+    expect(migrated.plannedDurationMs).toBeNull();
     expect(migrated.cyclePosition).toBe(0);
   });
 
   it("criterion 39: a v2 paused entry keeps its frozen value, clamped to the new full duration", () => {
     const migrated = migrate({ mode: "shortBreak", customMinutes: 25, status: "paused", endTimestamp: null, pausedRemainingMs: 40 * MS_PER_MINUTE, runId: "r-p", startedAt: T0 }, 2);
     expect(migrated.pausedRemainingMs).toBe(5 * MS_PER_MINUTE);
+    // A paused run carries the planned duration it was counted against: the v3 short break, 5 minutes (criterion 30).
+    expect(migrated.plannedDurationMs).toBe(5 * MS_PER_MINUTE);
     expect(migrated.runId).toBe("r-p");
   });
 
   it("criterion 40: a v1 entry runs v1 to v2 and then v2 to v3", () => {
     const migrated = migrate({ mode: "custom", customMinutes: 30, status: "idle", endTimestamp: null, pausedRemainingMs: null }, 1);
-    expect(migrated).toMatchObject({ mode: "focus", focusMinutes: 30, cyclePosition: 0, status: "idle", runId: null });
+    expect(migrated).toMatchObject({ mode: "focus", cyclePosition: 0, status: "idle", runId: null, plannedDurationMs: null });
   });
 
   it("criterion 41: the legacy guard accepts custom on migrate; the current guard rejects it on merge", () => {
@@ -286,11 +298,11 @@ describe("criteria 39-42: persistence, migration and the two validation paths", 
     ["a missing cycle position", { cyclePosition: undefined }],
     ["mode custom at version 3", { mode: "custom" }],
   ])("criterion 42: a hand-edited current entry with %s falls back to the defaults", (_label, patch) => {
-    const current = { ...s(), mode: "focus" as const, focusMinutes: DEFAULT_FOCUS_MINUTES, cyclePosition: 0 };
+    const current = { ...s(), mode: "focus" as const, cyclePosition: 0 };
     const hand = { mode: "shortBreak", focusMinutes: 40, cyclePosition: 2, status: "idle", endTimestamp: null, pausedRemainingMs: null, runId: null, startedAt: null, ...patch };
     const result = merge(hand, current);
     expect(result.cyclePosition).toBe(0);
     expect(result.mode).toBe("focus");
-    expect(result.focusMinutes).toBe(DEFAULT_FOCUS_MINUTES);
+    expect(result.plannedDurationMs).toBeNull();
   });
 });

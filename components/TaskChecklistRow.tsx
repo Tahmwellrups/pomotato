@@ -1,286 +1,233 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { RiDraggable } from "react-icons/ri";
-import type { Task } from "@/lib/db";
-import { actionButtonClass } from "./task-row-styles";
-import { TaskForm, type TaskFormValues } from "./TaskForm";
+import { useInlineTitle } from "@/hooks/use-inline-title";
+import { rowIconButtonClass } from "./task-row-styles";
+import { TaskRowMenu } from "./TaskRowMenu";
+import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from "./ui/button";
 
-type RowMode = "display" | "editing" | "confirming-delete";
-
-interface TaskChecklistRowProps {
-  task: Task;
-  isCurrent: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  /** Resolves true once the write is stored, false if it failed. */
-  onToggleDone: (id: string, done: boolean) => Promise<boolean>;
-  onMoveUp: (id: string) => void;
-  onMoveDown: (id: string) => void;
-  onIncrement: (id: string) => void;
-  onDecrement: (id: string) => void;
-  onEdit: (id: string, values: TaskFormValues) => Promise<void>;
-  /** Performs the delete; a rejection leaves the row in place and returns it to display mode. */
-  onDeleteConfirmed: (id: string) => Promise<void>;
-  dragHandleId: string;
-  /** DOM id for the Edit button, so the list can refocus "the task that took this position" after a different row is deleted. */
-  editButtonId: string;
+/**
+ * One row as the list sees it. `key` is the React key, the drag id and the
+ * focus handle, and it outlives the row's first write: a row typed into as a
+ * placeholder keeps its key when it becomes a stored task, so the input never
+ * remounts under the caret. `taskId` is null until the row has been stored.
+ */
+export interface RowModel {
+  key: string;
+  taskId: string | null;
+  parentKey: string | null;
+  /** Stored id of the parent, which a subtask draft needs for its first write. */
+  parentTaskId: string | null;
+  title: string;
+  completed: boolean;
 }
 
-// The panel's row, and the only task row in the app: tick, current marker,
-// drag handle, move up/down, -1/+1, edit and delete.
+export type NavigateDirection = "up" | "down";
+
+interface TaskChecklistRowProps {
+  row: RowModel;
+  /** "Task 2" or "Subtask 1 of task 2": what the row is called until it has a title. */
+  ordinalName: string;
+  isCurrent: boolean;
+  registerInput: (key: string, element: HTMLInputElement | null) => void;
+  /** Resolves true once the title is stored, false if the write failed. */
+  onSaveTitle: (row: RowModel, title: string) => Promise<boolean>;
+  /** Resolves true once the tick is stored, false if the write failed. */
+  onToggle: (row: RowModel, completed: boolean) => Promise<boolean>;
+  onEnter: (row: RowModel) => void;
+  onBackspaceEmpty: (row: RowModel) => void;
+  onNavigate: (row: RowModel, direction: NavigateDirection) => void;
+  onAddSubtask: (row: RowModel) => void;
+  onDuplicate: (row: RowModel) => void;
+  onDelete: (row: RowModel) => void;
+  /** A parent's nested list of subtasks, rendered inside the same <li> so a drag moves them together. */
+  children?: ReactNode;
+}
+
+export const TASK_TITLE_MAX_LENGTH = 100;
+export const TASK_TITLE_PLACEHOLDER = "What’s your priority?";
+
+// A task row: drag handle, checkbox, a borderless input that is the title, and
+// a kebab. The same input is present and editable in every state; clicking the
+// text puts the caret there and nothing else opens.
 export function TaskChecklistRow({
-  task,
+  row,
+  ordinalName,
   isCurrent,
-  canMoveUp,
-  canMoveDown,
-  onToggleDone,
-  onMoveUp,
-  onMoveDown,
-  onIncrement,
-  onDecrement,
-  onEdit,
-  onDeleteConfirmed,
-  dragHandleId,
-  editButtonId,
+  registerInput,
+  onSaveTitle,
+  onToggle,
+  onEnter,
+  onBackspaceEmpty,
+  onNavigate,
+  onAddSubtask,
+  onDuplicate,
+  onDelete,
+  children,
 }: TaskChecklistRowProps) {
+  const isStored = row.taskId !== null;
+  const isSubtask = row.parentKey !== null;
+  const name = row.title !== "" ? row.title : ordinalName;
+
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
+    id: row.key,
+    data: { parentKey: row.parentKey },
+    // A blank row is not stored, so there is no position to drop onto.
+    disabled: isStored ? false : { droppable: true },
+  });
+
+  const title = useInlineTitle({
+    storedTitle: row.title,
+    save: (next) => onSaveTitle(row, next),
   });
 
   // The box shows the tick the moment it is clicked, then follows the stored
-  // value. `base` is what was stored when she clicked: once the stored value
+  // value. `base` is what was stored when it was clicked: once the stored value
   // moves off it the write has landed and the stored value takes over, and a
   // failed write drops the pending tick so the box shows what is stored.
   const [pending, setPending] = useState<{ base: boolean; value: boolean } | null>(null);
-  const checked = pending !== null && pending.base === task.done ? pending.value : task.done;
+  const checked = pending !== null && pending.base === row.completed ? pending.value : row.completed;
 
-  const [mode, setMode] = useState<RowMode>("display");
-  const editButtonRef = useRef<HTMLButtonElement>(null);
-  const deleteButtonRef = useRef<HTMLButtonElement>(null);
-  const confirmCancelRef = useRef<HTMLButtonElement>(null);
-  const previousModeRef = useRef<RowMode>("display");
+  // The menu returns focus to its trigger when it closes. Add subtask and
+  // Delete place focus themselves, so they raise this flag to stop the return.
+  const skipMenuFocusReturnRef = useRef(false);
 
-  // Focus lands somewhere predictable on every exit from a non-display mode:
-  // back on Edit after an edit (saved or cancelled), back on Delete after
-  // backing out of the confirmation. A confirmed delete removes the row, so
-  // that case belongs to the list (TaskChecklist), not here.
-  useEffect(() => {
-    const previous = previousModeRef.current;
-    previousModeRef.current = mode;
-    if (previous === mode) return;
-    if (mode === "confirming-delete") {
-      confirmCancelRef.current?.focus();
-    } else if (mode === "display") {
-      if (previous === "editing") editButtonRef.current?.focus();
-      if (previous === "confirming-delete") deleteButtonRef.current?.focus();
-    }
-  }, [mode]);
-
-  function handleChange(next: boolean) {
-    setPending({ base: task.done, value: next });
-    void onToggleDone(task.id, next).then((stored) => {
+  function handleToggle(next: boolean) {
+    setPending({ base: row.completed, value: next });
+    void onToggle(row, next).then((stored) => {
       if (!stored) setPending(null);
     });
   }
 
-  async function handleEditSubmit(values: TaskFormValues) {
-    await onEdit(task.id, values);
-    setMode("display");
-  }
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing) return;
+    const input = event.currentTarget;
+    const plain = !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
 
-  async function handleConfirmDelete() {
-    try {
-      await onDeleteConfirmed(task.id);
-    } catch {
-      setMode("display");
-    }
-  }
-
-  function handleConfirmKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      setMode("display");
+      if (input.value.trim() === "") return;
+      title.flush();
+      onEnter(row);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      title.cancelEdit();
+    } else if (event.key === "Backspace" && plain && input.value === "") {
+      event.preventDefault();
+      // Holding Backspace through a title must not carry on into deleting the
+      // row once the last character is gone.
+      if (!event.repeat) onBackspaceEmpty(row);
+    } else if (event.key === "ArrowUp" && plain && input.selectionStart === 0 && input.selectionEnd === 0) {
+      event.preventDefault();
+      onNavigate(row, "up");
+    } else if (
+      event.key === "ArrowDown" &&
+      plain &&
+      input.selectionStart === input.value.length &&
+      input.selectionEnd === input.value.length
+    ) {
+      event.preventDefault();
+      onNavigate(row, "down");
     }
+  }
+
+  function handleMenuCloseAutoFocus(event: Event) {
+    if (!skipMenuFocusReturnRef.current) return;
+    skipMenuFocusReturnRef.current = false;
+    event.preventDefault();
   }
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition: transition ?? undefined,
   };
-
-  const deleteConfirmPromptId = `task-${task.id}-delete-confirm`;
 
   return (
     <li
       ref={setNodeRef}
       style={style}
-      aria-current={isCurrent ? "true" : undefined}
-      className={[
-        "flex flex-col gap-1 rounded-xl border bg-card p-2",
-        isCurrent ? "border-primary" : "border-border",
-        isDragging ? "opacity-60 ring-2 ring-ring" : "",
-      ].join(" ")}
+      aria-current={isCurrent ? 'true' : undefined}
+      className={
+        isDragging
+          ? 'relative z-10 rounded-xl bg-card opacity-70 ring-2 ring-ring'
+          : undefined
+      }
     >
-      {mode === "editing" ? (
-        <TaskForm
-          idPrefix={`task-${task.id}-edit`}
-          initialValues={{ title: task.title, eta: task.eta }}
-          submitLabel="Save"
-          onSubmit={handleEditSubmit}
-          onCancel={() => setMode("display")}
+      <div
+        className={`flex items-center rounded-xl border ${isCurrent ? 'border-primary' : 'border-transparent'}`}
+      >
+        {isStored ? (
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${name}`}
+            className={`${rowIconButtonClass} cursor-grab! active:cursor-grabbing!`}
+          >
+            <RiDraggable aria-hidden="true" className="size-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled
+            aria-label={`Reorder ${name}`}
+            className={rowIconButtonClass}
+          >
+            <RiDraggable aria-hidden="true" className="size-4" />
+          </button>
+        )}
+
+        <label className="grid size-11 shrink-0 cursor-pointer place-items-center">
+          <Checkbox
+            checked={checked}
+            disabled={!isStored}
+            aria-label={`Mark ${name} as completed`}
+            onCheckedChange={(state) => handleToggle(state === true)}
+            className="size-5  cursor-pointer accent-primary outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed"
+          />
+        </label>
+
+        <input
+          ref={(element) => registerInput(row.key, element)}
+          type="text"
+          value={title.value}
+          maxLength={TASK_TITLE_MAX_LENGTH}
+          placeholder={TASK_TITLE_PLACEHOLDER}
+          aria-label={ordinalName}
+          autoComplete="off"
+          enterKeyHint="next"
+          onChange={(event) => title.onChange(event.target.value)}
+          onFocus={title.onFocus}
+          onBlur={title.onBlur}
+          onKeyDown={handleKeyDown}
+          className={`min-h-11 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-2 text-base text-ellipsis outline-none! placeholder:text-base placeholder:text-muted-foreground ${
+            checked ? 'text-muted-foreground line-through' : 'text-foreground'
+          } ${isCurrent ? 'font-semibold' : 'font-medium'}`}
         />
-      ) : (
-        <>
-          {/*
-            The marker is words, not just the border colour: "current" has to
-            survive greyscale and forced colours, and it names the same task
-            the timer card above is showing. It reuses the accent pair that
-            marked the old pinned state, so no colour is added.
-          */}
-          {isCurrent ? (
-            <span className="ml-13 w-fit rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
-              Current task
-            </span>
-          ) : null}
 
-          {/*
-            Line one carries the tick, the title and the count and nothing
-            else: the seven buttons wrap on their own line below. The row's
-            inner width is about 248 px at 320 and 310 px in the xl panel,
-            and the tick cell (44), its gap (8) and the count (~50 with its
-            gap) leave the title about 138 px at 320 and 200 px at 1280. A
-            button on this line would be paid for out of the title, which is
-            the collapse-to-zero-width bug task 002 lost a fix loop to. The
-            label owns the title so the whole line toggles the box, and the
-            box draws a native control so forced-colors keeps a checked
-            state without help.
-          */}
-          <div className="flex items-center gap-2">
-            <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2">
-              <span className="grid size-11 shrink-0 place-items-center">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(event) => handleChange(event.target.checked)}
-                  className="size-6 cursor-pointer accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                />
-              </span>
-              <span
-                className={`min-w-0 flex-1 font-medium break-words ${
-                  task.done ? "text-muted-foreground line-through" : "text-foreground"
-                }`}
-              >
-                {task.title}
-              </span>
-            </label>
-            <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
-              {task.completed} / {task.eta}
-            </span>
-          </div>
-
-          {mode === "confirming-delete" ? (
-            <div
-              role="group"
-              aria-labelledby={deleteConfirmPromptId}
-              className="flex flex-wrap items-center gap-2 rounded-lg bg-[color-mix(in_srgb,var(--destructive)_6%,var(--card))] p-2"
-              onKeyDown={handleConfirmKeyDown}
-            >
-              <p id={deleteConfirmPromptId} className="text-sm text-destructive">
-                Delete &ldquo;{task.title}&rdquo;? This can&apos;t be undone.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  ref={confirmCancelRef}
-                  onClick={() => setMode("display")}
-                  className={actionButtonClass}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDelete}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-destructive px-3 text-sm font-medium text-destructive-foreground outline-none hover:bg-[color-mix(in_srgb,var(--destructive),var(--foreground)_20%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                id={dragHandleId}
-                ref={setActivatorNodeRef}
-                aria-label={`Reorder ${task.title}`}
-                className={`${actionButtonClass} shrink-0 cursor-grab touch-none active:cursor-grabbing`}
-                {...attributes}
-                {...listeners}
-              >
-                <RiDraggable aria-hidden="true" className="size-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onMoveUp(task.id)}
-                disabled={!canMoveUp}
-                aria-label={`Move ${task.title} up`}
-                className={actionButtonClass}
-              >
-                <span aria-hidden="true">↑</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onMoveDown(task.id)}
-                disabled={!canMoveDown}
-                aria-label={`Move ${task.title} down`}
-                className={actionButtonClass}
-              >
-                <span aria-hidden="true">↓</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onDecrement(task.id)}
-                disabled={task.completed <= 0}
-                aria-label={`-1, remove a completed pomodoro from ${task.title}`}
-                className={actionButtonClass}
-              >
-                -1
-              </button>
-              <button
-                type="button"
-                onClick={() => onIncrement(task.id)}
-                disabled={task.completed >= 999}
-                aria-label={`+1, add a completed pomodoro to ${task.title}`}
-                className={actionButtonClass}
-              >
-                +1
-              </button>
-              <button
-                type="button"
-                id={editButtonId}
-                ref={editButtonRef}
-                onClick={() => setMode("editing")}
-                aria-label={`Edit ${task.title}`}
-                className={actionButtonClass}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                ref={deleteButtonRef}
-                onClick={() => setMode("confirming-delete")}
-                aria-label={`Delete ${task.title}`}
-                className={actionButtonClass}
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </>
-      )}
+        <TaskRowMenu
+          name={name}
+          canAddSubtask={!isSubtask}
+          isStored={isStored}
+          onAddSubtask={() => {
+            skipMenuFocusReturnRef.current = true
+            onAddSubtask(row)
+          }}
+          onDuplicate={() => onDuplicate(row)}
+          onDelete={() => {
+            skipMenuFocusReturnRef.current = true
+            onDelete(row)
+          }}
+          onCloseAutoFocus={handleMenuCloseAutoFocus}
+        />
+      </div>
+      {children}
     </li>
-  );
+  )
 }

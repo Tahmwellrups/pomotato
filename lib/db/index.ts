@@ -1,15 +1,17 @@
-export type { AppMetaRecord, CreateTaskInput, Task, TaskRecord, UpdateTaskInput, ValidationIssue } from "./types";
-export { DatabaseUnavailableError, InvalidDoneValueError, InvalidReorderIndexError, TaskNotFoundError, TaskValidationError } from "./errors";
+export type { AppMetaRecord, CreateTaskInput, Task, TaskRecord, TaskTree, UpdateTaskInput, ValidationIssue } from "./types";
+export { DatabaseUnavailableError, InvalidCompletedValueError, InvalidReorderIndexError, TaskNotFoundError, TaskValidationError } from "./errors";
 export { DATABASE_NAME, PomotatoDatabase, SCHEMA_VERSION, getDatabase } from "./database";
 export {
   createTask,
   decrementCompleted,
   deleteTask,
+  duplicateTask,
   getCurrentTask,
   incrementCompleted,
   listTasks,
   reorderTask,
-  setTaskDone,
+  restoreTask,
+  setTaskCompleted,
   updateTask,
 } from "./task-repository";
 export type {

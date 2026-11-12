@@ -125,7 +125,7 @@ describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, ve
       version: number;
     };
     expect(stored.version).toBe(PREFERENCES_VERSION);
-    expect(Object.keys(stored.state).sort()).toEqual(["background", "gaugeStyle", "mix", "taskPanelVisible", "theme"]);
+    expect(Object.keys(stored.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible", "theme"]);
     expect(stored.state).toMatchObject({ theme: "dark", gaugeStyle: "glyph", background: null });
     expect(stored.state.mix).toEqual(defaultMixFor());
   });
@@ -142,7 +142,7 @@ describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, ve
 describe("criterion 4: the mix is one key, and levels outlive mute, across a reload", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    usePreferencesStore.setState({ mix: defaultMix(), taskPanelVisible: true });
+    usePreferencesStore.setState({ mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
   });
 
   it("the default mix is the registry, one entry per layer, nothing on", () => {
@@ -154,7 +154,7 @@ describe("criterion 4: the mix is one key, and levels outlive mute, across a rel
     usePreferencesStore.getState().setMix(validMix());
     const parsed = JSON.parse(window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "null") as { state: Record<string, unknown>; version: number };
     expect(parsed.version).toBe(PREFERENCES_VERSION);
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "gaugeStyle", "mix", "taskPanelVisible", "theme"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible", "theme"]);
     expect(isPreferences({ ...parsed.state })).toBe(true);
   });
 
@@ -167,7 +167,7 @@ describe("criterion 4: the mix is one key, and levels outlive mute, across a rel
       store.setMix({ ...usePreferencesStore.getState().mix, [layer.id]: { on: true, level } });
       const stored = window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "";
       // Setting the defaults in memory persists them too, so put the stored entry back before the reload.
-      usePreferencesStore.setState({ mix: defaultMix(), taskPanelVisible: true });
+      usePreferencesStore.setState({ mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
       window.localStorage.setItem(PREFERENCES_STORAGE_KEY, stored);
       await usePreferencesStore.persist.rehydrate();
       expect(usePreferencesStore.getState().mix[layer.id]).toEqual({ on: true, level });

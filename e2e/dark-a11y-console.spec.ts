@@ -117,10 +117,13 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
       // Mode switch and custom-duration edits: one valid, one invalid.
       await page.locator('label:has(input[name="timer-mode"][value="shortBreak"])').click();
       await page.locator('label:has(input[name="timer-mode"][value="focus"])').click();
+      // Task 017: the duration field is on /settings. Valid, invalid, valid there, then back to the timer.
+      await page.goto("/settings");
       const custom = page.locator("input#focus-length");
       await custom.fill("5");
       await custom.fill("0");
       await custom.fill("5");
+      await page.goto("/");
       await page.locator('label:has(input[name="timer-mode"][value="focus"])').click();
 
       // Completion: a timer that ends while the page is open.
@@ -131,14 +134,15 @@ test.describe("criterion 60: zero console errors or warnings across the listed f
       // Auto-advance (013): the finished focus run hands straight to the Short break, which is running.
       await expect.poll(async () => { const t = await readTimerState(page); return t ? `${t.mode}/${t.status}` : null; }, { timeout: 15_000 }).toBe("shortBreak/running");
 
-      // Task dialog: open, add, pin, edit, delete, close.
+      // Task panel: open, add, edit, delete. Re-point (task 015, commit 4ca861e): the "dialog" and the Pin button
+      // were deleted. Adding a task makes it the current task on its own, so there is no pin step.
       await openTaskList(page);
       const dialog = taskPanel(page);
       const title = page.locator('input[id*="-title"]').first();
       await title.fill("Alpha");
       await title.press("Enter");
-      await expect(page.getByText("Alpha", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Pin Alpha as current task", exact: true }).click();
+      // Scoped to the panel: the timer's current-task card repeats the title of the first open task.
+      await expect(dialog.getByText("Alpha", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Edit Alpha", exact: true }).click();
       // The edit row is the one holding the Save button; the add form's title input is not it.
       const editRow = page.locator("ul li").filter({ has: page.getByRole("button", { name: "Save", exact: true }) }).first();

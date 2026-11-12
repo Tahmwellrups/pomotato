@@ -56,6 +56,8 @@ function dropColour(colours: Map<string, number>, colour: Rgb): Map<string, numb
   return out;
 }
 
+// Seeds one open task, which is the current task (the first open row). The appMeta pinnedTaskId key is a dead
+// leftover from the deleted Pin button (commit 4ca861e); nothing reads it now, the seed works without it.
 async function seedPinnedTask(page: Page) {
   await page.evaluate(
     () =>
@@ -114,7 +116,12 @@ interface Scene {
   groundDarkest: Rgb;
   groundLightest: Rgb;
   readout: { ratio: number; ink: Rgb; worst: Rgb };
-  wordmark: { ratio: number; worst: Rgb } | null;
+  /**
+   * Two-tone read (owner ruling 2026-11-06, the glyph halo; 012 criterion 14). ratio = max(ink, halo) against the
+   * worst photograph pixel around the wordmark. inkVsHalo = the second half of the rule. Null halo means no image is
+   * active, so the stroke is transparent and the bare ink is the only tone.
+   */
+  wordmark: { ratio: number; worst: Rgb; inkVsHalo: number | null } | null;
   chipOn: { ratio: number; worst: Rgb } | null;
   chipOff: { ratio: number; worst: Rgb } | null;
   edges: Record<string, { ratio: number; border: Rgb; worst: Rgb } | null>;
@@ -186,7 +193,8 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
   const chipOffBox = await boxOf(chipOffEl);
   // Stats and Settings are two-tone edges (012 criterion 4): measured by twoToneEdge() below, not by the worst-of-ring rule.
   const edgeEls: Record<string, Locator> = {
-    duration: page.locator("#focus-length"),
+    // RETIRED (task 017 criterion 70): the duration field left / (criterion 2). Its edge is measured on /settings in
+    // e2e/settings-measure.spec.ts over the opaque token surface, which is image-independent.
     reset: page.getByRole("button", { name: "Reset", exact: true }),
   };
   const edgeData: Record<string, { box: Rect; border: Rgb; borderWidth: string } | null> = {};
@@ -210,7 +218,15 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
     index[name] = rects.map((r) => rings.push(r) - 1);
   };
   take("readout", ringFor(readoutBox, "readout", await surfaceOf(readoutEl)));
-  if (wordBox) take("wordmark", ringFor(wordBox, "wordmark", await surfaceOf(wordEl)));
+  // Wordmark ground (2026-11-10 diagnosis, measured on the black and white scenes): the bottom and right rings
+  // touch paint the header owns, the theme chips' popover flanks below and the Settings/Stats icon links to the
+  // right, and the 6 px ring also sits inside the wordmark's own 2 px halo at its descenders. Only the top and left
+  // sides are photograph alone, so the wordmark ground is those two sides, which is what "the ground" means here.
+  // The ring keeps its 6 px pad, so the photograph sides are outside the halo.
+  if (wordBox) {
+    const sides = ringFor(wordBox, "wordmark", await surfaceOf(wordEl));
+    take("wordmark", sides.filter((s) => s.y + s.h <= wordBox.y + 0.5 || s.x + s.w <= wordBox.x + 0.5));
+  }
   if (chipOnBox) take("chipOn", ringFor(chipOnBox, "chipOn", await surfaceOf(chipOnEl)));
   if (chipOffBox) take("chipOff", ringFor(chipOffBox, "chipOff", await surfaceOf(chipOffEl)));
   for (const [name, data] of Object.entries(edgeData)) if (data) take(`edge:${name}`, ringFor(data.box, `edge:${name}`, await surfaceOf(edgeEls[name])));
@@ -222,11 +238,35 @@ async function measureScene(page: Page, theme: Theme, viewport: { width: number;
     const worst = worstAgainst(ringColours(name), colour);
     return { ratio: worst.ratio, worst: worst.pixel };
   };
+  // Re-point (012 criterion 14 two-tone rule, PLAN "Re-point ... wordmark"): the bare glyph read is 1.16:1 light on
+  // black by design. The wordmark's .glyph-halo stroke (--popover while an image is active) is the flank that
+  // carries it, so the wordmark figure is the larger of the two tones against the photograph, and the two must
+  // clear 3:1 against each other.
+  const wordmarkTwoTone = async (): Promise<{ ratio: number; worst: Rgb; inkVsHalo: number | null }> => {
+    const ink = await colourOf(page, wordEl, "color");
+    const haloRaw = await wordEl.evaluate((el) => getComputedStyle(el).getPropertyValue("-webkit-text-stroke-color").trim());
+    const inkPair = textPair("wordmark", ink);
+    // Transparent only: an rgba(..., 0) stroke. A plain rgb(r, g, 0) is an opaque halo whose blue channel is zero.
+    if (haloRaw === "" || haloRaw === "transparent" || /^rgba\(.*,\s*0(\.0+)?\)$/.test(haloRaw)) {
+      return { ratio: inkPair.ratio, worst: inkPair.worst, inkVsHalo: null };
+    }
+    const halo = await cssColour(page, haloRaw);
+    // The two-tone rule is per ground pixel: at each photograph pixel, the larger of the two tones must clear 3:1,
+    // and the worst such pixel is the figure. Taking the worst of each tone separately would compare the ink's worst
+    // pixel with the halo's worst, which are different pixels, and under-report a pixel the pair handles fine.
+    let worst = { ratio: Number.POSITIVE_INFINITY, pixel: [0, 0, 0] as Rgb };
+    for (const key of ringColours("wordmark").keys()) {
+      const px = fromKey(key);
+      const r = Math.max(contrastRatio(ink, px), contrastRatio(halo, px));
+      if (r < worst.ratio) worst = { ratio: r, pixel: px };
+    }
+    return { ratio: worst.ratio, worst: worst.pixel, inkVsHalo: contrastRatio(ink, halo) };
+  };
   const scene: Scene = {
     groundDarkest: ext.darkest,
     groundLightest: ext.lightest,
     readout: { ratio: readoutWorst.ratio, ink: readoutInk, worst: readoutWorst.pixel },
-    wordmark: wordBox ? textPair("wordmark", await colourOf(page, wordEl, "color")) : null,
+    wordmark: wordBox ? await wordmarkTwoTone() : null,
     chipOn: chipOnBox ? textPair("chipOn", await colourOf(page, chipOnEl, "color")) : null,
     chipOff: chipOffBox ? textPair("chipOff", await colourOf(page, chipOffEl, "color")) : null,
     edges: {},
@@ -299,7 +339,9 @@ test.describe("criteria 13-17: the composited ground and every floor, over the a
         // Criterion 17: body and readout text >= 4.5, control edges and focus >= 3.
         expect(scene.readout.ratio, `${theme} ${name} readout`).toBeGreaterThanOrEqual(4.5);
         // The wordmark is 36 px bold: large text, so its floor is 3:1 (WCAG 1.4.3), not 4.5:1.
-        if (scene.wordmark) expect(scene.wordmark.ratio, `${theme} ${name} wordmark (large text)`).toBeGreaterThanOrEqual(3);
+        if (scene.wordmark) expect(scene.wordmark.ratio, `${theme} ${name} wordmark max(ink, halo) (large text)`).toBeGreaterThanOrEqual(3);
+        // Half 2 of the two-tone rule for the glyph halo (asserted nowhere before; 012 review R-3).
+        if (scene.wordmark?.inkVsHalo != null) expect(scene.wordmark.inkVsHalo, `${theme} ${name} wordmark ink vs halo`).toBeGreaterThanOrEqual(3);
         if (scene.chipOff) expect(scene.chipOff.ratio, `${theme} ${name} chip`).toBeGreaterThanOrEqual(4.5);
         // Control edges, all of them. Since 012 round 3 the Settings and Stats triggers carry a two-tone
         // edge (criterion 4), so they are asserted here with the rest.
@@ -383,11 +425,11 @@ test.describe("criterion 18: the timer readout at levels 100, 50 and 0, both gau
   }
 });
 
-test.describe("criterion 14: painted interiors of a task swatch, a filled control and a glyph are identical with and without the image", () => {
+test.describe("criterion 14: painted interiors of a filled control and a glyph are identical with and without the image (swatch retired, 4ca861e)", () => {
   const inset = (r: Rect, p: number): Rect => ({ x: r.x + p, y: r.y + p, w: r.w - 2 * p, h: r.h - 2 * p });
 
-  // The swatch lives in the Your tasks dialog (the current-task card shows no swatch), so it is
-  // measured with the dialog open; the primary control and the glyph are measured on / with it closed.
+  // RETIRED swatch interior (task 015, commit 4ca861e): the task swatch was a colour picker's output and the picker
+  // is deleted, so there is no swatch interior to compare. The primary fill and the glyph ink are the live interiors.
   async function interiorsFor(page: Page) {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -399,12 +441,7 @@ test.describe("criterion 14: painted interiors of a task swatch, a filled contro
     const inks = [await tokenColour(page, "--accent-foreground"), await tokenColour(page, "--muted-foreground")];
     const primaryPx = await grab(page, inset(pBox, 3));
     const readoutPx = await grab(page, rBox);
-    const dialog = await openTaskList(page);
-    const swatchEl = dialog.locator('span[style*="background-color"]').first();
-    const sBox = (await boxOf(swatchEl)) as Rect;
-    const sFill = await colourOf(page, swatchEl, "backgroundColor");
-    const swatchPx = await grab(page, inset(sBox, 2));
-    return { primaryPx, readoutPx, swatchPx, pFill, sFill, inks };
+    return { primaryPx, readoutPx, pFill, inks };
   }
 
   for (const theme of ["light", "dark"] as const) {
@@ -438,7 +475,6 @@ test.describe("criterion 14: painted interiors of a task swatch, a filled contro
         };
         const same = (a: Rgb) => (p: number[]) => p[0] === a[0] && p[1] === a[1] && p[2] === a[2];
         compare("primary fill", base.primaryPx, after.primaryPx, same(base.pFill));
-        compare("task swatch", base.swatchPx, after.swatchPx, same(base.sFill));
         compare("glyph ink", base.readoutPx, after.readoutPx, (p) => base.inks.some((ink) => same(ink)(p)));
       }
       test.info().annotations.push({ type: "measure", description: summary.join("\n") });

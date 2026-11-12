@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { openTaskList, taskPanel } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel, taskPanelToggle } from "./helpers/task-list-dialog";
 import { seedTimerState, resetControl } from "./helpers/timer-hold";
 import {
   DESKTOP,
@@ -67,7 +67,11 @@ async function seedCustomIdle(page: Page) {
   await settle(page);
 }
 
-/** Adds one task through the dialog form, so rows and form error states exist to measure. */
+/**
+ * Adds one task through the task form, so rows and form error states exist to measure.
+ * Task 015 re-point (commit 4ca861e): the form lives in the always-visible task panel, so `dialog` below is
+ * the panel region. The variable keeps its old name so the call sites need no change.
+ */
 async function addTask(page: Page, title: string) {
   const dialog = await openTaskList(page);
   await dialog.locator('input[id*="-title"]').first().fill(title);
@@ -120,10 +124,10 @@ async function assertRings(page: Page, testInfo: TestInfo, theme: Theme, checks:
     sheet.note(`focus ring ${c.name} own-fill (informational)`, c.vsFill.toFixed(2));
     if (!c.focusVisible) sheet.failures.push(`${tag(theme, c.name)}: :focus-visible does not match, so no focus indicator is shown`);
     if (c.width !== "2px") sheet.failures.push(`${tag(theme, c.name)}: outline width ${c.width}, expected 2px`);
-    // 012 round 3, criterion 14: the theme chip's ring is pulled 5 px inside the chip (peer-focus-visible:-outline-offset-5)
-    // so the whole ring sits on the header fill. Its offset is pinned to -5px by value; every other control stays at 2px.
-    const expectedOffset = c.name.startsWith("theme ") ? "-5px" : "2px";
-    if (c.offset !== expectedOffset) sheet.failures.push(`${tag(theme, c.name)}: outline offset ${c.offset}, expected ${expectedOffset}`);
+    // Every control is at the shared 2 px offset. The theme chip's old -5px inset (012 round 3, criterion 14,
+    // peer-focus-visible:-outline-offset-5) was deleted by commit e9380df, which moved the chip back to
+    // outline-offset-2 and paints a 2 px --popover halo instead. Re-pointed 2026-11-10.
+    if (c.offset !== "2px") sheet.failures.push(`${tag(theme, c.name)}: outline offset ${c.offset}, expected 2px`);
     if (!c.colour || c.colour.join() !== ring.join()) sheet.failures.push(`${tag(theme, c.name)}: outline colour ${c.colour?.join(",")} is not --ring ${ring.join(",")}`);
   }
   sheet.done();
@@ -160,19 +164,24 @@ test.describe("criterion 28 (amended): every listed control shows a 2 px ring at
       }
       checks.push(await ringCheck(page, "Start", page.getByRole("button", { name: "Start", exact: true }), page.getByRole("button", { name: "Start", exact: true })));
       checks.push(await ringCheck(page, "Reset", resetControl(page), resetControl(page)));
-      checks.push(await ringCheck(page, "custom duration input", page.locator("input#focus-length"), page.locator("input#focus-length")));
-      const tasks = page.getByRole("button", { name: "Your tasks", exact: true });
-      checks.push(await ringCheck(page, "Tasks trigger", tasks, tasks));
+      // RETIRED (task 017 criterion 70): the duration field left / (criterion 2). Its focus ring is measured on
+      // /settings in e2e/settings-measure.spec.ts, the group I sweep, which replaces this row.
+      // Re-point (task 015, commit 4ca861e): the "Your tasks" trigger was deleted. Its live equivalent is the
+      // bottom-right panel toggle, named "Tasks", which is also the only control that hides the panel.
+      const tasks = taskPanelToggle(page);
+      checks.push(await ringCheck(page, "Tasks toggle", tasks, tasks));
       const stats = page.locator('a[href="/stats"]').first();
       checks.push(await ringCheck(page, "Stats button", stats, stats));
       await assertRings(page, testInfo, theme, checks);
     });
 
-    test(`[${theme}] dialog Close, task-row actions, task form fields, submit and colour swatches: each focus ring`, async ({ page }, testInfo) => {
+    test(`[${theme}] task-row actions, task form fields and submit: each focus ring`, async ({ page }, testInfo) => {
+      // RETIRED parts (task 015, commit 4ca861e): "dialog Close" (the dialog is deleted; the panel has no close
+      // button, and its hide toggle is measured in the test above), the "Emoji" field (removed with the
+      // per-task emoji), and the eight colour swatches (the picker is deleted). The live subjects are kept below.
       await themed(page, stored);
       const dialog = await addTask(page, "QA Ring Task");
       const checks: RingCheck[] = [];
-      checks.push(await ringCheck(page, "dialog Close", dialog.getByRole("button", { name: "Close", exact: true }), dialog.getByRole("button", { name: "Close", exact: true })));
 
       const rowButtons = dialog.locator('li button[aria-label*="QA Ring Task"]');
       const rowCount = await rowButtons.count();
@@ -186,25 +195,10 @@ test.describe("criterion 28 (amended): every listed control shows a 2 px ring at
 
       const title = dialog.getByLabel("Title", { exact: true });
       checks.push(await ringCheck(page, "form Title field", title, title));
-      const emoji = dialog.getByLabel("Emoji", { exact: true });
-      checks.push(await ringCheck(page, "form Emoji field", emoji, emoji));
       const eta = dialog.getByLabel("Estimated pomodoros", { exact: true });
       checks.push(await ringCheck(page, "form Estimated pomodoros field", eta, eta));
       const submit = dialog.getByRole("button", { name: "Add task", exact: true });
       checks.push(await ringCheck(page, "form submit", submit, submit));
-
-      const swatchValues = await dialog.locator('input[type="radio"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
-      expect(swatchValues.length, "colour swatches rendered").toBe(8);
-      for (const value of swatchValues) {
-        checks.push(
-          await ringCheck(
-            page,
-            `swatch ${value}`,
-            dialog.locator(`input[type="radio"][value="${value}"]`),
-            dialog.locator(`label:has(input[type="radio"][value="${value}"]) span.flex`).first(),
-          ),
-        );
-      }
       await assertRings(page, testInfo, theme, checks);
     });
 
@@ -240,14 +234,15 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
       await seedCustomIdle(page);
       const sheet = new Sheet(testInfo, theme);
 
-      // Empty state first (no pinned task yet on a fresh profile).
-      const emptyText = page.locator("p").filter({ hasText: "Pin a task from Your tasks" }).first();
+      // Empty state first: no open task on a fresh profile. Task 015 (commit 4ca861e) retired the pin, so the
+      // card's copy is the "No unfinished tasks" line, not the old "Pin a task from Your tasks".
+      const emptyText = page.locator("p").filter({ hasText: "No unfinished tasks" }).first();
       await expect(emptyText).toBeVisible();
       sheet.row("CurrentTaskCard empty text vs page", textVsGround(await readPainted(page, emptyText)), 4.5);
 
-      // Normal state: pin a task.
-      const dialog = await addTask(page, "QA Card Task");
-      await dialog.getByRole("button", { name: "Pin QA Card Task as current task" }).click();
+      // Normal state: adding a task makes it the card's title, because the current task is the first open row.
+      // The pin button was deleted (commit 4ca861e), so there is nothing to click.
+      await addTask(page, "QA Card Task");
       const cardTitle = page.locator("span.font-comfortaa").filter({ hasText: "QA Card Task" }).first();
       await expect(cardTitle).toBeVisible();
       sheet.row("CurrentTaskCard normal title vs page", textVsGround(await readPainted(page, cardTitle)), 4.5);
@@ -269,20 +264,8 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
       const reset = resetControl(page);
       sheet.row("Reset label vs fill", textVsFill(await readPainted(page, reset)), 4.5);
 
-      // Custom duration: label, field text, field edge, and the error state.
-      const label = page.locator('label[for="focus-length"]');
-      sheet.row("custom duration label vs page", textVsGround(await readPainted(page, label)), 4.5);
-      const field = page.locator("input#focus-length");
-      const fieldReading = await readPainted(page, field);
-      sheet.row("custom duration field text vs field fill", textVsFill(fieldReading), 4.5);
-      sheet.row("custom duration field edge vs page", borderVsGround(fieldReading), 3);
-      await field.fill("abc");
-      await field.press("Tab");
-      const error = page.locator("#focus-length-error");
-      await expect(error).toBeVisible();
-      sheet.row("custom duration error text vs page", textVsGround(await readPainted(page, error)), 4.5);
-      const errorField = await readPainted(page, field);
-      sheet.row("custom duration error field edge vs page", borderVsGround(errorField), 3);
+      // RETIRED (task 017 criterion 70): the custom duration label, field and error rows measured the field on /,
+      // which no longer shows it (criterion 2). The same rows are re-pointed to /settings in e2e/settings-measure.spec.ts.
 
       // Theme control chips (checked and unchecked labels) and the Stats button's edge.
       const themeChecked = page.locator('label:has(input[name="theme"]:checked) span').first();
@@ -306,11 +289,8 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
       const count = row.locator("span.font-mono").first();
       sheet.row("TaskRow idle count vs card", textVsGround(await readPainted(page, count)), 4.5);
 
-      // Colour dot: the swatch fill is identity (criterion 19). The hairline is decorative.
-      const dot = row.locator("span[aria-hidden='true'].rounded-full").first();
-      const dotReading = await readPainted(page, dot);
-      sheet.row("TaskColorDot fill vs card", contrast(dotReading.fill, dotReading.ground), 3);
-      sheet.note("TaskColorDot hairline (decorative, exempt: swatch fill carries identity)", `${borderVsGround(dotReading).toFixed(2)}:1 vs card`);
+      // RETIRED (task 015, commit 4ca861e): TaskColorDot and its criterion 19 swatch identity were deleted with
+      // the colour picker. Rows have no colour dot to measure.
 
       // Drag-active: start a real pointer drag on the handle, read the ring while held.
       const handle = row.locator('button[aria-label="Reorder QA Row Task"]');
@@ -448,7 +428,14 @@ test.describe("criterion 41, 42: unmeasured rows, painted in both themes", () =>
 // ---------------------------------------------------------------------------
 
 test.describe("criterion 43 and 26: disabled states, dark figures not worse than light", () => {
-  test("disabled custom field (running), disabled submit, and the three task-form fields with the disabled attribute forced", async ({ page }, testInfo) => {
+  // RETIRED (task 017 criterion 70, 14). Of this test's rows:
+  //  - the custom duration field (running, disabled): retired, the field is never disabled (criterion 14).
+  //  - the disabled submit: still measured in e2e/dark-contrast.spec.ts ("criterion 26, 43"), in both themes.
+  //  - the three task-form fields with the disabled attribute forced: NOT measured anywhere now. The shipped form
+  //    never disables them, so this was a what-if state. Unmeasured by decision; restoring the rows would mean
+  //    re-adding them to a skipped test, which this task did not re-run. Acceptable because no shipped state reaches
+  //    them, and a future task that disables a task-form field must add its own rows.
+  test.skip("RETIRED: disabled custom field (running), disabled submit, and the three task-form fields with the disabled attribute forced", async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await openThemed(page, { stored: "light", osDark: false, viewport: DESKTOP });
     await seedTimerState(page, {
@@ -477,9 +464,9 @@ test.describe("criterion 43 and 26: disabled states, dark figures not worse than
       // disabled style, if one is ever applied, is measured. Each is restored afterwards.
       await openTaskList(page);
       const dialog = taskPanel(page);
+      // RETIRED: the "Emoji" field was removed with the per-task emoji (commit 4ca861e), so it is not in the list.
       const fields: [string, Locator][] = [
         ["task Title field", dialog.getByLabel("Title", { exact: true })],
-        ["task Emoji field", dialog.getByLabel("Emoji", { exact: true })],
         ["task Estimated pomodoros field", dialog.getByLabel("Estimated pomodoros", { exact: true })],
       ];
       for (const [name, f] of fields) {

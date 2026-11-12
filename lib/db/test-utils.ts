@@ -1,6 +1,6 @@
 import Dexie from "dexie";
 import { DATABASE_NAME, SCHEMA_VERSION, __resetDatabaseInstanceForTests, getDatabase, openDatabase } from "./database";
-import type { SessionMode, SessionRecord, Task } from "./types";
+import type { SessionMode, SessionRecord } from "./types";
 
 /**
  * Test-only helper. Deletes the underlying IndexedDB database entirely and
@@ -90,14 +90,22 @@ export async function seedVersion1DatabaseForTests(data: { tasks: LegacyTask[]; 
   legacy.close();
 }
 
-/** A task row as versions 1-3 stored it: no `done` field, and still carrying `emoji` and `colorId`. */
-export type LegacyTask = Omit<Task, "done"> & { emoji: string; colorId: string };
+/** A task row as versions 1-3 stored it: a pomodoro estimate, a numeric count, a global `position`, and still carrying `emoji` and `colorId`. */
+export interface LegacyTask {
+  id: string;
+  title: string;
+  eta: number;
+  completed: number;
+  position: number;
+  emoji: string;
+  colorId: string;
+}
 
 /**
  * Test-only. Replaces the database with one that exists ONLY at schema version
  * 3 (`tasks`, `appMeta`, `sessions`, `backgrounds`), with the given raw rows
  * and pin, then closes it and drops the singleton. The next repository call
- * opens it at the current version and runs every upgrade from 4 on (so rows come back without `emoji`/`colorId`). Rows are written as given (no
+ * opens it at the current version and runs every upgrade from 4 on (so rows come back in the version-6 shape). Rows are written as given (no
  * `done`, any `position`, whatever shape), and `pinnedTaskId: undefined`
  * stores no `appMeta` row at all. Returns nothing; read the result back
  * through `openDatabase()`.
@@ -131,8 +139,8 @@ export async function seedVersion3DatabaseForTests(data: {
  * Test-only. Replaces the database with one that exists ONLY at schema version
  * 4 (the same four tables as version 3, rows now carrying `done`), with the
  * given raw rows, then closes it and drops the singleton. The next repository
- * call opens it at version 5 and runs `upgradeToVersion5`, which is the only
- * way a test can observe the strip: a fresh database never runs the callback.
+ * call opens it at the current version and runs every upgrade from 5 on; a fresh
+ * database never runs a callback, so only a seeded open exercises them.
  * Rows are written as given, so a test can seed `emoji`/`colorId` (or junk
  * values, or neither). The retired pin row is not seedable here; version 4
  * deleted it. Read the result back with `db.table("tasks").toArray()` for raw rows.
@@ -154,6 +162,41 @@ export async function seedVersion4DatabaseForTests(data: {
   legacy.version(2).stores({ sessions: "id, &runId, endedAt" });
   legacy.version(3).stores({ backgrounds: "id" });
   legacy.version(4).stores({});
+  await legacy.open();
+  await legacy.table("tasks").bulkAdd(data.tasks);
+  if (data.sessions) await legacy.table("sessions").bulkAdd(data.sessions);
+  if (data.backgrounds) await legacy.table("backgrounds").bulkAdd(data.backgrounds);
+  legacy.close();
+}
+
+/**
+ * Test-only. Replaces the database with one that exists ONLY at schema version
+ * 5 (the same four tables, `tasks` indexed by `position`), with the given raw
+ * rows, then closes it and drops the singleton. The next repository call opens
+ * it at version 6 and runs `upgradeToVersion6`, which is the only way a test can
+ * observe the rename: a fresh database never runs the callback. Rows are written
+ * as given, so a test seeds `done`, a numeric `completed`, `eta` and `position`
+ * (or bad values, or none). Argument shape matches `seedVersion4DatabaseForTests`.
+ * Read the result back with `db.table("tasks").toArray()` for raw rows.
+ */
+export async function seedVersion5DatabaseForTests(data: {
+  tasks: Array<Record<string, unknown> & { id: string }>;
+  sessions?: SessionRecord[];
+  backgrounds?: Array<Record<string, unknown> & { id: string }>;
+}): Promise<void> {
+  const existing = getDatabase();
+  await existing.delete();
+  __resetDatabaseInstanceForTests();
+
+  const legacy = new Dexie(DATABASE_NAME);
+  // Same strings as the frozen version 1-5 blocks in ./database. Versions 4 and 5 carry
+  // no `.upgrade()` here on purpose: the database is created fresh at 5, so the rows
+  // land exactly as seeded.
+  legacy.version(1).stores({ tasks: "id, position", appMeta: "key" });
+  legacy.version(2).stores({ sessions: "id, &runId, endedAt" });
+  legacy.version(3).stores({ backgrounds: "id" });
+  legacy.version(4).stores({});
+  legacy.version(5).stores({});
   await legacy.open();
   await legacy.table("tasks").bulkAdd(data.tasks);
   if (data.sessions) await legacy.table("sessions").bulkAdd(data.sessions);

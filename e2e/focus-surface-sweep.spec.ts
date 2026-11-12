@@ -236,7 +236,7 @@ async function layout(page: Page) {
   const readoutEl = page.locator("p.tabular-nums").first();
   const start = page.getByRole("button", { name: "Start", exact: true });
   const reset = page.getByRole("button", { name: "Reset", exact: true });
-  const input = page.locator("input#focus-length");
+  // RETIRED (task 017 criterion 70): the duration field left / (criterion 2). Its ring is measured on /settings instead.
   const h1 = page.locator("main h1").first();
   const chipFocus = page.locator('fieldset label:has(input[value="focus"]) span');
   const chipShort = page.locator('fieldset label:has(input[value="shortBreak"]) span');
@@ -251,7 +251,7 @@ async function layout(page: Page) {
     readout: await boxOf(readoutEl),
     start: await boxOf(start),
     reset: await boxOf(reset),
-    input: await boxOf(input),
+    input: { x: 0, y: 0, w: 0, h: 0 },
     h1: await boxOf(h1),
     chipFocus: await boxOf(chipFocus),
     chipShort: await boxOf(chipShort),
@@ -260,7 +260,7 @@ async function layout(page: Page) {
     triggers: await Promise.all([0, 1, 2, 3].map((i) => boxOf(triggers.nth(i)))),
     dots: await Promise.all([0, 1, 2, 3].map((i) => boxOf(dots.nth(i)))),
   };
-  return { boxes, readoutEl, start, reset, input, h1, chipFocus, chipShort, title, themeChecked, triggers, dots };
+  return { boxes, readoutEl, start, reset, h1, chipFocus, chipShort, title, themeChecked, triggers, dots };
 }
 
 async function inkOf(page: Page, locator: Locator): Promise<string> {
@@ -307,8 +307,8 @@ async function captureBase(page: Page, theme: Theme, image: string, viewport: { 
   plan.add("startFlat", [{ x: Math.floor(boxes.start.x) + 8, y: Math.floor(boxes.start.y) + 8, w: Math.ceil(boxes.start.w) - 16, h: Math.ceil(boxes.start.h) - 16 }]);
   plan.add("resetStroke", [{ x: Math.floor(boxes.reset.x) + 4, y: Math.floor(boxes.reset.y), w: Math.ceil(boxes.reset.w) - 8, h: 1 }]);
   plan.add("resetRing", ringOf(boxes.reset, 3));
-  plan.add("inputStroke", [{ x: Math.floor(boxes.input.x) + 4, y: Math.floor(boxes.input.y), w: Math.ceil(boxes.input.w) - 8, h: 1 }]);
-  plan.add("inputRing", ringOf(boxes.input, 3));
+  // (inputStroke and inputRing were the duration field on /; retired with it, task 017.)
+  // (inputRing: retired with the duration field, task 017.)
   // Clipped to the solid header's padding box: the theme control's 44 px hit box can overhang the header at
   // 320 px, and a text box that crosses the surface edge reads the photograph (round 1 ruling, 012 criterion 15).
   const solidPad = { x: boxes.solid.x + 1, y: boxes.solid.y + 1, w: boxes.solid.w - 2, h: boxes.solid.h - 2 };
@@ -365,12 +365,11 @@ async function captureBase(page: Page, theme: Theme, image: string, viewport: { 
   const startPainted = worstText(px("startFlat"), startInk);
   record({ criterion: "012-c14", ...A, state: stateLabel, element: "Start primary-foreground on --primary fill", ink: `${fmt(startInk.rgb)} a${startInk.a}`, pixel: fmt(pxOf(px("startFlat"))), ground: fmt(startFill), coords: `fill interior, box ${whole(boxes.start).x},${whole(boxes.start).y}`, ratio: contrastRatio(startInk.a === 1 ? startInk.rgb : startPainted.ink, startFill), floor: 4.5, note: `computed fill alpha ${startAlpha.a}; painted interior worst ${startPainted.ratio.toFixed(3)} (${fmt(startPainted.ground)}); raw ${startRaw}` });
 
-  // 012 criterion 14/15: --control-border on Reset and the focus-length field, painted stroke vs worst ring pixel.
+  // 012 criterion 14/15: --control-border on Reset, painted stroke vs worst ring pixel. (The focus-length field left / in task 017.)
   for (const [name, stroke, ring] of [
     ["Reset --control-border", "resetStroke", "resetRing"],
-    ["focus-length input --control-border", "inputStroke", "inputRing"],
   ] as const) {
-    const edgeCss = await (name.startsWith("Reset") ? L.reset : L.input).evaluate((el) => getComputedStyle(el).borderTopColor);
+    const edgeCss = await L.reset.evaluate((el) => getComputedStyle(el).borderTopColor);
     const worst = worstAgainst(px(ring), pxOf(px(stroke)));
     record({ criterion: "012-c14", ...A, state: stateLabel, element: name, ink: fmt(await toRgb(page, edgeCss)), pixel: fmt(pxOf(px(stroke))), ground: fmt(worst.pixel), coords: "top row, 3 px ring", ratio: worst.ratio, floor: 3 });
   }
@@ -756,8 +755,8 @@ async function forcedSurfaces(page: Page, o: { theme: Theme; viewport: string; d
   plan.add("canvas", [{ x: 2, y: 2, w: 1, h: 1 }]);
   plan.add("reset", [{ x: Math.floor(L.boxes.reset.x) + 4, y: Math.floor(L.boxes.reset.y), w: Math.ceil(L.boxes.reset.w) - 8, h: 1 }]);
   plan.add("resetRing", ringOf(L.boxes.reset, 3));
-  plan.add("input", [{ x: Math.floor(L.boxes.input.x) + 4, y: Math.floor(L.boxes.input.y), w: Math.ceil(L.boxes.input.w) - 8, h: 1 }]);
-  plan.add("inputRing", ringOf(L.boxes.input, 3));
+  // (input edge: retired with the duration field, task 017.)
+  // (inputRing: retired with the duration field, task 017.)
   const px = await plan.sample(page, false);
   const mode = o.defaultMode ? "default mode" : "forced colours";
   const canvas = pxOf(px("canvas"));
@@ -769,7 +768,7 @@ async function forcedSurfaces(page: Page, o: { theme: Theme; viewport: string; d
   const sr = worstAgainst(px("start"), await txt(L.start));
   const triggerEdges = await triggerRing(page, { theme: o.theme, image: "none", viewport: o.viewport, state: o.defaultMode ? "default mode" : "forced colours", flat: true, mode: o.defaultMode ? "default mode (forced pair)" : "forced colours (triggers)" });
   const resetEdge = worstAgainst(px("resetRing"), pxOf(px("reset")));
-  const inputEdge = worstAgainst(px("inputRing"), pxOf(px("input")));
+  // (inputEdge: retired with the duration field, task 017.)
   const surfaceFrosted = pxOf(px("frostedEdge"));
   const surfaceFrostedLeft = pxOf(px("frostedLeftEdge"));
   const solidBottom = pxOf(px("solidBottom"));
@@ -778,7 +777,7 @@ async function forcedSurfaces(page: Page, o: { theme: Theme; viewport: string; d
   record({ criterion: "012-c20", ...common, element: "wordmark", ink: fmt(wordInk), pixel: fmt(wr.pixel), ground: fmt(wr.pixel), coords: "box", ratio: wr.ratio, floor: 3 });
   record({ criterion: "012-c20", ...common, element: "Start label on fill", ink: "n/a", pixel: fmt(sr.pixel), ground: fmt(sr.pixel), coords: "box", ratio: sr.ratio, floor: 4.5 });
   record({ criterion: "012-c20", ...common, element: "Reset edge vs 3 px ring", ink: "n/a", pixel: fmt(pxOf(px("reset"))), ground: fmt(resetEdge.pixel), coords: "top row", ratio: resetEdge.ratio, floor: 3 });
-  record({ criterion: "012-c20", ...common, element: "focus-length edge vs 3 px ring", ink: "n/a", pixel: fmt(pxOf(px("input"))), ground: fmt(inputEdge.pixel), coords: "top row", ratio: inputEdge.ratio, floor: 3 });
+  // (focus-length edge row: retired with the duration field, task 017; re-measured on /settings.)
   record({ criterion: "012-c20", ...common, element: "outline trigger edges (min of 4)", ink: "n/a", pixel: "n/a", ground: "n/a", coords: "top rows", ratio: Math.min(...triggerEdges), floor: 3 });
   // A surface reads as a box only through its boundary: the painted pixel just inside the frosted or solid edge
   // against the canvas. A ratio of 1 means the boundary is not painted (Canvas border on Canvas).

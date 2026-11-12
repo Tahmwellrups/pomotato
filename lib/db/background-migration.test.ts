@@ -21,17 +21,17 @@ async function openLegacyAtVersion2(): Promise<Dexie> {
 describe("task 010 criterion 6: the schema bump is additive", () => {
   it("version 2 rows survive the upgrade to the current version: tasks and sessions kept, backgrounds empty, retired pin row removed", async () => {
     await resetDatabaseForTests();
-    await createTask({ title: "keep the first" });
-    const second = await createTask({ title: "keep the second" });
-    const before = await openDatabase();
-    // The pin was retired in v4; a v2 database still carries the row, so seed it directly.
-    await before.table("appMeta").put({ key: "pinnedTaskId", value: second.id });
-    const tasks = await before.table("tasks").toArray();
-    const meta = await before.table("appMeta").toArray();
-    const sessions = await before.table("sessions").toArray();
-    await before.close();
     await new Dexie(DATABASE_NAME).delete();
     __resetDatabaseInstanceForTests();
+
+    // Version-2 rows are the legacy shape: a pomodoro estimate, a numeric count, a global position.
+    const tasks = [
+      { id: "b1", title: "keep the first", eta: 1, completed: 0, position: 0, emoji: "🥔", colorId: "tomato" },
+      { id: "b2", title: "keep the second", eta: 1, completed: 0, position: 1, emoji: "🍅", colorId: "sage" },
+    ];
+    // The pin was retired in v4; a v2 database still carries the row, so seed it directly.
+    const meta = [{ key: "pinnedTaskId", value: "b2" }];
+    const sessions: never[] = [];
 
     const legacy = await openLegacyAtVersion2();
     await legacy.table("tasks").bulkAdd(tasks);
@@ -42,10 +42,10 @@ describe("task 010 criterion 6: the schema bump is additive", () => {
 
     const upgraded = await openDatabase();
     expect(upgraded.verno).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(5);
+    expect(CURRENT_SCHEMA_VERSION).toBe(6);
     const upgradedTasks = await upgraded.table("tasks").toArray();
     expect(upgradedTasks.map((t) => t.id).sort()).toEqual(tasks.map((t) => t.id).sort());
-    expect(upgradedTasks.every((t) => t.done === false)).toBe(true);
+    expect(upgradedTasks.every((t) => t.completed === false)).toBe(true);
     // v4 moves the last-chosen task to position 0 (ordering replaces the pin) and deletes the pin row.
     expect((await listTasks()).map((t) => t.title)).toEqual(["keep the second", "keep the first"]);
     expect(await upgraded.table("appMeta").get("pinnedTaskId")).toBeUndefined();

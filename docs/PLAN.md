@@ -63,13 +63,144 @@ measuring both twice).
       non-blocking findings. Build, typecheck, lint (0 errors), 1073 unit tests and the e2e suite all
       green. Committed as `bc5f4d2`. Finding 1 — `lib/db/database.ts:56` still pinned to
       `CURRENT_SCHEMA_VERSION` — **must be fixed by 014's 3 → 4 bump**, which its scope already covers.
-      Findings 2 and 3 are open: keyboard focus is dropped, and `isFocusedRef` can stick, when an
-      auto-advance disables the Focus length field mid-edit (`components/FocusLengthInput.tsx`).
+      Findings 2 and 3 are **closed by task 017**: both needed an auto-advance to disable the Focus
+      length field mid-edit, and that field is now always enabled and the component deleted.
 - [ ] **014. Visible task checklist.** ([docs/tasks/014-visible-task-checklist.md](tasks/014-visible-task-checklist.md))
       Owner's second priority. An always-visible panel, a `done` checkbox (Dexie 3 to 4), the pin retired
       in favour of "current = first not-done task", reordering kept. 60 criteria. Largest risk is that the
       frontend diff is a restructure, not an addition: `TaskList.tsx` and `TaskRow.tsx` split into panel
       and dialog variants, with 89 e2e tests and two `lib/db` suites in the blast radius.
+- [ ] **015. Panel-only task surface.** ([docs/tasks/015-panel-only-task-surface.md](tasks/015-panel-only-task-surface.md))
+      Added retroactively, 2026-11-10 — 015 shipped without ever getting a PLAN.md line. The dialog
+      (`components/TaskListDialog.tsx`) was deleted and its add, edit, delete and `+1`/`-1` controls moved
+      inline into the panel, which gained a hide/show control, and `emoji`/`colorId` left `Task` in the
+      `.version(5)` upgrade. Code committed as `4ca861e` + `9f7ad5d` + `95f062b`. **QA never reached PASS**
+      (two FAIL rounds, then a re-point pass; criterion 15's one-place clause was fixed and criteria 25, 32,
+      36, 37-44 and 47 were never measured) and **no reviewer pass ran at all**. Its unmeasured figures are
+      under "Deferred from tasks 014 and 015" below, and task 016 explicitly does not absorb them.
+- [ ] **016. Inline-editable task panel.** ([docs/tasks/016-inline-editable-task-panel.md](tasks/016-inline-editable-task-panel.md))
+      Owner requirements, 2026-11-10, approved the same day. The panel is retitled "Tasks" and becomes an
+      inline-editable list: borderless text inputs, a per-row kebab on `radix-ui`'s `DropdownMenu`, one level
+      of subtasks, duplicate, delete with a 5 s undo toast instead of a confirm, and drag by the handle only.
+      Schema **5 → 6** adopts the owner's field names (`completed` becomes the boolean, `completedPomodoros`
+      the count, `order` replaces `position`, `eta` goes), adds `parentId`, `createdAt`, `updatedAt`, and
+      brings back `emoji` and `color` nine days after 015 stripped them. 61 criteria. **Backend goes first and
+      alone**: the rename re-points five stored fields at once and the `completed` collision type-checks
+      silently at `!task.completed`, which is the line that decides which task a session is credited to.
+      Approval rulings in [DECISIONS.md](DECISIONS.md): `eta` deleted with no conversion, the undo window five
+      seconds flat, the visible heading kept.
+
+- [x] **017. Editable session lengths and a session-end chime.** ([docs/tasks/017-timer-settings-and-chime.md](tasks/017-timer-settings-and-chime.md))
+      Owner requirements, 2026-11-11, approved the same day. A refactor and extension of the milestone-1 timer
+      and the 013 cycle, not a rebuild. The three session lengths move into the existing `/settings` panel with
+      per-field validation, Reset to defaults and persistence; a **synthesized** chime (two sine oscillators,
+      no asset, no licence question) sounds at session end on both transitions. Preferences **2 → 3** for five
+      new keys, timer store **3 → 4** (`focusMinutes` leaves it, `plannedDurationMs` joins the run, with a
+      cross-store carry). 77 criteria. `backend` skipped — `plannedDurationMs` already existed on the Dexie row,
+      so the whole defect was `lib/timer/store.ts` recomputing it at completion time from current settings.
+      **Done.** qa FAIL on criterion 76 only (pre-existing red build, see below); reviewer APPROVE with ten
+      findings, none blocking; owner confirmed the eight by-ear audibility steps. Lint 0 errors, 0 typecheck
+      errors in non-test source, unit suite at the exact HEAD baseline with 1287 tests (+135). Uncommitted on
+      `feature/TaskPanel`. Seven rulings in [DECISIONS.md](DECISIONS.md), including the owner's mid-task ruling
+      that the chime fires on **every route** (a session ending on `/settings` was silent), and the reasoning
+      for the one sanctioned JS timer in the chime's path.
+
+- [ ] **Finish task 016: it shipped without ever running qa or reviewer, and the 41 type errors are its fallout.**
+      Corrected 2026-11-11, after task 017 forced a look at the cause. This was first logged as "clear the 41
+      pre-existing type errors" — that framing was wrong. The errors are not rot: 016's backend (schema **5 → 6**)
+      and frontend both landed, but **none of its tests were ever updated**, its task file is still
+      `status: in-progress`, and its QA Report and Review Findings are empty templates. `components/TaskForm.tsx`
+      was deleted while `components/TaskForm.test.tsx` still imports it; `setTaskDone` became `setTaskCompleted`;
+      `done` → `completed`, `position` → `order`, `eta` → `etaMinutes` (a unit change, pomodoros to minutes);
+      `InvalidDoneValueError` is gone; and `restoreTask`, `duplicateTask`, `normalizeTask`, `displayOrder`,
+      `firstNotCompleted` are new and untested.
+      **Why this is not a compile fix.** 016 changed `completed` from a count to a boolean — the field that
+      `lib/db/task-repository.ts:59` reads to decide which task a session is credited to — and `lib/db/database.ts:155`
+      carries the 5 → 6 migration. Both *look* correct and defensive, and nothing verifies either; `upgrade-v5.test.ts`,
+      the suite that would, is one of the broken ones. Making the suite compile without 016's 61 criteria in view
+      would produce a green build over an unverified schema migration, which is worse than red because red
+      advertises itself.
+      **Owner ruling, 2026-11-11:** finish it properly — qa against the 61 criteria, then reviewer. The 41 errors
+      and the red build clear as a by-product. While the build stays red, any e2e spec served from `out/` is
+      unrunnable (this already blocked `e2e/chime-audio-blocked.spec.ts` in 017) and every gate is ambiguous.
+
+- [ ] **23 stale e2e selectors for the deleted TaskForm modal, and one of them makes a coverage claim vacuous.**
+      (016 review B-3, owner parked it 2026-11-11 as debt.) Five specs still select `input[id*="-title"]`, the
+      modal input 016 deleted: `e2e/sessions.spec.ts` (14), `e2e/accessibility.spec.ts` (5), `e2e/dark-sweep.spec.ts`
+      (2), `e2e/dark-contrast.spec.ts` (1), `e2e/dark-a11y-console.spec.ts` (1). qa did not touch them because
+      **criterion 61 does not list `sessions.spec.ts`** — a scope gap in the criterion, not a qa omission.
+      **The part that matters:** `e2e/sessions.spec.ts:82` is the e2e half of session crediting. 016's retirement
+      ledger says crediting is "still covered by the session-repository unit test", which is true at unit level
+      (`lib/db/session-repository.test.ts:265-322`) — but **the e2e half is now vacuous**, and crediting is the
+      path the count-to-boolean `completed` rename put at risk in the first place. Do not read that ledger line
+      as meaning crediting is covered end to end. It is not.
+
+- [ ] **Two forced-disabled task-form field rows are measured nowhere.** (017 review finding 8, LOW.)
+      `e2e/dark-sweep.spec.ts` retired a test that measured three things, but only the duration-field rows were
+      in criterion 70's scope. The disabled submit survives in `e2e/dark-contrast.spec.ts:248`; the two
+      forced-disabled field rows do not. The shipped form never disables those fields, so no shipped state
+      reaches them — restoring the rows means editing and running a skipped test. The inaccurate "covered by the
+      task dialog sweep" comment has been corrected; this is the residue.
+
+## Found by the 2026-11-10 re-point pass — three app defects, none of them test faults
+
+The re-point pass took the e2e suite from **613 passed / 63 failed** to **657 passed / 14 failed** (672 total
+after 5 retirements), measured by the orchestrator on its own build, with the dangling-`aria-labelledby`
+regression isolated and then fixed (DECISIONS 2026-11-10). Nine of the remaining 14 are deliberately out of scope for the measurement pass
+(`focus-surface-sweep` 5, `dark-theme-control` criteria 38 and 47 3, `task-panel:277` 1). The other five are
+real defects that re-pointing cannot fix, listed here because **a test that fails for a true reason must not
+be re-pointed until the reason is gone.**
+
+- [ ] **Keyboard reorder moves one position per drag, then stalls (`task-list.spec.ts:383`, `:911`).**
+      After the first ArrowDown the order moves; every further ArrowDown is ignored, measured at 0, 300, 800
+      and 1500 ms of settle. Pointer drag is unaffected. **This violates task 002's acceptance directly** —
+      "Up/Down arrow keys move it one position at a time" — so it is a regression against a shipped
+      milestone, not a gap. It was previously filed as flakiness, which it is not: `qa` established the
+      failure is deterministic and repeatable, and that is the most useful thing the pass found.
+      **Likely mechanism, not yet confirmed by a probe:** `components/TaskChecklist.tsx:117` commits the
+      reorder in `handleDragOver` via `arrayMove`, so the DOM reorders mid-drag. `KeyboardSensor` derives its
+      next target from the rendered layout through `sortableKeyboardCoordinates`
+      (`components/TaskChecklist.tsx:97`), so once the dragged row has moved under its own cursor, the next
+      keypress resolves `over` to the dragged row itself and `handleDragOver`'s `active.id === over.id`
+      guard returns early. A pointer drag supplies fresh coordinates continuously, which is why only the
+      keyboard path stalls. If that is right, the fix is to commit the order on `onDragEnd` rather than on
+      every `onDragOver`, or to re-measure between keyboard steps — **confirm with a probe before changing
+      it**, per the 2026-11-06 `liveQuery` entry, where reading the source "confirmed" a mechanism only a
+      probe actually established.
+- [ ] **The wordmark's halo paints over the theme chip's focus ring at 320 px in dark
+      (`control-edge-measure.spec.ts`, 3 failures).** The probe reads `142,98,50` where the computed outline
+      colour is `240,165,80` — a blend, not a different colour. **The orchestrator diagnosed this as an
+      antialiasing fringe and was wrong**: `qa` switched the sampling to `ceil`, asserted row alignment, and
+      the reading did not move. Its diagnosis is that the `h1`'s `.glyph-halo` stroke, which at 320 wraps
+      onto the line above the theme chips, paints across the chip's outer ring row *and* its flank, leaving
+      no clean ground row above the ring. The dark halo darkening an orange ring fits the measured blend.
+      **This is the uncomfortable one: the halo exists to defend the chip's focus ring, and at this one
+      viewport and theme it may be degrading it.** Light 320 and both 1280 cases pass, and 1280 reports a
+      lowest figure of 10.203:1, so the treatment is sound where the two do not collide. Needs a layout
+      decision (spacing between the wordmark line and the chip row at 320), not a token move and not a test
+      change. **Do not re-point the probe to dodge it** — it is measuring the right thing and reporting a
+      true overlap.
+- [ ] **`--dialog-edge`'s light sub-floor may have moved to the soundscape dialog, and nobody has measured
+      it there.** `e2e/uploaded-background-dialog-edge.spec.ts` is retired because the task dialog it
+      measured was deleted in `4ca861e`, so the PLAN item above about light dialogs is in neither of its two
+      expected states: the fix did not land, and the surface it was recorded against is gone. The token is
+      still `var(--border)` in light (`app/globals.css:116`) and is still consumed by
+      `components/SoundscapeDialog.tsx` through `components/ui/dialog.tsx`, so the same 2.00:1 ground and
+      1.43:1 fill hairline plausibly still stand on the one dialog that remains. **Owner decision:** re-point
+      the probe to `SoundscapeDialog` with its own recorded figures, or close the light-dialog item as moot.
+      Either way the answer needs painted figures, so it belongs to the measurement pass.
+- [ ] **No red-proof for the new half-2 assertions.** The re-point added the "two tones clear 3:1 against
+      each other" clause to the control edges, the chip ring, the Stats ring and the legibility wordmark,
+      closing a gap logged three times. **None of them has been broken and restored to prove it can fail.**
+      Per DECISIONS 2026-10-09 on vacuous assertions, an untested new assertion is a claim, not a guard.
+      Owed in the measurement pass.
+- [ ] **`focus-surface-sweep.spec.ts:634` is mislabelled and has been for two rounds.** Its describe block is
+      titled "recorded as expected failures (the suite stays green; each flips when healed)", but **only the
+      criterion 17 test actually uses `test.fail`.** The 634 test is a plain `test()` — a hard red at
+      2.058:1 on the stale header-fill premise. The block has been reporting itself as a green-by-design
+      ledger while containing a genuine failure. Same family as the `HEAD`-diff guards already in this file:
+      an assertion whose stated mechanism is not the one it runs. Retire it or give it the marker its block
+      claims it has.
 
 ## Maintenance & polish
 
@@ -97,17 +228,19 @@ Tracked here so it stops appearing in the git log as if it were milestone progre
       fixed widget and inherits the `lg` breakpoint rule from 012; **any third one needs the same rule
       rather than more padding.**
 
-- [ ] **Owner decision needed: the bottom cluster's control edges sit on the bare photograph.** Task 012
-      criterion 4, confirmed by QA. The Settings, Stats and Soundscape triggers carry
-      `border-control-border` over an opaque `--background` fill and sit directly on the uploaded image,
-      so neither the border nor the fill can hold 3:1 against an arbitrary photograph with any single
+- [x] **Owner decision needed: the bottom cluster's control edges sit on the bare photograph.** Task 012
+      criterion 4, confirmed by QA. The Settings, Stats and Soundscape triggers carried
+      `border-control-border` over an opaque `--background` fill and sat directly on the uploaded image,
+      so neither the border nor the fill could hold 3:1 against an arbitrary photograph with any single
       colour. This is the straddle problem: a fixed foreground's worst ground is interior to the band the
-      image can produce, so no re-tuned token value fixes it. **A cluster-wide surface is already ruled
-      out**: it was built and measured to collide with the timer panel below `lg` (218x62 px at 320x568).
-      The two live options both change how the controls look, which is why this is the owner's call and
-      not a fix to take: **(a)** give each trigger its own opaque ground, or **(b)** a two-tone hairline
-      (light inner, dark outer) so one of the two strokes always registers whatever the photo does. The
-      same question will be asked again by any control 014 places over the image.
+      image can produce, so no re-tuned token value fixes it. **A cluster-wide surface was ruled out**:
+      it was built and measured to collide with the timer panel below `lg` (218x62 px at 320x568).
+      **Answered: option (b), the two-tone hairline** — DECISIONS 2026-10-29. `.control-edge` ships
+      (`app/globals.css:425`) and is applied to `SettingsButton`, `StatsButton`, the `SoundscapeDialog`
+      trigger and `TaskPanelToggle`, so the control 014 placed over the image inherited the answer rather
+      than re-asking it. The 2026-11-06 glyph halo is the same ruling applied to letterforms. **This item
+      was stale, not open** (orchestrator, 2026-11-10). What remains is a *test* gap, not a decision: no
+      spec asserts half 2 of the two-tone rule — see the two entries about that below.
 - [ ] **Light `--scrim` is still at 0.45 and its dialog edge fails the ground floor.** The dark scrim went
       0.62 to 0.90 to fix the criterion 12 blocker (DECISIONS 2026-10-28). Light was deliberately left
       alone, because its edge-vs-fill hairline is the separate owner-deferred sub-floor from 010. For the
@@ -324,6 +457,24 @@ so none of it needs a photograph sweep.
 - [ ] **014's deferred items:** touch drag (pointer and keyboard both pass), and a real mid-session write
       failure for 014 criterion 28 (frontend checked the code path only; QA's injection harness in
       `e2e/task-panel-behaviour.spec.ts` is the tool for this and already exists).
+- [x] **Criterion 15's "one place" clause needed a fix, not a ruling, and the fix already shipped.**
+      QA round 2 recorded criterion 15 as **FAIL** and routed it to the owner as a question of
+      interpretation: a rejected *add* produced two `role="alert"` elements — the panel's generic line and
+      an add-form field message, `Couldn't save this task. Try again.` at `#add-task-title-error`. That
+      message **does not exist anywhere in the tree**; `git log -S` puts its removal in `4ca861e`, the
+      panel-only frontend commit, which replaced the `setErrors` call with the comment now at
+      `components/TaskForm.tsx:121-122` ("Any other failure is a write failure, not a field problem. The
+      owning panel reports it in its single alert line"). `TaskForm`'s catch block now maps field errors
+      **only** for `TaskValidationError`, which is exactly what criterion 15 asks for, and
+      `task-panel-behaviour.spec.ts` is absent from loop 3's 60-failure list, so its `one place` test is
+      green on the shipped tree. **No ruling is needed; criterion 15 wants re-verification, not a
+      decision** (orchestrator, 2026-11-10).
+      **The reusable lesson is about report shelf life, not about this criterion.** A QA round that ends
+      by asking the owner a question, and a frontend fix landing in the same loop, can cross in flight —
+      and the report keeps asking long after the answer is in the code. Both task files still carry the
+      FAIL verbatim. Same family as the 2026-11-06 ruling that a change taken *after* a sweep needs the
+      sweep again: **a question routed to the owner needs re-reading against HEAD before it is answered**,
+      or the owner rules on a tree that no longer exists.
 - [ ] **The `aria-expanded` pre-hydration window.** The toggle reports `true` before rehydration even when
       the stored state is hidden; the panel itself is already correctly hidden by then. Round 2 worked
       around it in a helper rather than measuring the real exposure. Measure it, then decide.
@@ -355,6 +506,19 @@ replacement defence. See DECISIONS.md for both halves. What remains from that ru
       control with no visible focus indicator over a photograph** — the halo (or an equivalent defence) is
       the fix, and the negative outline offset should be reconsidered at the same time since it now buys
       nothing. Until it lands, `/` with an uploaded image has no keyboard-focus floor on the theme toggle.
+- [x] **An arriving `box-shadow` shifted a box that never moved (012 criterion 22).** **Done, 2026-11-10.**
+      The image's arrival added **0.0011909722222222252** of layout shift at 320 px against a criterion
+      asserting it adds zero, while the two `sameGeometry` assertions beside it passed — no layout box had
+      moved. **It was not the halo**, though the halo had just shipped and the story fit: making the glyph
+      stroke unconditional changed the figure not at all. The shifted node was the task panel's
+      `surface-solid` div, whose `box-shadow` exists only inside `body:has([data-background="active"])`;
+      Chromium counts a shadow's painted overflow in the layout-shift rect, so the shadow *appearing* is a
+      shift. Fixed by declaring the shadow `transparent` at rest on both `surface-solid` and
+      `surface-frosted` and letting the active rule change only its colour. Criterion 22 passes at 320 and
+      1280, verified on an orchestrator build. **Two things to carry forward**, both in DECISIONS 2026-11-10:
+      every property behind the `data-background="active"` gate has this hazard and wants a transparent
+      declaration at rest, not an omission; and the 320 px no-image CLS baseline moved 0.19547 to 0.19716
+      with no pixel changing, so that figure is stale wherever it was recorded.
 - [ ] **Re-point `control-edge-measure` to read the halo flank, not the bare ring.** The halo fixed the
       1.27:1 focus ring by flanking it with `--popover`, which is the same two-tone structure the control
       edges use — so **the bare ring still reads 1.27 (light/grey) and 2.06 (dark/white) against the
@@ -443,13 +607,23 @@ The reviewer's other eight findings, none blocking:
 
 ### Found by task 013's review (reviewer APPROVE, none blocking)
 
-- [ ] **Keyboard focus is dropped when an auto-advance disables the Focus length field mid-edit.**
+- [x] **Keyboard focus is dropped when an auto-advance disables the Focus length field mid-edit.**
+      **Closed by task 017** (criterion 14, asserted by criterion 73). The field is now enabled in every
+      timer state, so no `disabled` ever flips on a focused input, and `components/FocusLengthInput.tsx`
+      is deleted. This is R-2's own second remedy — "keep the field enabled" — taken because edits now
+      apply to the next session of that type instead of being swallowed. Original finding below.
+- [ ] 
       (013 review R-2, LOW, covered by no criterion.) `components/FocusLengthInput.tsx:21` plus
       `components/PomotatoTimer.tsx:97`. Criterion 7 deliberately invites editing the Focus length during a
       break; when that break auto-completes, `disabled` flips on a possibly-focused input and the browser
       moves focus to `<body>` (WCAG 2.4.3). Either move focus to Start/Pause, or keep the field enabled and
       let the store's existing no-op (`lib/timer/store.ts:227-232`) swallow the write.
-- [ ] **`isFocusedRef` can stick `true` when the field is disabled out from under the cursor.**
+- [x] **`isFocusedRef` can stick `true` when the field is disabled out from under the cursor.**
+      **Closed by task 017** (criterion 14, asserted by criterion 73). Unreachable: the condition was a
+      focused input becoming `disabled`, which no longer happens, and the component is deleted. Its
+      replacements (`components/DurationField.tsx`, `SessionLengths.tsx`) carry no `disabled` state.
+      Original finding below.
+- [ ] 
       (013 review R-3, LOW.) `components/FocusLengthInput.tsx:15,25-30,63-65`. The component used to unmount
       on leaving Custom mode, which reset the ref; it is now always mounted. If a browser does not fire
       `blur` when a focused input becomes `disabled`, the store-to-field sync effect never runs again for

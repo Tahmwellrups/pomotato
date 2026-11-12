@@ -1,42 +1,39 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePreferencesStore } from "@/lib/preferences";
+import { useChimeSnapshot } from "@/hooks/use-chime";
 import { useTimerStore } from "@/lib/timer/store";
-import { useHydrateTimerStore } from "@/hooks/use-hydrate-timer-store";
-import { useTimerClock } from "@/hooks/use-timer-clock";
+import { useTimerNow } from "./TimerClockProvider";
 import { fullDurationMs, formatRemaining, getRemainingMs } from "@/lib/timer/time";
 import { MODE_LABELS } from "@/lib/timer/labels";
 import type { TimerStatus } from "@/lib/timer/types";
 import { ModeSelector } from "./ModeSelector";
 import { TimerDisplay } from "./TimerDisplay";
-import { FocusLengthInput } from "./FocusLengthInput";
 import { CycleDots } from "./CycleDots";
 import { TimerControls } from "./TimerControls";
 
 const ANNOUNCEMENT_CLEAR_MS = 10_000;
 
 export function PomotatoTimer() {
-  const hasHydrated = useHydrateTimerStore();
+  const hasHydrated = useTimerStore((state) => state.hasHydrated);
 
   const mode = useTimerStore((state) => state.mode);
   const status = useTimerStore((state) => state.status);
-  const focusMinutes = useTimerStore((state) => state.focusMinutes);
+  const plannedDurationMs = useTimerStore((state) => state.plannedDurationMs);
+  const focusMinutes = usePreferencesStore((state) => state.focusMinutes);
+  const shortBreakMinutes = usePreferencesStore((state) => state.shortBreakMinutes);
+  const longBreakMinutes = usePreferencesStore((state) => state.longBreakMinutes);
+  const { plays } = useChimeSnapshot();
   const endTimestamp = useTimerStore((state) => state.endTimestamp);
   const pausedRemainingMs = useTimerStore((state) => state.pausedRemainingMs);
-  const completeIfExpired = useTimerStore((state) => state.completeIfExpired);
   const lastAdvance = useTimerStore((state) => state.lastAdvance);
 
-  const now = useTimerClock(status === "running");
-  const fullMs = fullDurationMs(mode, focusMinutes);
+  const now = useTimerNow();
+  // A run that is counting or frozen is measured against the length it started
+  // with. Idle and complete follow the settings, so an edit shows up at once.
+  const fullMs = plannedDurationMs ?? fullDurationMs(mode, { focusMinutes, shortBreakMinutes, longBreakMinutes });
   const remainingMs = getRemainingMs(status, endTimestamp, pausedRemainingMs, fullMs, now);
-
-  // The only place a tick can change timer state: flipping to "complete" once
-  // the stored end timestamp has passed. This never decrements a counter.
-  useEffect(() => {
-    if (status === "running" && remainingMs <= 0) {
-      completeIfExpired(now);
-    }
-  }, [status, remainingMs, now, completeIfExpired]);
 
   // Announce completion once, through a polite live region, without
   // re-announcing on every reload that happens to already be complete.
@@ -69,7 +66,14 @@ export function PomotatoTimer() {
   // It is not wiped when the status changes. The text is emptied after a pause
   // so the next advance, which often reads the same words, is announced again
   // instead of being a no-op text change in the live region.
-  const announcedAdvanceRef = useRef<number | null>(null);
+  //
+  // The ref is seeded with the advance that already exists when this component
+  // mounts, so only an advance observed while mounted is announced. One that
+  // happened while the person was on another route is history by the time they
+  // return. The chime (TimerClockProvider) is deliberately not like this: it
+  // fires for an advance observed on any route, the announcement only for one
+  // observed here. Do not "align" the two.
+  const announcedAdvanceRef = useRef<number | null>(useTimerStore.getState().lastAdvance?.endedAt ?? null);
   useEffect(() => {
     if (!hasHydrated || lastAdvance === null) return;
     if (announcedAdvanceRef.current === lastAdvance.endedAt) return;
@@ -83,7 +87,7 @@ export function PomotatoTimer() {
   }, [lastAdvance, hasHydrated]);
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-3 sm:gap-8">
+    <div data-chime-plays={plays} className="flex w-full max-w-md flex-col items-center gap-3 sm:gap-8">
       <div className="flex w-full flex-col gap-1">
         <ModeSelector />
         <CycleDots />
@@ -94,7 +98,6 @@ export function PomotatoTimer() {
         fullMs={fullMs}
         hasHydrated={hasHydrated}
       />
-      <FocusLengthInput />
       <TimerControls />
       <p aria-live="polite" role="status" className="sr-only">
         {announcement}

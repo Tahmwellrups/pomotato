@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { DESKTOP, NARROW, chooseOnSettings, makePng, waitActive, type Rgb } from "./helpers/background";
 import { holdResetWithPointer } from "./helpers/timer-hold";
 import { seedTimerState } from "./helpers/timer-hold";
+import { taskPanel, taskPanelToggle } from "./helpers/task-list-dialog";
 
 // Behaviour specs for task 012 round 2 (criteria 22, 23, 30) and task 013 round 2 (criteria 11, 49).
 // Kept apart from the measurement sweep (qa cost rule 4): a palette change re-runs focus-surface-sweep only.
@@ -164,14 +165,20 @@ test.describe("013 criterion 11: the Focus length persists across reloads and is
     await page.goto("/");
     await seedTimerState(page, { mode: "focus", status: "idle", focusMinutes: 25, cyclePosition: 0, endTimestamp: null, startedAt: null, runId: null, pausedRemainingMs: null });
     await page.reload();
+    // Task 017: the field is on /settings. Set there, then read the timer on /.
+    await page.goto("/settings");
     const field = page.locator("input#focus-length");
     await field.fill("50");
     await field.press("Tab");
+    await page.goto("/");
     await expect(page.locator("p.tabular-nums").first()).toHaveText("50:00");
     await page.reload();
-    await expect(field).toHaveValue("50");
     await expect(page.locator("p.tabular-nums").first()).toHaveText("50:00");
+    await page.goto("/settings");
+    await expect(field).toHaveValue("50");
+    await page.goto("/");
     await holdResetWithPointer(page);
+    await page.goto("/settings");
     await expect(field).toHaveValue("50");
     await page.reload();
     await expect(field).toHaveValue("50");
@@ -238,9 +245,12 @@ test.describe("012 criterion 30: zero console errors or warnings across the list
       await seedTimerState(page, { mode: "focus", status: "running", focusMinutes: 25, cyclePosition: 0, endTimestamp: Date.now() + 400, startedAt: Date.now() - 1000, runId: "qa-console", pausedRemainingMs: null });
       await page.reload();
       await page.waitForTimeout(1200);
-      await page.getByRole("button", { name: "Tasks" }).or(page.getByRole("button", { name: /task/i })).first().click();
-      await expect(page.getByRole("dialog")).toBeVisible();
-      await page.keyboard.press("Escape");
+      // Re-point (task 015, commit 4ca861e): the task dialog was deleted. The panel is always visible, and its
+      // bottom-right toggle is the one control that hides and shows it, so the flow hides and shows the panel.
+      await taskPanelToggle(page).click();
+      await expect(taskPanel(page)).toHaveCount(0);
+      await taskPanelToggle(page).click();
+      await expect(taskPanel(page)).toBeVisible();
       await page.locator('label:has(input[name="theme"][value="dark"])').click();
       await page.goto("/settings");
       await page.getByRole("button", { name: "Remove background" }).click();

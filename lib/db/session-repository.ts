@@ -1,5 +1,5 @@
 import { openDatabase } from "./database";
-import { firstNotDone } from "./task-repository";
+import { firstNotCompleted } from "./task-repository";
 import { SessionValidationError } from "./errors";
 import { isFocusTypeMode, isSessionMode } from "./session-modes";
 import type { LogSessionInput, LogSessionResult, SessionRecord, SessionValidationIssue, Task } from "./types";
@@ -41,11 +41,11 @@ function validateLogInput(input: LogSessionInput): void {
  *    same `runId` cannot both pass this check; the `&runId` unique index is a
  *    second, storage-level guard behind it.
  * 2. Resolve the current task AT THIS MOMENT (completion time): the first
- *    not-done task by position. None (empty list, all done) means untagged,
+ *    not-completed task in display order. None (empty list, all completed) means untagged,
  *    not an error.
  * 3. Add the session row.
  * 4. If the mode is focus-type and a task is attached, add 1 to its
- *    `completed` (clamped at 999; the row is still logged at 999).
+ *    `completedPomodoros` (clamped at 999; the row is still logged at 999).
  * Any throw aborts the whole transaction, so a session row and its increment
  * can never disagree.
  *
@@ -62,7 +62,7 @@ export async function logCompletedSession(input: LogSessionInput): Promise<LogSe
       return { status: "duplicate", session: existing, task: null } satisfies LogSessionResult;
     }
 
-    const current = firstNotDone(await db.tasks.toArray());
+    const current = firstNotCompleted(await db.tasks.toArray());
 
     const session: SessionRecord = {
       id: crypto.randomUUID(),
@@ -77,8 +77,8 @@ export async function logCompletedSession(input: LogSessionInput): Promise<LogSe
     await db.sessions.add(session);
 
     let updatedTask: Task | null = current ?? null;
-    if (current && isFocusTypeMode(input.mode) && current.completed < COMPLETED_MAX) {
-      updatedTask = { ...current, completed: current.completed + 1 };
+    if (current && isFocusTypeMode(input.mode) && current.completedPomodoros < COMPLETED_MAX) {
+      updatedTask = { ...current, completedPomodoros: current.completedPomodoros + 1, updatedAt: Math.max(Date.now(), current.updatedAt + 1) };
       await db.tasks.put(updatedTask);
     }
     return { status: "logged", session, task: updatedTask } satisfies LogSessionResult;

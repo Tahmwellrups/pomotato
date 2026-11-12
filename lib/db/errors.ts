@@ -17,7 +17,7 @@ export class TaskValidationError extends Error {
 }
 
 /**
- * Thrown by update, delete, set-done, increment, decrement, or reorder when the given task id
+ * Thrown by update, delete, set-completed, increment, decrement, or reorder when the given task id
  * does not exist. Never thrown for read operations like `listTasks` or
  * `getCurrentTask`, which treat a missing/dangling id as "none" instead.
  */
@@ -95,12 +95,12 @@ export class SessionValidationError extends Error {
   }
 }
 
-/** Thrown by `setTaskDone` when the value is not a boolean. Nothing is written. */
-export class InvalidDoneValueError extends Error {
-  readonly code = "INVALID_DONE_VALUE" as const;
+/** Thrown by `setTaskCompleted` when the value is not a boolean. Nothing is written. */
+export class InvalidCompletedValueError extends Error {
+  readonly code = "INVALID_COMPLETED_VALUE" as const;
 
   constructor(value: unknown) {
-    super(`done must be true or false, got ${typeof value}`);
-    this.name = "InvalidDoneValueError";
+    super(`completed must be true or false, got ${typeof value}`);
+    this.name = "InvalidCompletedValueError";
   }
 }

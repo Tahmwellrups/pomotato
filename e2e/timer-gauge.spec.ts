@@ -1,3 +1,4 @@
+import { setLengthThenReturn } from "./helpers/session-lengths";
 import { test, expect, type Page } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { holdResetWithPointer, readTimerState, resetControl, seedTimerState } from "./helpers/timer-hold";
@@ -77,7 +78,8 @@ test.describe("Gauge level comes from derived time", () => {
         await page.locator(`label:has(input[value="${mode.select}"])`).click();
       }
       if (mode.custom) {
-        await page.locator('input[id="focus-length"]').fill(mode.custom);
+        // Task 017: the Focus length is set on /settings and read back on /.
+        await setLengthThenReturn(page, mode.custom);
       }
       await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
@@ -155,11 +157,11 @@ test.describe("Gauge level comes from derived time", () => {
     await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
     await page.locator('label:has(input[value="focus"])').click();
-    await page.locator('input[id="focus-length"]').fill("3");
+    await setLengthThenReturn(page, "3");
     await expect(readout(page)).toHaveText("03:00");
     await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
 
-    await page.locator('input[id="focus-length"]').fill("4");
+    await setLengthThenReturn(page, "4");
     await expect(readout(page)).toHaveText("04:00");
     await expect(gauge(page)).toHaveAttribute("data-gauge-level", "100");
   });

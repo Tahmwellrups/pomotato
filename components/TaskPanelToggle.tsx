@@ -26,7 +26,7 @@ export function TaskPanelToggle() {
     <Button
       type="button"
       variant="default"
-      aria-label="Task list"
+      aria-label="Tasks"
       aria-expanded={visible}
       onClick={() => setTaskPanelVisible(!visible)}
       className={`control-edge flex size-11 cursor-pointer items-center rounded-xl border-none bg-primary text-base text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground motion-reduce:transition-none ${focusClass}`}

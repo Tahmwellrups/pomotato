@@ -33,7 +33,7 @@ export function BackgroundLayer() {
     <div
       aria-hidden="true"
       data-background={shown ? "active" : "pending"}
-      className={`pointer-events-none fixed inset-0 -z-20 overflow-hidden transition-opacity duration-500 motion-reduce:transition-none forced-colors:hidden ${shown ? "opacity-100" : "opacity-0"}`}
+      className={`pointer-events-none fixed inset-0 -z-20 overflow-hidden transition-opacity duration-500 motion-reduce:transition-none forced-colors:hidden ${shown ? "opacity-50" : "opacity-0"}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- a blob: URL from IndexedDB, nothing for next/image to optimise */}
       <img src={url} alt="" onLoad={() => setLoadedUrl(url)} className="absolute inset-0 size-full object-cover" />

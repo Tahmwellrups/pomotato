@@ -30,7 +30,7 @@ const VIEWPORTS = [
 const NO_TRANSITION = "*, *::before, *::after { transition: none !important; }";
 const TRIGGERS = [
   // Task 015 re-point: the "Your tasks" dialog trigger is deleted; the panel toggle is the Tasks control.
-  { name: "Task list (panel toggle)", selector: 'button[aria-label="Task list"]' },
+  { name: "Tasks (panel toggle)", selector: 'button[aria-label="Tasks"]' },
   { name: "Ambient sound", selector: 'button[aria-label="Ambient sound"]' },
   { name: "Focus stats", selector: 'a[aria-label="Focus stats"]' },
   { name: "Settings", selector: 'a[aria-label="Settings"]' },
@@ -124,9 +124,6 @@ async function measureImageLoad(page: Page, theme: Theme, imageName: string, ima
   expect(await page.locator(".control-edge").count(), "four .control-edge triggers").toBe(4);
 
   // ---- Phase A: theme chip focused, page at the top. ----
-  // Task 015 re-point: the header is the HeaderNav root, two parents above the wordmark <h1> (it has no landmark).
-  // `[data-surface="solid"]` no longer stands in for it: that now resolves to the task panel.
-  const header = await boxOf(page.locator("xpath=//h1/../..").first());
   const chipInput = page.locator('input[name="theme"]:checked');
   await chipInput.focus();
   await settle(page);
@@ -140,41 +137,55 @@ async function measureImageLoad(page: Page, theme: Theme, imageName: string, ima
   expect(chipFocusVisible, `${theme} ${imageName} ${viewport.name}: theme chip is :focus-visible`).toBe(true);
   expect(chipOutline.style, "theme chip has an outline").toBe("solid");
 
-  // Ring: outer edge inset = -(offset + width) from the chip box. Offset -5, width 2 gives an outer edge 3 px inside.
-  const insetOuter = -(chipOutline.offset + chipOutline.width);
+  // Ring: outer edge inset = -(offset + width) from the chip box. Offset 2, width 2 gives an outer edge 4 px outside.
+  // Two-tone read (owner ruling 2026-11-06; PLAN "Re-point control-edge-measure to read the halo flank"):
+  //   ink     = the outer ring row,
+  //   flank   = the 5 px --popover band painted outside the ring (e9380df, .glyph-halo focus box-shadow),
+  //   ground  = the photograph one pixel beyond the flank.
+  // Criterion 14 passes when max(ink, flank) clears 3:1 against the ground, and the two clear 3:1 against each
+  // other (the second half of the rule, which was asserted nowhere before this re-point). The bare ring is allowed
+  // to read 1.27:1 over grey by design: the flank carries it.
+  // Retired (task 015, owner ruling 2026-11-06): the "chip focus ring lies inside the header border box" assertion.
+  // Its premise died with the header panel, and the flank now sits outside the chip by design.
   const chipCx = Math.floor(chipBox.x + chipBox.w / 2);
-  const chipOuterRow = Math.floor(chipBox.y + insetOuter);
-  const ringBox = { x: chipBox.x + insetOuter, y: chipBox.y + insetOuter, w: chipBox.w - 2 * insetOuter, h: chipBox.h - 2 * insetOuter };
-  const inHeaderBorderBox = ringBox.x >= header.x && ringBox.y >= header.y && ringBox.x + ringBox.w <= header.x + header.w && ringBox.y + ringBox.h <= header.y + header.h;
-  const inHeaderPadding = ringBox.x >= header.x + 1 && ringBox.y >= header.y + 1 && ringBox.x + ringBox.w <= header.x + header.w - 1 && ringBox.y + ringBox.h <= header.y + header.h - 1;
-  expect(inHeaderBorderBox, `${theme} ${imageName} ${viewport.name}: chip focus ring lies inside the header border box`).toBe(true);
-  expect(inHeaderPadding, `${theme} ${imageName} ${viewport.name}: chip focus ring lies inside the header padding box`).toBe(true);
+  // Fully covered pixels only (DECISIONS 2026-10-27: a stroke is measured at its fully-covered pixel, never its
+  // antialiasing fringe). ceil() is the first row wholly inside the 2 px ring. The 1 px flank band outside it has a
+  // fully covered row ONLY when the box is pixel-aligned, so alignment is asserted, not assumed.
+  // Known failure, not a sampling artefact (2026-11-10 diagnosis): at 320 x 720 in dark, the wordmark's .glyph-halo
+  // (the H1, painted by its 2 px --popover stroke) sits over the chip's outer ring row and its flank band, so the
+  // ring row reads 142,98,50 (a 59% blend with the halo) and the rows beyond it are contaminated too. There is no
+  // fully covered ground row to measure against. The assertion stays red and is reported as an app layout finding.
+  const chipOuterRow = Math.ceil(chipBox.y - (chipOutline.offset + chipOutline.width));
+  expect.soft(Number.isInteger(chipBox.y), `${theme} ${imageName} ${viewport.name}: chip box is pixel-aligned (y ${chipBox.y}), so ring, flank and photograph each have a fully covered row`).toBe(true);
 
   const chipPx = await pixels(page, [
     { name: "chip ring outer row", x: chipCx, y: chipOuterRow },
-    { name: "chip ground (inside ring)", x: chipCx, y: chipOuterRow - 1 },
+    { name: "chip flank (5 px --popover)", x: chipCx, y: chipOuterRow - 1 },
+    { name: "chip photograph beyond flank", x: chipCx, y: chipOuterRow - 2 },
   ]);
   const chipRing = chipPx.get("chip ring outer row")!;
-  const chipGround = chipPx.get("chip ground (inside ring)")!;
-  // Retired (task 015, owner ruling 2026-11-06): the "header fill" probe and its assertion that the chip ring sits on
-  // it. The header carries no panel, so there is no header fill to read. The ratio below uses the pixel painted
-  // directly inside the ring, which is the ground that matters. Parked, not abandoned: re-point to the two-tone glyph
-  // halo when that ships.
+  const chipFlank = chipPx.get("chip flank (5 px --popover)")!;
+  const chipGround = chipPx.get("chip photograph beyond flank")!;
   expect(chipRing, `${theme} ${imageName} ${viewport.name}: painted chip ring is the computed outline colour`).toEqual(
     (chipOutline.colour.match(/\d+/g) ?? []).slice(0, 3).map(Number),
   );
+  const chipInk = contrastRatio(chipRing, chipGround);
+  const chipFlankRatio = contrastRatio(chipFlank, chipGround);
+  const chipHalf1 = Math.max(chipInk, chipFlankRatio);
+  const chipHalf2 = contrastRatio(chipRing, chipFlank);
   record({
     criterion: "14",
     ...base,
     state: "theme chip focus (focus-visible), page at top",
-    element: "theme chip focus ring, outer edge",
-    pixel: `${fmt(chipRing)} (computed ${chipOutline.colour})`,
+    element: "theme chip focus ring with 5 px flank, two-tone",
+    pixel: `ring ${fmt(chipRing)} (computed ${chipOutline.colour}) / flank ${fmt(chipFlank)}`,
     ground: fmt(chipGround),
-    coords: `outer row ${chipOuterRow}, centre column; ring box ${Math.round(ringBox.x)},${Math.round(ringBox.y)} ${Math.round(ringBox.w)}x${Math.round(ringBox.h)}; header ${Math.round(header.x)},${Math.round(header.y)} ${Math.round(header.w)}x${Math.round(header.h)}`,
-    ratio: contrastRatio(chipRing, chipGround),
-    note: `outline ${chipOutline.width}px, offset ${chipOutline.offset}px; ring inside header border box: ${inHeaderBorderBox}; inside padding box: ${inHeaderPadding}; chip box bottom ${Math.round(chipBox.y + chipBox.h)} vs header bottom ${Math.round(header.y + header.h)}`,
+    coords: `outer ring row ${chipOuterRow}, centre column; chip box top ${Math.round(chipBox.y)}`,
+    ratio: chipHalf1,
+    note: `half 1 max(ring ${chipInk.toFixed(3)}, flank ${chipFlankRatio.toFixed(3)}) vs photograph; half 2 ring vs flank ${chipHalf2.toFixed(3)}; outline ${chipOutline.width}px, offset ${chipOutline.offset}px`,
   });
-  expect.soft(contrastRatio(chipRing, chipGround), `criterion 14 ${theme} ${imageName} ${viewport.name}: theme chip ring >= 3`).toBeGreaterThanOrEqual(3);
+  expect.soft(chipHalf1, `criterion 14 ${theme} ${imageName} ${viewport.name}: theme chip max(ring, flank) vs photograph >= 3`).toBeGreaterThanOrEqual(3);
+  expect.soft(chipHalf2, `criterion 14 ${theme} ${imageName} ${viewport.name}: theme chip ring vs flank >= 3 (half 2 of the two-tone rule)`).toBeGreaterThanOrEqual(3);
 
   // ---- Phase B: the bottom cluster in view. ----
   await page.locator(TRIGGERS[0].selector).evaluate((el) => el.scrollIntoView({ block: "center" }));
@@ -216,9 +227,12 @@ async function measureImageLoad(page: Page, theme: Theme, imageName: string, ima
       note: `border ${rBorder.toFixed(3)} / halo ${rHalo.toFixed(3)} (larger rules); border vs halo ${contrastRatio(border, halo).toFixed(3)}`,
     });
     expect.soft(max, `criterion 4 ${theme} ${imageName} ${viewport.name} ${t.name}: max(border, halo) >= 3`).toBeGreaterThanOrEqual(3);
+    // Half 2 of the two-tone rule: the two tones clear 3:1 against each other. Asserted nowhere before this
+    // re-point (012 review R-3, logged three times; PLAN "Nothing asserts half 2 of the two-tone rule").
+    expect.soft(contrastRatio(border, halo), `criterion 4 ${theme} ${imageName} ${viewport.name} ${t.name}: border vs halo >= 3 (half 2)`).toBeGreaterThanOrEqual(3);
   });
 
-  // ---- Criterion 14, Stats focus: 2 px ring at offset 2, the 5 px halo under it. ----
+  // ---- Criterion 14, Stats focus: the same two-tone read as the chip. 2 px ring at offset 2, 5 px --popover flank. ----
   const statsLink = page.locator('a[aria-label="Focus stats"]');
   await statsLink.focus();
   await settle(page);
@@ -228,28 +242,35 @@ async function measureImageLoad(page: Page, theme: Theme, imageName: string, ima
     const cs = getComputedStyle(el);
     return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), offset: parseFloat(cs.outlineOffset), colour: cs.outlineColor };
   });
-  const statsOuter = Math.floor(statsBox.y - (statsOutline.offset + statsOutline.width));
+  // Same fully-covered-pixel rule as the chip above (ceil to the first row wholly inside the ring).
+  const statsOuter = Math.ceil(statsBox.y - (statsOutline.offset + statsOutline.width));
+  expect.soft(Number.isInteger(statsBox.y), `${theme} ${imageName} ${viewport.name}: Stats box is pixel-aligned (y ${statsBox.y})`).toBe(true);
   const statsCx = Math.floor(statsBox.x + statsBox.w / 2);
   const statsPx = await pixels(page, [
     { name: "stats ring outer row", x: statsCx, y: statsOuter },
-    { name: "stats halo (ground)", x: statsCx, y: statsOuter - 1 },
-    { name: "stats beyond halo (photograph)", x: statsCx, y: statsOuter - 6 },
+    { name: "stats flank (5 px --popover)", x: statsCx, y: statsOuter - 1 },
+    { name: "stats photograph beyond flank", x: statsCx, y: statsOuter - 2 },
   ]);
   const statsRing = statsPx.get("stats ring outer row")!;
-  const statsGround = statsPx.get("stats halo (ground)")!;
-  const beyond = statsPx.get("stats beyond halo (photograph)")!;
+  const statsFlank = statsPx.get("stats flank (5 px --popover)")!;
+  const statsGround = statsPx.get("stats photograph beyond flank")!;
+  const statsInk = contrastRatio(statsRing, statsGround);
+  const statsFlankRatio = contrastRatio(statsFlank, statsGround);
+  const statsHalf1 = Math.max(statsInk, statsFlankRatio);
+  const statsHalf2 = contrastRatio(statsRing, statsFlank);
   record({
     criterion: "14",
     ...base,
     state: `Stats focus (${statsVisible ? "focus-visible" : "NOT focus-visible"})`,
-    element: "Stats focus ring, outer edge over the 5 px halo",
-    pixel: `${fmt(statsRing)} (computed ${statsOutline.colour})`,
+    element: "Stats focus ring with 5 px flank, two-tone",
+    pixel: `ring ${fmt(statsRing)} (computed ${statsOutline.colour}) / flank ${fmt(statsFlank)}`,
     ground: fmt(statsGround),
-    coords: `outer row ${statsOuter}, centre column`,
-    ratio: contrastRatio(statsRing, statsGround),
-    note: `outline ${statsOutline.width}px, offset ${statsOutline.offset}px; photograph beyond halo ${fmt(beyond)}; ring vs photograph ${contrastRatio(statsRing, beyond).toFixed(3)}`,
+    coords: `outer ring row ${statsOuter}, centre column`,
+    ratio: statsHalf1,
+    note: `half 1 max(ring ${statsInk.toFixed(3)}, flank ${statsFlankRatio.toFixed(3)}) vs photograph; half 2 ring vs flank ${statsHalf2.toFixed(3)}; outline ${statsOutline.width}px, offset ${statsOutline.offset}px`,
   });
-  expect.soft(contrastRatio(statsRing, statsGround), `criterion 14 ${theme} ${imageName} ${viewport.name}: Stats focus ring >= 3`).toBeGreaterThanOrEqual(3);
+  expect.soft(statsHalf1, `criterion 14 ${theme} ${imageName} ${viewport.name}: Stats max(ring, flank) vs photograph >= 3`).toBeGreaterThanOrEqual(3);
+  expect.soft(statsHalf2, `criterion 14 ${theme} ${imageName} ${viewport.name}: Stats ring vs flank >= 3 (half 2 of the two-tone rule)`).toBeGreaterThanOrEqual(3);
 }
 
 test.describe("task 012 round 3: criteria 4 and 14 on the photograph (one load per image, theme and viewport)", () => {

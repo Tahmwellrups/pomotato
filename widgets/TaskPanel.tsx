@@ -17,7 +17,9 @@ const TASK_PANEL_HIDDEN = "hidden";
 // panel plus its margin; at 1280 the panel's box ends where the column starts
 // (x 416), with its own 16 px right padding as the gap. The panel is
 // out of flow at xl, so app/page.tsx's bottom padding reserves nothing for it.
-// It is the only landmark it adds: a region named by its visible heading.
+// It is the only landmark it adds: a region named "Tasks" by its visible <h2>
+// through aria-labelledby. The list inside carries no name of its own, since a
+// list nested in a region of the same name reads as a duplicate.
 //
 // Hiding. The stored preference is only readable after rehydration, so the
 // server render and the first client render both show the panel. A stored
@@ -45,11 +47,11 @@ export function TaskPanel() {
     <section
       data-task-panel-root=""
       aria-labelledby={TASK_PANEL_HEADING_ID}
-      className="flex w-full max-w-md flex-col xl:fixed xl:bottom-0 xl:left-0 xl:z-10 xl:w-104 xl:max-w-none xl:p-4 xl:pb-12 xl:pl-12"
+      className="flex w-full max-w-md flex-col xl:fixed xl:bottom-0 xl:left-0 xl:z-10 xl:w-125 xl:max-w-none xl:p-4 xl:pb-12 xl:pl-12"
     >
-      <Surface kind="solid" className="flex min-h-0 flex-col gap-3 p-3 xl:max-h-[min(30rem,calc(100dvh-10rem))]">
+      <Surface kind="solid" className="flex min-h-0 bg-popover border border-control-border flex-col gap-2 p-2 sm:gap-3 sm:p-3 xl:max-h-[min(30rem,calc(100dvh-10rem))]">
         <h2 id={TASK_PANEL_HEADING_ID} className="px-1 text-sm font-semibold text-secondary-foreground">
-          Task list
+          Tasks
         </h2>
         <TaskChecklist />
       </Surface>

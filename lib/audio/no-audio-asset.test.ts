@@ -108,7 +108,7 @@ describe("criterion 7: the repo holds no audio asset and no audio element, fetch
 
   it("the feature's own files are in the scanned set", () => {
     const files = listFiles(ROOT);
-    for (const file of ["lib/audio/engine.ts", "lib/audio/sources.ts", "components/SoundscapeDialog.tsx", "hooks/use-soundscape.ts"]) {
+    for (const file of ["lib/audio/engine.ts", "lib/audio/sources.ts", "components/SoundscapeDialog.tsx", "hooks/use-soundscape.ts", "lib/audio/chime.ts"]) {
       expect(files).toContain(file);
     }
   });

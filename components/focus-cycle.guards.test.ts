@@ -76,9 +76,8 @@ describe("task 013 criterion 33: the live regions in the / tree are the pinned s
     "components/TimerControls.tsx": 2, // one region, two attributes
     "components/SoundscapeDialog.tsx": 1,
     "components/TaskChecklist.tsx": 2, // 014: the panel's list; two role=alert lines (load, write error)
-    "components/TaskForm.tsx": 2, // 015: the emoji and colour fields (and their messages) are gone; title and eta remain
-    "components/FocusLengthInput.tsx": 1,
     "components/CurrentTaskCard.tsx": 1, // 014: one role=alert, the write-error line
+    "components/UndoToast.tsx": 2, // 016: one region, role=status and aria-live on one element (as PomotatoTimer); the toast is inserted into it, not a dialog
   };
 
   it("counts the live-region attributes per file and matches the pin exactly", () => {
@@ -90,7 +89,22 @@ describe("task 013 criterion 33: the live regions in the / tree are the pinned s
     // components/BackgroundControl.tsx is /settings only and is excluded from the / tree.
     delete counts["components/BackgroundControl.tsx"];
     delete counts["components/StatsDashboard.tsx"];
+    // Task 017: the duration fields are /settings only, so they are excluded from the / tree. FocusLengthInput left
+    // the / tree, so the pin on / is one lower than it was. The /settings files are pinned exactly in the next test.
+    delete counts["components/DurationField.tsx"];
     expect(counts).toEqual(PINNED);
+  });
+
+  // Task 017 criterion 61: the /settings live regions are pinned exactly too. One error announcer per duration
+  // field (DurationField renders it only while invalid); SessionLengths and ChimeSettings carry no live region, so
+  // they must not appear in the counts at all.
+  it("the /settings live regions in the new files are pinned exactly", () => {
+    const counts: Record<string, number> = {};
+    for (const file of ["components/DurationField.tsx", "components/SessionLengths.tsx", "components/ChimeSettings.tsx"]) {
+      const matches = read(file).match(/aria-live=|role="status"|role="alert"/g);
+      if (matches) counts[file] = matches.length;
+    }
+    expect(counts).toEqual({ "components/DurationField.tsx": 1 });
   });
 });
 
@@ -100,7 +114,7 @@ describe("task 013 criteria 44 and 46: CSS pulse, one clock", () => {
   const NEW_OR_CHANGED = [
     "components/CycleDots.tsx",
     "components/Surface.tsx",
-    "components/FocusLengthInput.tsx",
+    "components/DurationField.tsx",
     "components/ModeSelector.tsx",
     "lib/timer/cycle.ts",
     "lib/timer/modes.ts",

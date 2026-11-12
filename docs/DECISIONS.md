@@ -4,6 +4,237 @@ Short entries, newest first. One decision per entry: what was decided, and why.
 
 ---
 
+### 2026-11-11 — Task 017 approved: the session lengths live on `/settings`, and the chime is synthesized rather than licensed
+
+Approval rulings on [tasks/017-timer-settings-and-chime.md](tasks/017-timer-settings-and-chime.md).
+
+**The three session lengths go into the existing `/settings` panel, not a modal** (owner). The task's own
+accessibility criteria described a focus-trapping dialog, but an entry point already existed —
+`app/settings/page.tsx` rendering `components/SettingsPanel.tsx`. Extending it won over a second settings
+surface. The dialog criteria (focus trap, Escape to close, focus restored to the opener) were therefore
+**dropped, not failed**, and replaced by route-level criteria 4, 5, 6, 61, 62. `components/FocusLengthInput.tsx`
+was deleted and the Focus length left `/` with it, which supersedes task 013's criterion 7.
+**How to apply:** a later reader finding no focus-trap test for these controls should not add one. There is no
+dialog to trap. Task 013's criterion 7 is history, not a regression.
+
+**The chime is synthesized through the existing `AudioContext`, not a bundled file** (owner). Two sine
+oscillators at 880 Hz and 1318.51 Hz with scheduled gain ramps, in `lib/audio/chime.ts`, leased from the one
+engine in `lib/audio/engine.ts`. Nothing was added to `public/`; the only audio asset in the repo is still the
+CC0 `rain-865572.m4a` whose provenance is in the 2026-10-27 entry.
+**Why:** it removes the licensing question rather than answering it, and it keeps `lib/audio/no-audio-asset.test.ts`
+passing with its three rule lists unchanged — the cheapest available proof that nothing was copied. The
+alternative needed the owner to supply a licensed file, which would have blocked implementation.
+**How to apply:** that guard is the originality proof. Adding an audio file later means amending its allowed
+set deliberately and recording provenance here, not loosening the rule to "any audio file is fine".
+
+### 2026-11-11 — The session-end chime fires on every route, and its guard is deliberately not the announcement's
+
+Implemented first as an effect inside `components/PomotatoTimer.tsx`, which mounts only on `/`. A session
+ending while the person sat on `/settings` or `/stats` made no sound and was advanced silently on their next
+visit — including, absurdly, while they were adjusting the timer's own settings. The owner ruled it fixed.
+`components/TimerClockProvider.tsx` now mounts in `app/layout.tsx` and owns the clock, `completeIfExpired`
+and the chime; `PomotatoTimer` reads `useTimerNow()` for its display only, so the clock still runs once.
+
+**The chime guard and the announcement guard are intentionally different, and must stay different.**
+`chimedAdvanceRef` lives in the provider, which never unmounts, so a `/` → `/settings` → `/` round trip around
+a completion cannot replay the sound. `announcedAdvanceRef` stays in `PomotatoTimer` and is seeded on mount
+from the existing `lastAdvance`, so returning to `/` long after an advance that happened elsewhere does not
+announce stale news to a screen reader. Both still key on `lastAdvance.endedAt`, and `onRehydrateStorage`
+still clears `lastAdvance`, which is what makes "no chime on refresh" true.
+**How to apply:** the asymmetry reads like an inconsistency and is not one. The chime is for an advance observed
+anywhere; the live region is for one observed on `/`. There is a comment saying so next to the ref — do not
+"align" them.
+
+### 2026-11-11 — Three task 017 criteria ruled by the orchestrator: a legend is a section heading, a fixture seed is not a shipped duration, and a refused chime may be stopped
+
+qa read all three strictly and asked rather than assuming. Reviewer agreed all three independently.
+
+**Criterion 1's heading-level clause is satisfied by `fieldset`/`legend`.** Both new sections use a legend,
+matching the existing "Timer gauge" section, so `/settings` has one `h1` and no `h2` at all. A `<legend>` is
+the correct element for a group of form controls and supplies the group's accessible name; no level is skipped
+because there are no section headings. Adding `h2`s would have left headings and legends doing the same job on
+the same groups.
+
+**Criterion 9's single-source rule governs shipped source, so `lib/db/test-utils.ts:45` is exempt.** Its
+`25 * 60 * 1000` is a pre-existing Dexie fixture seed, untouched by this task, and not a duration the app
+reads. The guard carries the exclusion with a comment. Reviewer's addendum: `e2e/helpers/timer-hold.ts` was a
+third home for a hard-coded `5` and `15` and has been pointed at the constants.
+
+**Criterion 38's "no stop before the scheduled end" is not absolute — `abandon()` may stop a refused chime.**
+It runs only on `blocked` or `failed`, when the context never started, so nothing audible is truncated, and it
+nulls `onended` first so teardown cannot double-fire. Leaving the oscillators scheduled on a dead context is
+the actual defect, since that was the leak.
+**How to apply:** keep that qualifier attached. The criterion protects a *playing* chime from being cut by the
+mode transition; it says nothing about tearing down one that never sounded.
+
+### 2026-11-11 — A JS timer bounds a blocked `AudioContext` resume, because a suspended context's clock cannot
+
+Under Chrome's autoplay policy `context.resume()` neither resolves nor rejects until a gesture arrives. The
+first implementation did `await lease.ready` with no bound, so `play()` never settled: the required
+`console.warn` never fired (qa's criterion 53 failure), teardown never ran, and — the part the failure
+report missed — `chimesInFlight` was incremented at `engine.ts:286` but only decremented in `release`, so it
+stuck above zero permanently and the gates at `engine.ts:190` and `:269` could never suspend the context
+again. **One blocked chime disabled suspension for the life of the page.**
+
+The fix bounds the wait at 500 ms via `settleWithin` and classifies a pending resume as `blocked`. The timer
+lives in `lib/settle-within.ts`, **outside** `lib/audio`, because putting it in `engine.ts` tripped two existing
+timer-ban guards.
+**Why this is not guard evasion, which was checked rather than assumed:** criterion 46's intent is that no JS
+timer drives the sound and teardown runs on the audio clock. On the audible path the context is already
+running, the timer is created and cleared in the same microtask and never fires, and teardown still comes from
+`oscillator.onended`. On the blocked path the audio clock is frozen *by definition*, so it cannot measure the
+wait. Reviewer checked the alternatives: a synchronous `state !== "running"` verdict misclassifies the engine's
+own idle-suspend, where `resume()` does settle in tens of milliseconds, and `statechange` can tell you a context
+started but never that it never will. A bounded wait is the only available answer.
+**How to apply:** the defence is a module boundary, so the boundary is now guarded — `lib/settle-within.ts` is in
+the criterion 46/74 scan with one exact-text exemption, so a second timer there, or widening `settleWithin` into
+something that schedules sound, fails a gate. Do not remove that scan entry; without it the argument above is
+unenforced.
+
+### 2026-11-11 — A second writer stamps the preferences version without migrating, and is only correct by coincidence
+
+`lib/timer/carry-focus.ts` writes `pomotato-preferences` directly when carrying a v3 timer entry's Focus length
+across, stamping `version: PREFERENCES_VERSION` onto state it only ran through `sanitizePreferences`. That is
+correct **today** solely because `migratePreferences` is literally `sanitizePreferences`.
+**Why it was left in place:** reviewer rated it low and non-blocking; it is a latent hazard, not a current bug,
+and the migration code around it had just been verified correct by reading. Changing it would have meant editing
+freshly-verified migration logic to fix nothing presently broken.
+**How to apply:** the day a preferences migration does more than sanitise, this writer would stamp the new version
+onto un-migrated data and the real `migrate` would then be skipped on the version match. A `HAZARD` comment at the
+write site names that condition. Anyone adding such a migration must route this write through it.
+
+### 2026-11-11 — The pre-existing red build stopped being cosmetic and started blocking verification
+
+`npm run build` has been red since before task 017, failing its type-check step on 41 errors in
+`lib/db/*.test.ts` and `components/TaskForm.test.tsx` — both untouched by this task, with zero errors in
+non-test source. Task 017 is the first time that cost something concrete rather than just looking untidy:
+`e2e/chime-audio-blocked.spec.ts` serves the static `out/` build, `build` cannot regenerate `out/`, so the one
+spec that would independently confirm the chime's blocked path **cannot run at all**. Criterion 53 therefore
+passes on unit evidence with real-browser confirmation recorded as BLOCKED, and criterion 76 is the single
+FAIL in the QA report — for a cause that is not this task's.
+**How to apply:** clear those 41 errors as their own small task. While the build is red, every future task's gate
+is ambiguous: a new breakage cannot be told from the standing noise, and any e2e spec served from `out/` is
+unrunnable. This is also why the pipeline's practice of measuring the baseline *before* implementation (the
+2026-10-07 entry on re-running suites) mattered here — without it, 95 type errors would have looked like 017's.
+
+### 2026-11-10 — Task 016 approved: `eta` is deleted outright, the undo window is five seconds flat, and the panel's visible heading comes back as "Tasks"
+
+Approval rulings on [tasks/016-inline-editable-task-panel.md](tasks/016-inline-editable-task-panel.md). Three
+of them are the owner's, two are the orchestrator's defaults where the owner did not rule.
+
+**`eta` is deleted in the 5 → 6 upgrade with no conversion** (owner). Every stored pomodoro estimate goes;
+`etaMinutes` starts absent on every row. The alternatives were keeping `eta` alongside `etaMinutes` until
+something renders one of them, or multiplying by the focus length. Rejected because the second invents a
+figure the user never entered — against a focus length that has changed since those rows were written — and
+the first leaves a dead field that `tsc` cannot tell anyone to remove.
+**How to apply:** this is permanent data loss for an existing user, accepted knowingly. If export/import
+(milestone 7) ever needs to read a pre-v6 backup, `eta` will not be in it.
+
+**The undo window is five seconds flat** (owner), chosen over a countdown that pauses while the toast has
+focus and over a longer window for everyone. The cost is named rather than hidden: a screen-reader user who
+waits to hear the announcement can miss it. It does **not** buy a focus steal into the toast — the toast stays
+a live region, not a dialog.
+**How to apply:** if this comes back as a complaint, the pause-on-focus variant is the cheap fix; it was
+drafted and declined, not overlooked.
+
+**The panel's visible heading stays, and reads "Tasks"** (orchestrator's default, owner may overrule). This
+reverses the 2026-11-10 entry below, which named the region by `aria-label` and deleted
+`TASK_PANEL_HEADING_ID`. The owner's amend commit `834f0fd` had already put the `<h2>` and the id back in the
+tree, and "Tasks" is now visible content in the owner's own requirements, so naming the region by content
+beats naming it by an attribute. The string `Task list` leaves the app with it, including
+`components/TaskPanelToggle.tsx`'s `aria-label`.
+**How to apply:** the painted-heading criterion that the earlier ruling orphaned (`token-task-surface.spec.ts`
+24-30) has a subject again. It is **not** re-pointed by task 016 — that stays a PLAN.md maintenance item — but
+it is no longer unfixable.
+
+Also settled: three placeholder rows appear at mount on an empty list rather than the list being padded to
+three forever (orchestrator's default); and `color` ships as a free string with no enum, because task 015
+deleted the eight-swatch palette and inventing one to validate against would pre-empt the next task's own
+decision. antislop runs in `during` mode for this task, by the owner's choice this session.
+
+### 2026-11-10 — The task panel loses its visible heading and is named by `aria-label`; a dangling `aria-labelledby` cost ~157 tests
+
+The owner removed the panel's visible `<h2>Task list</h2>` from `widgets/TaskPanel.tsx`. **Confirmed
+intentional**: the panel is the only task surface on `/` and the heading was redundant above a list that
+announces itself.
+
+**What the removal left behind is the entry worth keeping.** Both the `<section>` in `widgets/TaskPanel.tsx`
+and the `<ul>` at `components/TaskChecklist.tsx:297` carried `aria-labelledby="task-panel-heading"`, and
+nothing rendered that id any more. **`aria-labelledby` pointing at a missing id yields no accessible name at
+all** — not a fallback to the element's content, not a warning, nothing. So the `region` landmark and its
+`list` both went unnamed, and roughly **157 e2e tests** that resolve
+`getByRole('region', { name: 'Task list' })` found nothing. `e2e/sessions.spec.ts` alone went 18/18 to 4/14.
+Measured: the suite reads **657 passed / 14 failed** with the heading present and **504 / 167** with it
+removed and the naming unfixed.
+
+**Ruling: name the region with `aria-label="Task list"`, and give the list no name of its own.** A `list`
+nested directly inside a `region` of the same name reads as a duplicate; the list role is still exposed, it
+just carries no redundant label. `TASK_PANEL_HEADING_ID` is deleted rather than left as a dead export — the
+same class as the `dark:` and `disabled:` utilities already in PLAN's maintenance list.
+
+**Fallout: one painted criterion lost its subject permanently.** `token-task-surface.spec.ts`'s criterion
+24-30 sweep measured a "heading" pair. Its original subject, `#add-task-heading`, went with the dialog in
+`4ca861e`; the 2026-11-10 re-point moved it to the panel's `#task-panel-heading`, and this ruling then
+removed that too. **An `aria-label` paints nothing, so there is no heading left to measure on any surface**
+and the pair is retired, not re-pointed. The other four pairs still carry the criterion. Retiring it is the
+honest move: a contrast assertion needs painted ink, and re-pointing it at the region's label would be a
+test that cannot fail.
+
+**The reusable rule.** `aria-labelledby` is a reference, and a reference can dangle. Removing the element it
+names breaks the name silently in the browser and loudly in the suite — which is the right way round, but
+only because something asserted the name. **Prefer `aria-label` when the naming text is not also visible
+content**, and when deleting an element, grep for its `id` as a string, not only for the constant that holds
+it: the constant was imported in two files, the literal `#task-panel-heading` appeared in a third
+(`e2e/token-task-surface.spec.ts:239`), and a grep for the constant alone reported the removal clean.
+
+### 2026-11-10 — The layout-shift metric measures the painted rect, so an arriving shadow shifts a box that never moved
+
+Task 012 criterion 22 ("the image's arrival moves nothing") failed at 320 px on the shipped tree: the
+no-image load totalled **0.19547067901234566** of layout shift and the image load **0.19666165123456789**,
+a delta of **0.0011909722222222252**, against an assertion of equality to six decimals
+(`e2e/focus-surface-behaviour.spec.ts:116`). The two `sameGeometry` assertions above it **passed**, so no
+layout box moved.
+
+**The orchestrator's diagnosis was wrong, and the way it was wrong is the point.** It reasoned from recency:
+the glyph halo had just shipped, `-webkit-text-stroke` paints outside the letterforms, so the halo's arrival
+must be growing the wordmark's painted rect. That is a coherent story and it is false. Making the stroke
+width unconditional and flipping only its colour — the fix ruled on from that diagnosis — changed the figure
+**not at all**: still 0.19666165123456789 against 0.19547067901234566.
+
+**The actual shifted node is the task panel.** Dumping the shift sources for the 320 px load in both states
+puts neither the wordmark nor the chips among them. The node is the task-list `section`'s `surface-solid`
+div: rect `16,554 288x166` with no image, `13,552 294x168` with one. The 3 px left and 2 px top growth is
+`box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08)`, which **exists only while an image is active** — it is declared
+inside `body:has([data-background="active"]) &` and nowhere else. Chromium counts a shadow's painted overflow
+in the layout-shift rect, so the shadow's *appearance* is a shift of a box whose layout never changed.
+
+**Fix: declare the property transparent in the no-image state rather than omitting it.** Both
+`surface-solid` and `surface-frosted` now carry `box-shadow: 0 1px 2px 0 transparent` at rest, and the
+active rule changes only the colour. The painted extent is then identical in both states and the arrival
+adds zero. The same treatment is applied to `.glyph-halo`'s stroke — not because it was the cause, but
+because it is the same shape of hazard and the uniform rule is cheaper to keep than a per-property
+exception. Criterion 22 passes at 320 and 1280, verified by the orchestrator on its own build.
+
+**The reusable rule, two parts.**
+1. **A property that appears on arrival must be declared at rest with a transparent value, not left
+   undeclared.** This applies to every `box-shadow`, `outline`, `text-stroke` and `filter` behind the
+   `body:has([data-background="active"])` gate — the whole surface system is built on properties that
+   switch on with the image, so any of them can do this. CLS reads the painted rect; `sameGeometry` reads
+   the layout box; **a criterion that asserts both needs both, and passing the second tells you nothing
+   about the first.**
+2. **Find the shifted node before theorising about it.** `PerformanceObserver`'s layout-shift entries carry
+   `sources`, each with the node and its previous and current rects. One dump settled in minutes what a
+   plausible story about the most recent commit got wrong. Same family as the 2026-11-06 `liveQuery` entry,
+   where reading the source "confirmed" a mechanism that only a probe actually established.
+
+**One recorded figure moved, and nothing painted differently.** The 320 px no-image total went
+**0.19547 to 0.19716**, because the transparent shadow is now in the painted rect from first paint. No pixel
+changed — a transparent shadow cannot paint — and criterion 22 asserts the *equality* of the two totals, not
+either absolute value, so the assertion is unaffected. But any figure recorded as "0.19547 at 320 px with no
+image" is now stale, and the "no-image default is unchanged from HEAD" invariant that 012 and the halo both
+lean on is true **in pixels and false in this metric**. Stated here so the next reader does not treat the
+move as a regression.
+
 ### 2026-11-06 — Two agents measured the task panel and disagreed by 64 px, and both were right
 Task 015 criterion 34 caps the empty panel at 240 px tall. Frontend recorded **352 x 234** and QA measured
 **298** tall and **416 x 544** for three tasks. That looked like the 2026-10-29 sampler disagreement, so it

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useResolvedTokens } from "@/hooks/use-resolved-tokens";
+import { chime } from "@/lib/audio/chime";
 import { useTimerStore } from "@/lib/timer/store";
 import type { TimerStatus } from "@/lib/timer/types";
 import HoldButton from "./HoldButton";
@@ -47,8 +48,13 @@ export function TimerControls() {
 
   const handlePrimary = () => {
     if (status === "running") pause();
-    else if (status === "paused") resume();
-    else start();
+    else {
+      // Unlocks audio inside the click, before anything async, so a later
+      // session-end chime needs no gesture of its own.
+      chime.prime();
+      if (status === "paused") resume();
+      else start();
+    }
   };
 
   return (

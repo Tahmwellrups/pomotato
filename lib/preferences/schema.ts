@@ -14,10 +14,17 @@
  * mechanically needed when an existing key's meaning changes, and the old
  * version is then handled in `migratePreferences`. Version 2 was taken for a
  * new key anyway, by owner ruling (task 015), purely so the stored `version`
- * records when `taskPanelVisible` appeared.
+ * records when `taskPanelVisible` appeared. Version 3 (task 017) is the same
+ * kind of bump, for the three session lengths and the two session-end sound
+ * keys. A length is validated by `isDurationMinutes` against its own bounds
+ * (the same predicate the timer parser uses), the level by `isLevel`, and a
+ * corrupt level takes the default rather than being clamped.
  */
 
-import { defaultMix, isMix, sanitizeMix, type Mix } from "../audio/mix";
+import { DEFAULT_LEVEL } from "../audio/gain";
+import { defaultMix, isLevel, isMix, sanitizeMix, type Mix } from "../audio/mix";
+import { DURATION_KEYS, DURATION_LIMITS } from "../timer/constants";
+import { isDurationMinutes } from "../timer/time";
 
 export const THEME_VALUES = ["light", "dark", "system"] as const;
 export type ThemePreference = (typeof THEME_VALUES)[number];
@@ -68,11 +75,19 @@ export interface Preferences {
   mix: Mix;
   /** Task 015: whether the task panel on `/` is shown. Default true; stored so a hidden panel stays hidden across reloads. */
   taskPanelVisible: boolean;
+  /** Task 017: session lengths in whole minutes, each inside its own bounds in `lib/timer/constants.ts`. */
+  focusMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  /** Task 017: whether a chime plays when a session ends. Preview ignores it. */
+  chimeEnabled: boolean;
+  /** Task 017: the chime's volume, an integer 0 to 100, through the mixer's squared gain curve. */
+  chimeLevel: number;
 }
 
 /** localStorage key. Not "pomotato-timer". The boot script reads this same constant. */
 export const PREFERENCES_STORAGE_KEY = "pomotato-preferences";
-export const PREFERENCES_VERSION = 2;
+export const PREFERENCES_VERSION = 3;
 
 export const DEFAULT_THEME: ThemePreference = "system";
 
@@ -85,15 +100,35 @@ export const PREFERENCE_DEFAULTS: Preferences = {
   background: null,
   mix: defaultMix(),
   taskPanelVisible: true,
+  focusMinutes: DURATION_LIMITS.focusMinutes.default,
+  shortBreakMinutes: DURATION_LIMITS.shortBreakMinutes.default,
+  longBreakMinutes: DURATION_LIMITS.longBreakMinutes.default,
+  chimeEnabled: true,
+  chimeLevel: DEFAULT_LEVEL,
 };
 
-/** The accepted value set per closed-set key. `background`, `mix` and `taskPanelVisible` have validators instead. */
+/** Keys that are not a closed value set: each has a validator or an inline check instead. */
+type FreeFormKey =
+  | "background"
+  | "mix"
+  | "taskPanelVisible"
+  | "focusMinutes"
+  | "shortBreakMinutes"
+  | "longBreakMinutes"
+  | "chimeEnabled"
+  | "chimeLevel";
+
+/** The accepted value set per closed-set key. The free-form keys have validators instead. */
 export const PREFERENCE_VALUES: {
-  readonly [K in Exclude<keyof Preferences, "background" | "mix" | "taskPanelVisible">]: readonly Preferences[K][];
+  readonly [K in Exclude<keyof Preferences, FreeFormKey>]: readonly Preferences[K][];
 } = {
   theme: THEME_VALUES,
   gaugeStyle: GAUGE_STYLE_VALUES,
 };
+
+function pickMinutes(key: (typeof DURATION_KEYS)[number], raw: unknown): number {
+  return isDurationMinutes(key, raw) ? raw : PREFERENCE_DEFAULTS[key];
+}
 
 function pick<K extends keyof typeof PREFERENCE_VALUES>(key: K, raw: unknown): Preferences[K] {
   const match = PREFERENCE_VALUES[key].find((value) => value === raw);
@@ -115,6 +150,11 @@ export function sanitizePreferences(raw: unknown): Preferences {
     mix: sanitizeMix(record.mix),
     taskPanelVisible:
       typeof record.taskPanelVisible === "boolean" ? record.taskPanelVisible : PREFERENCE_DEFAULTS.taskPanelVisible,
+    focusMinutes: pickMinutes("focusMinutes", record.focusMinutes),
+    shortBreakMinutes: pickMinutes("shortBreakMinutes", record.shortBreakMinutes),
+    longBreakMinutes: pickMinutes("longBreakMinutes", record.longBreakMinutes),
+    chimeEnabled: typeof record.chimeEnabled === "boolean" ? record.chimeEnabled : PREFERENCE_DEFAULTS.chimeEnabled,
+    chimeLevel: isLevel(record.chimeLevel) ? record.chimeLevel : PREFERENCE_DEFAULTS.chimeLevel,
   };
 }
 
@@ -129,16 +169,20 @@ export function isPreferences(raw: unknown): raw is Preferences {
     enumsValid &&
     (record.background === null || isBackgroundId(record.background)) &&
     isMix(record.mix) &&
-    typeof record.taskPanelVisible === "boolean"
+    typeof record.taskPanelVisible === "boolean" &&
+    DURATION_KEYS.every((key) => isDurationMinutes(key, record[key])) &&
+    typeof record.chimeEnabled === "boolean" &&
+    isLevel(record.chimeLevel)
   );
 }
 
 /**
- * Version 2 is current. Unknown or older shapes are sanitised, never trusted.
- * A version-1 payload (no `taskPanelVisible`) keeps theme, gaugeStyle,
- * background and mix and gains the default (panel shown), because
- * `sanitizePreferences` falls back per key. That per-key fallback is also why
- * `gaugeStyle`, `background` and `mix` each needed no version bump.
+ * Version 3 is current. Unknown or older shapes are sanitised, never trusted.
+ * A version-2 payload (no session lengths or chime keys) keeps every key it
+ * has and gains the defaults for the rest, because `sanitizePreferences` falls
+ * back per key. That per-key fallback is also why `gaugeStyle`, `background`
+ * and `mix` each needed no version bump. The one thing sanitising cannot do is
+ * carry the Focus length out of the old timer store; `store.ts` does that.
  */
 export function migratePreferences(persisted: unknown): Preferences {
   return sanitizePreferences(persisted);

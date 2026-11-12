@@ -9,8 +9,6 @@ export type TimerStatus = "idle" | "running" | "paused" | "complete";
  */
 export interface PersistedTimerState {
   mode: TimerMode;
-  /** Length of a Focus run, whole minutes 1 to 180. Formerly `customMinutes`. */
-  focusMinutes: number;
   /**
    * Focus runs completed in the current cycle, integer 0 to 4. 4 is a legal
    * resting value: the long break is owed or running. Only a completed Focus
@@ -30,4 +28,11 @@ export interface PersistedTimerState {
   runId: string | null;
   /** Epoch ms the current run first started. Null when unknown (migrated runs) or no run. */
   startedAt: number | null;
+  /**
+   * The full duration, in ms, the current run started with. Non-null exactly
+   * while the status is running or paused, like `runId`. It is what the run is
+   * logged with and what a paused value is clamped to, so editing a length in
+   * settings never rewrites a run that is already under way.
+   */
+  plannedDurationMs: number | null;
 }

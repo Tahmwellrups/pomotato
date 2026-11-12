@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { openTaskList, taskPanelToggle } from "./helpers/task-list-dialog";
+import { openTaskList, taskPanel, taskPanelToggle } from "./helpers/task-list-dialog";
 import { seedTimerState, resetControl } from "./helpers/timer-hold";
 import {
   DESKTOP,
@@ -263,7 +263,8 @@ test.describe("criterion 26, 43: the disabled task submit and its fields are mea
       await submit.evaluate((el) => ((el as HTMLButtonElement).disabled = false));
     });
 
-    test(`[${theme}] the disabled custom-duration field while running is visible, not invisible (criterion 43)`, async ({ page }, testInfo) => {
+    // RETIRED (task 017 criterion 14, 70): the duration field is never disabled, so there is no disabled field to measure.
+    test.skip(`[${theme}] RETIRED: the disabled custom-duration field while running is visible, not invisible (criterion 43)`, async ({ page }, testInfo) => {
       await themed(page, stored);
       await seedTimerState(page, { status: "running", mode: "focus", focusMinutes: 5, endTimestamp: Date.now() + 600_000, startedAt: Date.now(), runId: "qa", pausedRemainingMs: null });
       await page.reload();
@@ -331,7 +332,7 @@ test.describe("criterion 27, 28, 29: the focus ring and the pinned hover", () =>
       // [name, element to focus, element that paints the ring]. Radios are sr-only; the chip span paints the ring.
       const targets: [string, Locator, Locator][] = [
         ["Reset", resetControl(page), resetControl(page)],
-        ["Custom duration input", page.locator("input#focus-length"), page.locator("input#focus-length")],
+        // RETIRED (task 017 criterion 70): the duration field left / (criterion 2). Its focus ring is measured on /settings in e2e/settings-measure.spec.ts.
         ["Focus mode chip", page.locator('input[name="timer-mode"][value="focus"]'), page.locator('label:has(input[name="timer-mode"][value="focus"]) span')],
         ["Theme chip Dark", page.locator('input[name="theme"][value="dark"]'), page.locator('label:has(input[name="theme"][value="dark"]) span')],
       ];
@@ -348,8 +349,12 @@ test.describe("criterion 27, 28, 29: the focus ring and the pinned hover", () =>
         record(testInfo, tag(theme, `${name} focus: outline vs its own fill (informational, not the criterion 28 rule)`), reading.vsFill, 0);
         expect(reading.offset, `${name} indicator must be drawn at a non-zero offset (2 px); its own-fill figure is informational, not the criterion 28 rule -- see DECISIONS.md 2026-10-26`).not.toBe("0px");
         expect(reading.width, name).toBe("2px");
-        // 012 round 3, criterion 14: the theme chip's ring is pulled inside the chip (-5px, by value); all others stay at 2px.
-        expect(reading.offset, name).toBe(name.startsWith("Theme chip") ? "-5px" : "2px");
+        // Every control, the theme chip included, is at the shared 2px offset. The chip used to be the
+        // one exception at -5px: `CHIP_RING_INSET` pulled its ring onto the header's own fill. The owner
+        // ruled on 2026-11-06 that the header carries no panel, so there is no fill to pull onto, and
+        // `e9380df` deleted the inset and gave the chip a --popover flank instead. The exception is gone
+        // on purpose; do not reinstate it from this assertion's history.
+        expect(reading.offset, name).toBe("2px");
         expect(reading.vsGround, name).toBeGreaterThanOrEqual(3);
       }
     });
@@ -367,26 +372,22 @@ test.describe("criterion 27, 28, 29: the focus ring and the pinned hover", () =>
       expect(reading.vsGround).toBeGreaterThanOrEqual(3);
     });
 
-    test(`[${theme}] the pinned task button has a hover border at 3:1 against its fill, and its rest border is --primary (criterion 29)`, async ({ page }, testInfo) => {
+    // RETIRED half (task 015, commit 4ca861e): the pinned task button's hover border at 3:1 against its fill.
+    // The Pin button was deleted, and the task rows have no hover border of their own to take its place.
+    // RE-POINTED half: the rest border is --primary, now on the current task's row (the first open row,
+    // marked by aria-current) instead of on the pinned button.
+    test(`[${theme}] the current task row's rest border is --primary (criterion 29, re-pointed from the pinned button)`, async ({ page }) => {
       await themed(page, stored);
       await openTaskList(page);
       const input = page.locator('input[id*="-title"]').first();
       await input.fill("Alpha");
       await input.press("Enter");
-      await expect(page.getByText("Alpha", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Pin Alpha as current task", exact: true }).click();
-      const pinned = page.getByRole("button", { name: "Unpin Alpha", exact: true });
+      const current = taskPanel(page).locator('li[aria-current="true"]').filter({ hasText: "Alpha" });
+      await expect(current).toHaveCount(1);
       await page.mouse.move(0, 0);
       await settle(page);
-      const rest = await readPainted(page, pinned);
+      const rest = await readPainted(page, current);
       expect(rest.borderColor).toEqual(await tokenRgb(page, "--primary"));
-      await pinned.hover();
-      await settle(page);
-      const hovered = await readPainted(page, pinned);
-      const ratio = hovered.borderColor ? contrast(hovered.borderColor, hovered.fill) : 0;
-      record(testInfo, tag(theme, `pinned hover border vs fill (${hovered.borderColor?.join(",")} vs ${hovered.fill.join(",")})`), ratio, 3);
-      expect(hovered.borderColor, "hover border drawn").not.toBeNull();
-      expect(ratio).toBeGreaterThanOrEqual(3);
     });
   }
 });
