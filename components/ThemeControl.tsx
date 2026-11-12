@@ -40,7 +40,7 @@ export function ThemeControl() {
                 onChange={() => setTheme(value)}
                 className="peer sr-only"
               />
-              <span className={cn(modeChipVariants({ checked }), "glyph-halo")}>{THEME_LABELS[value]}</span>
+              <span className={cn(modeChipVariants({ checked }))}>{THEME_LABELS[value]}</span>
             </label>
           );
         })}
