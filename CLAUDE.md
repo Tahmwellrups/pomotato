@@ -25,6 +25,10 @@ No `src/` — app code lives at the repo root (create-next-app default; see [doc
 - `lib/` — other shared utilities
 - `hooks/` — custom React hooks, `use-` prefix
 - `docs/` — plan, decisions, task files — this is how agents talk to each other
+  - `docs/tasks/<id>-<slug>.md` — the **brief**: goal, scope, acceptance criteria. Capped at 400 lines.
+  - `docs/tasks/logs/<id>-<slug>-log.md` — the **log**: implementation notes, QA reports, review
+    findings, orchestrator rulings. Appended during and after implementation; read on demand only.
+  - `docs/DECISIONS.md` — one line per ruling, newest first. `docs/decisions/<month>.md` — the reasoning.
 
 ## Code conventions
 - TypeScript strict, no `any`.
@@ -35,6 +39,20 @@ No `src/` — app code lives at the repo root (create-next-app default; see [doc
 
 ## Team workflow
 This session is the orchestrator. It delegates to five subagents in `.claude/agents/`: `pm`, `frontend`, `backend`, `qa`, `reviewer`. Each role's full responsibilities, boundaries, and definition of done live in its own agent file — this section is just the pipeline shape.
+
+### Context budget: ~20k tokens per agent run (owner decision, 2026-11-12)
+A task run was costing 250k+ tokens, and almost none of it was spent writing code. The cause was four
+files that every agent read in full: a 162 KB task file, a 125 KB decision log, a 63 KB plan, and 146 KB
+of antislop skills. The split above is the fix; these rules keep it fixed.
+
+- **Briefs are contracts; logs are history.** An agent reads the brief in full and greps the log for the
+  one section it needs. Nothing reads a log front to back.
+- **Never read `docs/PLAN.md` whole.** Grep for `^\s*- \[ \]` and read around the hit.
+- **`docs/DECISIONS.md` is the index.** Open `docs/decisions/<month>.md` for one entry, not for a browse.
+- **Each agent's read budget is in its own agent file** under "Read budget". It is binding. An agent that
+  needs to exceed it should say what it wants to open and why, rather than opening it.
+- **Appended narrative is the thing that grows.** Over half of every task file was QA reports and notes.
+  Write the verdict and the repro; don't write the journey.
 
 ### Three sizes of work, not two (owner decision, 2026-10-26)
 The full five-agent pipeline is for **major** work only. It was costing more time than it was saving on
@@ -58,7 +76,10 @@ For any **major** feature:
 2. **backend** goes first if the task's data shape is undecided; otherwise **backend** and **frontend** may run in parallel, but only while they touch disjoint files.
 3. **frontend** implements against the task file's acceptance criteria.
 4. **qa** writes and runs tests, appends a QA Report (PASS/FAIL) to the task file.
-5. On FAIL, the report goes back to whichever agent owns the failing area. Max 3 fix loops — after that, stop and ask the user instead of looping again.
+5. On FAIL, the report goes back to whichever agent owns the failing area. **Name the log file and the
+   section** in the handoff (`docs/tasks/logs/<id>-<slug>-log.md`, "QA Report", criteria N–M) — a read
+   budget makes opening the log a decision, and a fix pass that skips the repro steps is a guess. Max 3
+   fix loops — after that, stop and ask the user instead of looping again.
 6. **reviewer** (read-only) reviews the diff and appends Review Findings.
 7. Orchestrator summarizes the outcome to the user.
 
@@ -84,15 +105,22 @@ the sweep was taken three times in all.
 
 ## Reference
 - Milestones: [docs/PLAN.md](docs/PLAN.md)
-- Decision log: [docs/DECISIONS.md](docs/DECISIONS.md)
-- Task template: [docs/tasks/_template.md](docs/tasks/_template.md)
+- Decision index: [docs/DECISIONS.md](docs/DECISIONS.md) — reasoning in [docs/decisions/](docs/decisions/)
+- Task templates: [docs/tasks/_template.md](docs/tasks/_template.md) (brief) and
+  [docs/tasks/logs/_template-log.md](docs/tasks/logs/_template-log.md) (log)
 - Agent definitions: `.claude/agents/`
 - Permissions/hooks: `.claude/settings.json`
 
 <!-- antislop:start -->
 ## antislop
-For UI, copy, people, mobile layout, or code comments work, read these installed skill files directly (use these paths even if a same-named global skill exists):
-- Core filter, always on: `antislop`: `.claude/skills/antislop/SKILL.md`
+For UI, copy, people, mobile layout, or code comments work, read these installed skill files directly (use these paths even if a same-named global skill exists).
+
+**Who reads what (owner decision, 2026-11-12).** The core is 58 KB and the set is 146 KB — read by every
+agent on every UI task, it was the largest single line item in a run. So: **the orchestrator holds the core
+and applies it at review; subagents read only the sub-skill their task touches.** A subagent must not read
+`.claude/skills/antislop/SKILL.md`. The quality bar is unchanged — the gate moves from five readers to one.
+
+- Core filter, orchestrator only: `antislop`: `.claude/skills/antislop/SKILL.md`
 - UI / visual: `antislop-ui`: `.claude/skills/antislop-ui/SKILL.md`
 - Code comments: `antislop-code`: `.claude/skills/antislop-code/SKILL.md`
 - Copy & text: `antislop-copywriting`: `.claude/skills/antislop-copywriting/SKILL.md`
