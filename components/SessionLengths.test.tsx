@@ -12,11 +12,20 @@ import { SessionLengths } from "./SessionLengths";
 // DurationField and SessionLengths replace the deleted FocusLengthInput; these
 // tests cover what that suite covered, for three fields. The chime is mocked.
 
-vi.mock("@/lib/audio/chime", () => {
+// The real module's exports are spread in, so a constant added to chime.ts later
+// cannot make this mock stale and fail the whole suite to load.
+vi.mock("@/lib/audio/chime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/audio/chime")>();
   const snapshot = { plays: 0, lastLevel: null };
   return {
+    ...actual,
     chime: {
       play: vi.fn(() => Promise.resolve("played")),
+      preview: vi.fn(() => ({
+        outcome: Promise.resolve("played"),
+        ended: Promise.resolve(),
+        stop: vi.fn(),
+      })),
       prime: vi.fn(),
       getSnapshot: vi.fn(() => snapshot),
       getServerSnapshot: vi.fn(() => snapshot),
@@ -61,6 +70,7 @@ beforeEach(() => {
   usePreferencesStore.setState({ focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
   setTimerStatus("idle");
   vi.mocked(chime.play).mockClear();
+  vi.mocked(chime.preview).mockClear();
 });
 
 afterEach(() => {
@@ -216,8 +226,9 @@ describe("criterion 6 and 43: the sound controls have accessible names; Preview 
     render(<ChimeSettings />);
     expect(screen.getByText(/Off means no chime when a session ends/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Preview chime" }));
-    expect(chime.play).toHaveBeenCalledTimes(1);
-    expect(chime.play).toHaveBeenCalledWith(50);
+    expect(chime.preview).toHaveBeenCalledTimes(1);
+    expect(chime.preview).toHaveBeenCalledWith(50);
+    expect(chime.play).not.toHaveBeenCalled();
     expect(chime.prime).toHaveBeenCalled();
   });
 
@@ -245,5 +256,40 @@ describe("criterion 44: the volume writes the store once per gesture, not per st
     const writes = setItem.mock.calls.filter(([key]) => key === "pomotato-preferences").length;
     expect(writes).toBeLessThanOrEqual(2);
     setItem.mockRestore();
+  });
+});
+
+describe("criterion 15 (task 021, jsdom guard): while a preview rings, Preview is one Stop control", () => {
+  it("keeps one button element, names the stop action while ringing, calls stop on activation, and reverts only once the alarm has ended", async () => {
+    let resolveEnded: () => void = () => undefined;
+    const ended = new Promise<void>((resolve) => {
+      resolveEnded = resolve;
+    });
+    const stop = vi.fn();
+    vi.mocked(chime.preview).mockImplementationOnce(() => ({ outcome: Promise.resolve("played"), ended, stop }));
+    render(<ChimeSettings />);
+    const button = screen.getByRole("button", { name: "Preview chime" });
+    fireEvent.click(button);
+    expect(screen.getByRole("button", { name: "Stop preview" })).toBe(button);
+    fireEvent.click(button);
+    expect(stop).toHaveBeenCalledTimes(1);
+    // Still ringing until the alarm reports its end, so the name has not reverted yet.
+    expect(screen.getByRole("button", { name: "Stop preview" })).toBe(button);
+    await act(async () => {
+      resolveEnded();
+    });
+    expect(screen.getByRole("button", { name: "Preview chime" })).toBe(button);
+    expect(screen.queryByRole("button", { name: "Stop preview" })).toBeNull();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("unmounting while a preview rings stops it exactly once", () => {
+    const stop = vi.fn();
+    const ended = new Promise<void>(() => undefined);
+    vi.mocked(chime.preview).mockImplementationOnce(() => ({ outcome: Promise.resolve("played"), ended, stop }));
+    const { unmount } = render(<ChimeSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview chime" }));
+    unmount();
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 });

@@ -81,7 +81,7 @@ test.describe("autoplay allowed: the success path schedules real nodes on one co
     await seedTimerState(page, { status: "running", mode: "focus", focusMinutes: 1, endTimestamp: end, startedAt: end - MIN, runId: "qa-nav-chime", pausedRemainingMs: null });
     await page.reload();
     await expect(page.getByRole("radio", { name: "Short break" })).toBeChecked({ timeout: 15_000 });
-    // Navigate client-side while the 1.7 s chime is sounding.
+    // Navigate client-side while the session-end alarm is sounding (its length is derived in the unit tests, not restated here) (the session ends at the seeded time, so this lands a few hundred ms into it).
     await page.getByRole("link", { name: "Settings" }).click();
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await page.waitForTimeout(2_200);

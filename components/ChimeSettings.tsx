@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useChimeSnapshot } from "@/hooks/use-chime";
-import { chime } from "@/lib/audio/chime";
+import { CHIME_DURATION_SECONDS, chime, type ChimePreview } from "@/lib/audio/chime";
 import { LEVEL_MAX, LEVEL_MIN } from "@/lib/audio/gain";
 import { usePreferencesStore } from "@/lib/preferences";
+
+// Follows the sound: change the strikes and this copy follows.
+const RING_SECONDS = Math.round(CHIME_DURATION_SECONDS);
+const RING_LENGTH = `about ${RING_SECONDS} seconds`;
 
 const buttonClass =
   "inline-flex min-h-11 min-w-11 cursor-pointer items-center rounded-lg border border-control-border px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none";
@@ -62,11 +66,37 @@ export function ChimeSettings() {
     setLevel(next);
   };
 
+  // The alarm rings for several seconds, so the same button stops it. This is the only
+  // place an alarm can be stopped early.
+  const previewRef = useRef<ChimePreview | null>(null);
+  const [ringing, setRinging] = useState(false);
+
+  // The stop button leaves with this component, so an audition ends with it.
+  // ChimePreview.stop() is a no-op once a session alarm has replaced the preview.
+  useEffect(() => {
+    return () => {
+      const preview = previewRef.current;
+      previewRef.current = null;
+      preview?.stop();
+    };
+  }, []);
+
   const handlePreview = () => {
+    if (previewRef.current !== null) {
+      previewRef.current.stop();
+      return;
+    }
     commit();
     // Inside the click, so it also unlocks audio for the chimes that follow.
     chime.prime();
-    void chime.play(levelRef.current);
+    const preview = chime.preview(levelRef.current);
+    previewRef.current = preview;
+    setRinging(true);
+    void preview.ended.then(() => {
+      if (previewRef.current !== preview) return;
+      previewRef.current = null;
+      setRinging(false);
+    });
   };
 
   return (
@@ -87,8 +117,8 @@ export function ChimeSettings() {
       </label>
       <p id="chime-state" className="text-sm text-secondary-foreground">
         {enabled
-          ? "The same chime plays when a Focus session ends and when a break ends."
-          : "Off means no chime when a session ends. Preview still plays it."}
+          ? `The sound rings for ${RING_LENGTH} when a Focus session ends and when a break ends.`
+          : `Off means no chime when a session ends. Preview still rings for ${RING_LENGTH}.`}
       </p>
       <div className="flex flex-col gap-0.5 sm:max-w-md">
         <div className="flex items-center justify-between gap-3">
@@ -115,8 +145,8 @@ export function ChimeSettings() {
         />
       </div>
       <div>
-        <button type="button" className={buttonClass} onClick={handlePreview}>
-          Preview chime
+        <button type="button" className={`${buttonClass} min-w-36 justify-center`} onClick={handlePreview}>
+          {ringing ? "Stop preview" : "Preview chime"}
         </button>
       </div>
     </fieldset>
