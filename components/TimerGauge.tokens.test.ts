@@ -17,6 +17,10 @@ const TIMER_SOURCE = /\b(?:setInterval|setTimeout|requestAnimationFrame|performa
 // Files this task adds or fully owns. None may carry a colour literal.
 const NEW_SURFACE_FILES = [
   "./TimerGauge.tsx",
+  // Task 022: the shared gauge (timer and previews), its preview card and the settings section.
+  "./Gauge.tsx",
+  "./GaugePreview.tsx",
+  "./GaugeSettings.tsx",
   "./HoldButton.tsx",
   "./SloshGauge.tsx",
   "../hooks/use-resolved-tokens.ts",
@@ -73,6 +77,11 @@ describe("task 005 introduces no new time source", () => {
     "../lib/audio/mix.ts",
     "../lib/audio/gain.ts",
     "../lib/audio/types.ts",
+    // Task 022 (review F3): the shared gauge is where a tick-driven level would land. Remaining time
+    // is read from the stored end timestamp only, never counted per tick.
+    "./Gauge.tsx",
+    "./GaugePreview.tsx",
+    "./GaugeSettings.tsx",
   ]) {
     it(`${file} has no setInterval, setTimeout, requestAnimationFrame or performance.now`, () => {
       expect(read(file)).not.toMatch(TIMER_SOURCE);

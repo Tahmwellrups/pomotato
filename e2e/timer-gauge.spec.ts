@@ -62,7 +62,7 @@ async function srgbOf(page: Page, colour: string): Promise<[number, number, numb
 test.describe("Gauge level comes from derived time", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
   });
@@ -242,7 +242,7 @@ test.describe("Idle loop: no animation frames once settled", () => {
       };
     });
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
   });
@@ -286,7 +286,7 @@ test.describe("Idle loop: no animation frames once settled", () => {
 test.describe("Canvas colours re-read from tokens at runtime", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
   });
@@ -319,7 +319,7 @@ test.describe("Canvas colours re-read from tokens at runtime", () => {
 test.describe("Gauge accessibility and layout", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
   });
@@ -475,7 +475,7 @@ test.describe("Gauge accessibility and layout", () => {
         expect(liquidRatio, `${label} text over liquid at ${viewport.width}px`).toBeGreaterThanOrEqual(3);
         expect(glassRatio, `${label} text over glass at ${viewport.width}px`).toBeGreaterThanOrEqual(3);
       }
-      await page.evaluate(() => localStorage.clear());
+      await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
       await page.reload();
       await expect(startButton(page)).toBeVisible();
     }
@@ -527,7 +527,7 @@ test.describe("Reduced motion: the gauge still shows the correct level", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
   });
@@ -598,7 +598,7 @@ test.describe("Console and hydration", () => {
       if (msg.type() === "error" || msg.type() === "warning") messages.push(`${msg.type()}: ${msg.text()}`);
     });
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
     await page.reload();
@@ -626,7 +626,7 @@ test.describe("Console and hydration", () => {
       page.on("pageerror", (error) => messages.push(`pageerror: ${error.message}`));
 
       await page.goto("/");
-      await page.evaluate(() => localStorage.clear());
+      await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
       await page.reload();
       await expect(startButton(page)).toBeVisible();
       await startButton(page).click();
@@ -661,7 +661,7 @@ test.describe("Axe on /, every timer status", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem("pomotato-preferences", JSON.stringify({ state: { gaugeEnabled: true }, version: 4 })); });
     await page.reload();
     await expect(startButton(page)).toBeVisible();
   });

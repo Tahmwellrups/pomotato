@@ -213,6 +213,12 @@ test.describe("criterion 11 and 12: /settings holds no theme control; every cont
   test("forced colours: the checked gauge card gets a 3px edge and the unchecked stays 1px (008 R-1)", async ({ page }) => {
     await page.emulateMedia({ forcedColors: "active" });
     await setPrefs(page, { theme: "light", gaugeStyle: "glyph" });
+    // The gauge defaults off (owner ruling 2026-11-19); the checked card's edge only shows while it is on.
+    await page.evaluate(() => {
+      const raw = JSON.parse(window.localStorage.getItem("pomotato-preferences") ?? "{}");
+      raw.state.gaugeEnabled = true;
+      window.localStorage.setItem("pomotato-preferences", JSON.stringify(raw));
+    });
     await page.goto("/settings");
     const widths = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLInputElement>('input[type="radio"]')].map((input) => {

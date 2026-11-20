@@ -14,6 +14,33 @@ status: draft # draft | in-progress | qa | review | done | blocked
 > and had it reverted on its look alone, so the brief below is a record of findings in hand rather than a
 > fresh scoping pass. If a criterion reads thin, that is the place to send `pm`.
 
+## Inherited evidence from task 022 (added 2026-11-19, orchestrator)
+
+Task 022 restored the timer gauge and measured it. Its glyph style **paints the timer's digits**, so its
+figures are a direct measurement of this task's problem, taken with the current tree and recorded per the
+measurement-provenance rule. Owner ruling 2026-11-19: the shortfall is **this task's** to fix, not 022's.
+
+| Scenario | Fill | Ground behind | Ratio |
+|---|---|---|---|
+| Glyph accent, derived worst-case upload | `--accent-foreground` rgb(251,213,146) | rgb(142,138,135) | **2.45:1** |
+| Glyph muted, derived worst-case upload | `--muted-foreground` rgb(194,177,155) | rgb(142,138,135) | **1.64:1** |
+| Glyph accent, no upload | same | rgb(32,24,17) page | 12.53:1 |
+| Glyph muted, no upload | same | rgb(32,24,17) page | 8.38:1 |
+| Vessel (opaque glass), any upload | `--gauge-liquid` rgb(157,87,13) | rgb(30,22,16) glass | 3.23:1 |
+
+Three things this hands you, so they are not re-derived:
+1. **The derived worst case is flat white**, not a mid grey: no flat grey composited at half opacity over
+   `--background` rgb(28,20,14) reaches the accent's luminance, the brightest composite being grey 142.
+2. **Vessel needs no ground.** Its glass is opaque, so the upload never reaches behind it. Only the
+   digits and the controls do.
+3. **The muted tone is the worse case at 1.64:1**, and it exists only while the gauge is on, so any
+   ground shaped for the digits must cover both tones.
+
+Full record, including the capture commands and the spec that produced it, is in
+[logs/022-timer-gauge-settings-log.md](logs/022-timer-gauge-settings-log.md) under the measurement record.
+The gauge is off by default, so the miss is reachable only by opting in and uploading a bright image —
+that lowers its urgency but does not change the figure.
+
 ## Goal
 Text and controls on the timer page keep legal contrast over a bright or busy uploaded background, without
 the page gaining four rectangular panels. Task 019 proved the ratio problem is real and proved a scrim fixes

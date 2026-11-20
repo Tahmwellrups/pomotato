@@ -60,7 +60,7 @@ async function open(
   await page.goto("/");
   await page.evaluate(
     ([key, value]) => window.localStorage.setItem(key, value),
-    [PREFS_KEY, opts.raw ?? JSON.stringify({ state: { gaugeStyle: style }, version: 1 })] as const,
+    [PREFS_KEY, opts.raw ?? JSON.stringify({ state: { gaugeEnabled: true, gaugeStyle: style }, version: 1 })] as const,
   );
   if (opts.timer) await seedTimerState(page, timerOverrides(opts.timer));
   await page.goto(opts.path ?? "/");
@@ -298,7 +298,7 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
     await expect(page.locator("main")).toHaveCount(1);
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.locator("h1")).toHaveText("Settings");
-    await expect(page.locator("legend", { hasText: "Timer gauge" })).toHaveText("Timer gauge");
+    await expect(page.locator("legend", { hasText: "Gauge style" })).toHaveText("Gauge style");
     await expect(page.locator('input[type="radio"][name="gauge-style"]')).toHaveCount(2);
     expect(await page.evaluate(() => document.querySelectorAll('input[name="theme"]').length)).toBe(0);
   });
@@ -311,6 +311,7 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
       ),
     );
     // Task 017 added the session-length fields, Reset, the sound toggle, the volume slider and Preview.
+    // Task 022 added the timer gauge switch (a second checkbox).
     expect(names.sort()).toEqual(
       [
         "a::Back to the timer",
@@ -321,6 +322,7 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
         "input:text:",
         "input:text:",
         "button:button:Reset to defaults",
+        "input:checkbox:",
         "input:checkbox:",
         "input:range:",
         "button:button:Preview chime",
@@ -366,7 +368,7 @@ test.describe("criterion 19, 23: the surface is a main with one h1, a native rad
 test.describe("criterion 19, 20: labels say what each option does", () => {
   test("the group label is visible and each option states its behaviour", async ({ page }) => {
     await open(page, { path: "/settings" });
-    await expect(page.locator("legend", { hasText: "Timer gauge" })).toBeVisible();
+    await expect(page.locator("legend", { hasText: "Gauge style" })).toBeVisible();
     const glyph = optionLabel(page, "glyph");
     await expect(glyph).toContainText("At full and at empty they are one flat colour, so no level shows then.");
     const vessel = optionLabel(page, "vessel");
@@ -379,12 +381,15 @@ test.describe("criterion 19, 20: labels say what each option does", () => {
 test.describe("criterion 24: a chosen option reaches the real timer and survives reload and a new tab", () => {
   test("fresh visitor gets the vessel, picks the in-digits option, and it persists", async ({ page, context }) => {
     await page.emulateMedia({ colorScheme: "light" });
+    // Default is off (owner ruling 2026-11-19): a fresh visitor sees no gauge, vessel preselected.
     await page.goto("/");
-    await expect(gauge(page)).toHaveAttribute("data-gauge-ready", "true");
-    await expect(gauge(page)).toHaveAttribute("data-gauge-style", "vessel");
+    await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+    await expect(gauge(page)).toHaveCount(0);
     await settingsLink(page).click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(optionRadio(page, "vessel")).toBeChecked();
+    await page.getByText("Show timer gauge").click();
+    await expect(page.getByRole("switch", { name: "Show timer gauge" })).toHaveAttribute("aria-checked", "true");
     await optionLabel(page, "glyph").click();
     await expect(optionRadio(page, "glyph")).toBeChecked();
     await backLink(page).click();
@@ -405,9 +410,9 @@ test.describe("criterion 24: a chosen option reaches the real timer and survives
     expect(Object.keys(parsed).sort()).toEqual(["state", "version"]);
     // Task 011 adds the mix key; the pinned key list gains it. Task 015 adds
     // taskPanelVisible and moves the envelope to version 2 (lib/preferences/schema.ts).
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeEnabled", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
     expect(parsed.state.gaugeStyle).toBe("glyph");
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(raw).not.toMatch(/#[0-9a-fA-F]{3,8}|rgb|oklch|class/i);
   });
 });

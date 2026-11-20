@@ -22,6 +22,8 @@ interface PreferencesState extends Preferences {
 
 interface PreferencesActions {
   setGaugeStyle: (gaugeStyle: GaugeStylePreference) => void;
+  /** Turning the gauge off never touches `gaugeStyle`, so turning it back on restores the same style. */
+  setGaugeEnabled: (enabled: boolean) => void;
   setBackground: (background: BackgroundPreference) => void;
   setMix: (mix: Mix) => void;
   setTaskPanelVisible: (visible: boolean) => void;
@@ -44,6 +46,8 @@ export const usePreferencesStore = create<PreferencesStore>()(
       hasHydrated: false,
       setGaugeStyle: (gaugeStyle) =>
         set({ gaugeStyle: sanitizePreferences({ gaugeStyle }).gaugeStyle }),
+      setGaugeEnabled: (enabled) =>
+        set({ gaugeEnabled: typeof enabled === "boolean" ? enabled : PREFERENCE_DEFAULTS.gaugeEnabled }),
       setBackground: (background) => set({ background: sanitizePreferences({ background }).background }),
       setMix: (mix) => set({ mix: sanitizePreferences({ mix }).mix }),
       setTaskPanelVisible: (visible) =>
@@ -73,6 +77,7 @@ export const usePreferencesStore = create<PreferencesStore>()(
       skipHydration: true,
       partialize: (state): Preferences => ({
         gaugeStyle: state.gaugeStyle,
+        gaugeEnabled: state.gaugeEnabled,
         background: state.background,
         mix: state.mix,
         taskPanelVisible: state.taskPanelVisible,

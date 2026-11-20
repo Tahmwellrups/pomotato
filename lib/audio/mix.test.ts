@@ -122,7 +122,7 @@ describe("criterion 5 against the storage entry: rehydrate, unparseable JSON, ve
       version: number;
     };
     expect(stored.version).toBe(PREFERENCES_VERSION);
-    expect(Object.keys(stored.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
+    expect(Object.keys(stored.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeEnabled", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
     expect(stored.state).toMatchObject({ gaugeStyle: "glyph", background: null });
     expect(stored.state.mix).toEqual(defaultMixFor());
   });
@@ -151,7 +151,7 @@ describe("criterion 4: the mix is one key, and levels outlive mute, across a rel
     usePreferencesStore.getState().setMix(validMix());
     const parsed = JSON.parse(window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "null") as { state: Record<string, unknown>; version: number };
     expect(parsed.version).toBe(PREFERENCES_VERSION);
-    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
+    expect(Object.keys(parsed.state).sort()).toEqual(["background", "chimeEnabled", "chimeLevel", "focusMinutes", "gaugeEnabled", "gaugeStyle", "longBreakMinutes", "mix", "shortBreakMinutes", "taskPanelVisible"]);
     expect(isPreferences({ ...parsed.state })).toBe(true);
   });
 
