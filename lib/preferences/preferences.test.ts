@@ -19,7 +19,7 @@ describe("criterion 4: the entry carries its own key, a version and a migrate/me
   });
 
   it("carries a version constant that the persist options use", () => {
-    expect(PREFERENCES_VERSION).toBe(3);
+    expect(PREFERENCES_VERSION).toBe(4);
     expect(usePreferencesStore.persist.getOptions().version).toBe(PREFERENCES_VERSION);
   });
 
@@ -34,7 +34,7 @@ describe("task 010: the background reference", () => {
   const shipped = { state: { gaugeStyle: "glyph" }, version: 1 };
 
   it("the literal shipped payload keeps the gaugeStyle key and gains the null default", () => {
-    expect(sanitizePreferences(shipped.state)).toEqual({ gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
+    expect(sanitizePreferences(shipped.state)).toEqual({ gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: true, gaugeEnabled: false, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
     expect(isPreferences(shipped.state)).toBe(false);
   });
 
@@ -44,7 +44,7 @@ describe("task 010: the background reference", () => {
     const state = usePreferencesStore.getState();
     expect([state.gaugeStyle, state.background]).toEqual(["glyph", null]);
     const written = JSON.parse(window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "null");
-    expect(written).toEqual({ state: { gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 }, version: PREFERENCES_VERSION });
+    expect(written).toEqual({ state: { gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: true, gaugeEnabled: false, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 }, version: PREFERENCES_VERSION });
   });
 
   const bad: unknown[] = [42, true, {}, [], "has space", "a/b", "", "x".repeat(65), undefined];
@@ -53,7 +53,7 @@ describe("task 010: the background reference", () => {
       gaugeStyle: "glyph",
       background: null,
     mix: defaultMix(),
-    taskPanelVisible: true, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50,
+    taskPanelVisible: true, gaugeEnabled: false, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50,
     });
   });
 
@@ -61,7 +61,7 @@ describe("task 010: the background reference", () => {
     const id = "123e4567-e89b-42d3-a456-426614174000";
     usePreferencesStore.getState().setBackground(id);
     const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? "";
-    expect(JSON.parse(raw).state).toEqual({ gaugeStyle: usePreferencesStore.getState().gaugeStyle, background: id, mix: usePreferencesStore.getState().mix, taskPanelVisible: usePreferencesStore.getState().taskPanelVisible, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
+    expect(JSON.parse(raw).state).toEqual({ gaugeStyle: usePreferencesStore.getState().gaugeStyle, background: id, mix: usePreferencesStore.getState().mix, taskPanelVisible: usePreferencesStore.getState().taskPanelVisible, gaugeEnabled: false, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
     expect(raw.length).toBeLessThan(1024);
     usePreferencesStore.getState().setBackground(null);
   });

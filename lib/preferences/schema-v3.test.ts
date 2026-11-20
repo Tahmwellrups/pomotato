@@ -10,8 +10,8 @@ import { usePreferencesStore } from "./store";
 const EXISTING = { gaugeStyle: "glyph", background: null, mix: defaultMix(), taskPanelVisible: false };
 
 describe("criterion 24: the five keys are in the schema at version 3", () => {
-  it("PREFERENCES_VERSION is 3 and the defaults are 25, 5, 15, sound on, level 50", () => {
-    expect(PREFERENCES_VERSION).toBe(3);
+  it("PREFERENCES_VERSION is 4 and the defaults are 25, 5, 15, sound on, level 50", () => {
+    expect(PREFERENCES_VERSION).toBe(4);
     expect(PREFERENCE_DEFAULTS).toMatchObject({ focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
   });
 
@@ -36,7 +36,7 @@ describe("criterion 25: a version-2 entry loads with the five new keys at their 
     const state = usePreferencesStore.getState();
     expect(state).toMatchObject({ ...EXISTING, focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, chimeEnabled: true, chimeLevel: 50 });
     const written = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY)!);
-    expect(written.version).toBe(3);
+    expect(written.version).toBe(4);
     expect(written.state).toMatchObject({ gaugeStyle: "glyph", taskPanelVisible: false, focusMinutes: 25 });
   });
 });

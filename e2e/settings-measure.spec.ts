@@ -50,9 +50,9 @@ for (const forced of [false, true] as const) {
     if (forced) await page.emulateMedia({ forcedColors: "active" });
     const toggle = page.getByRole("checkbox", { name: "Play a chime when a session ends" });
     await expect(toggle).toBeChecked();
-    await expect(page.getByText("On", { exact: true })).toBeVisible();
+    await expect(page.locator("label").filter({ has: page.getByRole("checkbox", { name: "Play a chime when a session ends" }) }).getByText("On", { exact: true })).toBeVisible();
     await toggle.uncheck();
-    await expect(page.getByText("Off", { exact: true })).toBeVisible();
-    await expect(page.getByText("On", { exact: true })).toHaveCount(0);
+    await expect(page.locator("label").filter({ has: page.getByRole("checkbox", { name: "Play a chime when a session ends" }) }).getByText("Off", { exact: true })).toBeVisible();
+    await expect(page.locator("label").filter({ has: page.getByRole("checkbox", { name: "Play a chime when a session ends" }) }).getByText("On", { exact: true })).toHaveCount(0);
   });
 }

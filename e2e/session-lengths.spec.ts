@@ -41,7 +41,7 @@ test.describe("criterion 1, 2, 7: the settings route and the timer's first visit
     await page.goto("/settings");
     await expect(page.getByRole("group", { name: "Session lengths" })).toBeVisible();
     await expect(page.getByRole("group", { name: "Session-end sound" })).toBeVisible();
-    await expect(page.getByRole("group", { name: "Timer gauge" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Gauge style" })).toBeVisible();
     // Criterion 1's heading clause: the route has one h1 and no heading below it, the same shape as the existing sections.
     await expect(page.locator("h1")).toHaveCount(1);
     await page.goto("/");
@@ -441,7 +441,7 @@ test.describe("criterion 33, 61, 62, 63, 64, 65: console, live regions, axe, mot
       field(page, "short-break-length"),
       field(page, "long-break-length"),
       page.getByRole("button", { name: "Reset to defaults" }),
-      page.locator("label:has(input[type='checkbox'])"),
+      page.locator("label:has(input[type='checkbox']):not(:has([role='switch']))"),
       page.getByRole("slider", { name: "Chime volume" }),
       page.getByRole("button", { name: "Preview chime" }),
     ];

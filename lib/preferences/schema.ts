@@ -61,6 +61,8 @@ export function isBackgroundId(raw: unknown): raw is string {
 
 export interface Preferences {
   gaugeStyle: GaugeStylePreference;
+  /** Task 022: whether the timer gauge renders at all. Independent of `gaugeStyle`, which keeps its value while this is false. */
+  gaugeEnabled: boolean;
   background: BackgroundPreference;
   /**
    * Task 011's ambient mix: which layers are on and each layer's level (an
@@ -82,13 +84,14 @@ export interface Preferences {
 
 /** localStorage key. Not "pomotato-timer". The boot script reads this same constant. */
 export const PREFERENCES_STORAGE_KEY = "pomotato-preferences";
-export const PREFERENCES_VERSION = 3;
+export const PREFERENCES_VERSION = 4;
 
 // The vessel, so no existing screen changes until someone picks otherwise.
 export const DEFAULT_GAUGE_STYLE: GaugeStylePreference = "vessel";
 
 export const PREFERENCE_DEFAULTS: Preferences = {
   gaugeStyle: DEFAULT_GAUGE_STYLE,
+  gaugeEnabled: false,
   background: null,
   mix: defaultMix(),
   taskPanelVisible: true,
@@ -101,6 +104,7 @@ export const PREFERENCE_DEFAULTS: Preferences = {
 
 /** Keys that are not a closed value set: each has a validator or an inline check instead. */
 type FreeFormKey =
+  | "gaugeEnabled"
   | "background"
   | "mix"
   | "taskPanelVisible"
@@ -136,6 +140,7 @@ export function sanitizePreferences(raw: unknown): Preferences {
     typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
     gaugeStyle: pick("gaugeStyle", record.gaugeStyle),
+    gaugeEnabled: typeof record.gaugeEnabled === "boolean" ? record.gaugeEnabled : PREFERENCE_DEFAULTS.gaugeEnabled,
     background: isBackgroundId(record.background) ? record.background : PREFERENCE_DEFAULTS.background,
     mix: sanitizeMix(record.mix),
     taskPanelVisible:
@@ -157,6 +162,7 @@ export function isPreferences(raw: unknown): raw is Preferences {
   );
   return (
     enumsValid &&
+    typeof record.gaugeEnabled === "boolean" &&
     (record.background === null || isBackgroundId(record.background)) &&
     isMix(record.mix) &&
     typeof record.taskPanelVisible === "boolean" &&
@@ -167,7 +173,9 @@ export function isPreferences(raw: unknown): raw is Preferences {
 }
 
 /**
- * Version 3 is current. Unknown or older shapes are sanitised, never trusted.
+ * Version 4 is current (task 022 added `gaugeEnabled`, default false: a payload
+ * from version 1 to 3 keeps every key it has and gains it as false).
+ * Version 3 was the previous shape. Unknown or older shapes are sanitised, never trusted.
  * A version-2 payload (no session lengths or chime keys) keeps every key it
  * has and gains the defaults for the rest, because `sanitizePreferences` falls
  * back per key. That per-key fallback is also why `gaugeStyle`, `background`
